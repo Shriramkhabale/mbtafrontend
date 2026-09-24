@@ -1,0 +1,102 @@
+$myclientidpass = $myclientid.':'.$myclientpassword;
+$basevar = base64_encode($myclientidpass);
+$encryptedRequest = "";
+$header = [
+    'Content-type:application/x-www-form-urlencoded',
+    'Authorization: Basic '.$basevar
+];
+
+$httpUrl = "https://emsapi.ieiletds.com/api/v1/Auth/GetAuthCode"; // live
+
+$curl = curl_init();
+curl_setopt_array($curl, array(
+    CURLOPT_URL => $httpUrl,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_MAXREDIRS => 10,
+    CURLOPT_TIMEOUT => 60,
+    CURLOPT_CUSTOMREQUEST => 'POST',
+    CURLOPT_POSTFIELDS => $encryptedRequest,
+    CURLOPT_HTTPHEADER => $header,
+	CURLOPT_SSL_VERIFYPEER => false,
+	CURLOPT_SSL_VERIFYHOST => false
+	));
+$raw_response = curl_exec($curl);
+curl_close($curl);
+
+ $jsdata = json_decode($raw_response, true);
+echo json_encode($jsdata, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+$clientauthcode = $jsdata['AuthCode'];
+$myclientidauthcode = $myclientid.':'.$clientauthcode;
+$base64cidacode = base64_encode($myclientidauthcode);
+
+$cipher = "aes-256-cbc";
+
+
+ $encryption_key = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+
+
+$iv = str_repeat("0", openssl_cipher_iv_length($cipher));
+$edbase64cidacode = (openssl_encrypt($base64cidacode, $cipher,
+$encryption_key, 0, $iv));
+
+function base64_url_encode($input) {return strtr($input, '+/+$', '-_');}
+$edbase64cidacode = base64_url_encode($edbase64cidacode);
+
+
+    $first_name = $first_name;
+    $last_name  =  $last_name;
+    $middle_name =  $middle_name;
+
+$app_dob = str_replace('-', '/', $app_dob);
+
+if(strlen($app_dob) != 10) { $app_dob = ''; }
+if(strlen($app_mobile_no) != 10) { $app_mobile_no = ''; }
+
+if(empty($title))    { $title = ''; }
+if(empty($email_id)) { $email_id = ''; }
+
+ $agentid = $agentid;
+ $payloaddata = [
+    'transaction' => [
+        'tid'         => (string)$order_id,
+        'agentid'     => (string)$agentid,
+        'subagentid'  => (string)$agentid,
+        'scope'       => (string)$pan_type,
+        'redirecturl' => 'https://XXXXXXXXXXXXXXXXXXXXXX',
+        'title'       => $title, 
+        'lastname'    => $last_name,
+        'firstname'   => $first_name,
+        'middlename'  => $middle_name,
+        'dateofbirth' => $app_dob,
+        'mobileno'    => $app_mobile_no,
+        'emailid'     => $email_id,
+        'pan'         => '',
+    ]
+];
+ 
+$jsonpayloaddata = json_encode($payloaddata);
+$edjsonpayloaddata = openssl_encrypt($jsonpayloaddata, $cipher,
+$encryption_key, 0, $iv);
+$edjsonpayloaddata = base64_url_encode($edjsonpayloaddata);
+$edauthkey = "$agentid";
+
+$data = [
+    "token" => $edbase64cidacode,
+    "payload" => $edjsonpayloaddata,
+    "authkey" => $edauthkey
+];
+
+$jsondata = json_encode($data);
+$form  = "";
+$form .= "<html>";
+$form .= "<body onload='document.forms[\"ApiRequestForm\"].submit()'>";
+$form .= "<form id=\"ApiRequestForm\" method=\"POST\" action=\"https://www.idmsonline.in/ETDS/Auth/Authorizernew.aspx\">"; //live
+$form .= "<input type=\"hidden\" name=\"data\" id=\"data\" value='".$jsondata."'>";
+$form .= "</form>";
+$form .= "</body>";
+$form .= "</html>";
+print $form;
+?>
+</body>
+</html

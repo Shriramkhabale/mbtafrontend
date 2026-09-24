@@ -1,0 +1,93 @@
+<?php
+//Step 1
+$clientid = 'XXXXXXXXXXXXXX';
+$clientpassword = 'XXXXXXXXXXXXXXXXX';
+$clientidpass = $clientid.':'.$clientpassword;
+$basevar = base64_encode($clientidpass);
+$encryptedRequest = "";
+$header = [
+    'Content-type:application/x-www-form-urlencoded',
+    'Authorization: Basic '.$basevar
+];
+$httpUrl = "https://emsapi.ieiletds.com/api/v1/Auth/GetAuthCode";
+$curl = curl_init();
+curl_setopt_array($curl, array(
+    CURLOPT_URL => $httpUrl,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_MAXREDIRS => 10,
+    CURLOPT_TIMEOUT => 60,
+    CURLOPT_CUSTOMREQUEST => 'POST',
+    CURLOPT_POSTFIELDS => $encryptedRequest,
+    CURLOPT_HTTPHEADER => $header,
+    CURLOPT_SSL_VERIFYPEER => false,  // Disable SSL peer verification
+    CURLOPT_SSL_VERIFYHOST => false   // Disable SSL host verification
+));
+
+$raw_response = curl_exec($curl);
+
+if ($raw_response === false) {
+    $error = curl_error($curl);
+    $error_code = curl_errno($curl);
+    echo "cURL Error ($error_code): $error";
+    return;
+}else {}
+curl_close($curl);
+
+
+$jsdata = json_decode($raw_response, true);
+
+//Step 2
+$clientid_s2 = 'XXXXXXXXXXXXXXX';
+$clientauthcode = $jsdata['AuthCode'];
+$clientidauthcode = $clientid_s2.':'.$clientauthcode;
+$base64cidacode = base64_encode($clientidauthcode);
+
+$cipher = "aes-256-cbc";
+$encryption_key = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXX;
+$iv = str_repeat("0", openssl_cipher_iv_length($cipher));
+$edbase64cidacode = (openssl_encrypt($base64cidacode, $cipher, $encryption_key, 0, $iv));
+
+function base64_url_encode($input) {return strtr($input, '+/+$', '-_');}
+$edbase64cidacode = base64_url_encode($edbase64cidacode);
+
+
+
+$timee="".strtotime("now")."";
+$agentid = 'XXXXXXXXXXXXXXXX';
+$subagentid = 'XXXXXXXXXXXXXXX';
+$payloaddata =  [
+'transaction' =>
+[
+'tid' => $timee,
+'agentid' => 'XXXXXXXXXXXXXX',
+'subagentid' => "XXXXXXXXXXXXXXXXX",
+'scope' => '3',
+'redirecturl' => 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+]
+];
+
+$jsonpayloaddata = json_encode($payloaddata);
+$edjsonpayloaddata = openssl_encrypt($jsonpayloaddata, $cipher, $encryption_key, 0, $iv);
+$edjsonpayloaddata = base64_url_encode($edjsonpayloaddata);
+$edauthkey = "14024001";
+
+$data = [
+    "token" => $edbase64cidacode,
+    "payload" => $edjsonpayloaddata,
+    "authkey" => $edauthkey
+];
+
+$jsondata = json_encode($data);
+
+$form = "";
+$form .="<html>";
+$form .="<body onload='document.forms[\"ApiRequestForm\"].submit()'>";
+$form .="<form id=\"ApiRequestForm\" method=\"POST\" action=\"https://www.ieiletds.com/Auth/Authorizer.aspx\">";
+$form .="<input type=\"hidden\" name=\"data\" id=\"data\" value='";
+$form .=$jsondata;
+$form .="'>";
+$form .="</form>";
+$form .="</body>";
+$form .="</html>";
+print $form;
+?> 

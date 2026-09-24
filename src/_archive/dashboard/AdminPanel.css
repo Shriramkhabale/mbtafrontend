@@ -1,0 +1,517 @@
+/* ==========================================================================
+   SUPER ADMIN PORTAL & ADMIN PANEL STYLES
+   ========================================================================== */
+
+/* SUPER ADMIN LOGIN WRAPPER & CARD */
+.super-admin-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: radial-gradient(circle at 15% 15%, #2a1b4e 0%, #151138 50%, #0b0924 100%);
+  font-family: var(--font-main);
+  box-sizing: border-box;
+}
+
+.super-admin-card {
+  width: min(92%, 440px);
+  margin: auto;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), 0 0 40px rgba(139, 44, 255, 0.2);
+  overflow: hidden;
+  position: relative;
+  animation: fadeInUp 0.4s ease;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* TOP BANNER */
+.super-admin-banner {
+  background: linear-gradient(135deg, #8B2CFF 0%, #5C3BFF 100%);
+  padding: 36px 28px 30px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: white;
+  position: relative;
+}
+
+.super-admin-icon-badge {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+
+.super-admin-title {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.5px;
+}
+
+.super-admin-subtitle {
+  font-size: 13px;
+  opacity: 0.92;
+  font-weight: 500;
+  margin: 0;
+}
+
+/* CARD BODY & FORM */
+.super-admin-body {
+  padding: 30px 28px 24px 28px;
+}
+
+.super-admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.super-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.super-input-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.super-input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.super-input-icon {
+  position: absolute;
+  left: 16px;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.super-input-with-icon input {
+  width: 100%;
+  padding: 14px 44px 14px 48px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: var(--font-main);
+  outline: none;
+  transition: all 0.2s ease;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.super-input-with-icon input::placeholder {
+  color: #94a3b8;
+}
+
+.super-input-with-icon input:focus {
+  border-color: #8B2CFF;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(139, 44, 255, 0.15);
+}
+
+.super-input-with-icon input:focus + .super-input-icon,
+.super-input-with-icon:focus-within .super-input-icon {
+  color: #8B2CFF;
+}
+
+.super-toggle-password {
+  position: absolute;
+  right: 16px;
+  cursor: pointer;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.super-toggle-password:hover {
+  color: #8B2CFF;
+}
+
+.super-forgot-row {
+  display: flex;
+  justify-content: flex-start;
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.super-forgot-link {
+  color: #7C3AED;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.super-forgot-link:hover {
+  color: #5B21B6;
+  text-decoration: underline;
+}
+
+.super-access-btn {
+  background: linear-gradient(135deg, #8B2CFF 0%, #5C3BFF 100%);
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-main);
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(139, 44, 255, 0.35);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-top: 6px;
+}
+
+.super-access-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(139, 44, 255, 0.45);
+}
+
+.super-access-btn:active {
+  transform: translateY(0);
+}
+
+.super-admin-footer {
+  margin-top: 28px;
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   ADMIN MANAGEMENT PANEL DASHBOARD STYLES
+   ========================================================================== */
+
+.admin-layout {
+  display: flex;
+  height: 100vh;
+  background-color: #f8fafc;
+  font-family: var(--font-main);
+}
+
+/* Sidebar */
+.admin-sidebar {
+  width: 260px;
+  background-color: #1e1b4b;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
+  z-index: 10;
+}
+
+.admin-brand {
+  padding: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-brand h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #a78bfa;
+  font-family: var(--font-heading);
+}
+
+.admin-nav-vertical {
+  flex: 1;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-nav-btn {
+  display: flex;
+  align-items: center;
+  padding: 14px 24px;
+  background: transparent;
+  border: none;
+  color: #c7d2fe;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+  width: 100%;
+  font-family: var(--font-main);
+}
+
+.admin-nav-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.admin-nav-btn.active {
+  background: linear-gradient(135deg, #8B2CFF 0%, #5C3BFF 100%);
+  color: #fff;
+  box-shadow: 0 4px 15px rgba(139, 44, 255, 0.3);
+}
+
+.nav-icon {
+  margin-right: 12px;
+  font-size: 18px;
+}
+
+/* Main Area */
+.admin-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-topbar {
+  background-color: #ffffff;
+  height: 70px;
+  padding: 0 30px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  z-index: 5;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-topbar h1 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-content-wrapper {
+  flex: 1;
+  padding: 28px;
+  overflow-y: auto;
+}
+
+/* Grid Layout */
+.admin-panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr;
+  gap: 25px;
+}
+
+.admin-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.03);
+  padding: 24px;
+  border: 1px solid #f1f5f9;
+}
+
+.admin-card h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  color: #0f172a;
+  border-bottom: 2px solid #f1f5f9;
+  padding-bottom: 10px;
+}
+
+/* Modern Form Elements */
+.modern-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modern-form input[type="text"],
+.modern-form input[type="email"],
+.modern-form input[type="password"],
+.modern-form input[type="number"] {
+  padding: 12px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: var(--font-main);
+  transition: all 0.2s ease;
+  outline: none;
+  background: #f8fafc;
+}
+
+.modern-form input:focus {
+  border-color: #8B2CFF;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(139, 44, 255, 0.12);
+}
+
+.file-upload-wrapper {
+  border: 2px dashed #cbd5e1;
+  padding: 15px;
+  border-radius: 10px;
+  text-align: center;
+  background-color: #f8fafc;
+}
+
+.modern-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.modern-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: #8B2CFF;
+}
+
+.modern-submit-btn {
+  background: linear-gradient(135deg, #8B2CFF 0%, #5C3BFF 100%);
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: var(--font-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(139, 44, 255, 0.3);
+  margin-top: 10px;
+}
+
+.modern-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(139, 44, 255, 0.4);
+}
+
+/* Modern List Elements */
+.modern-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background-color: #f8fafc;
+  transition: background-color 0.2s ease;
+}
+
+.list-item:hover {
+  background-color: #ffffff;
+}
+
+.item-name {
+  flex: 1;
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+  margin-left: 15px;
+}
+
+.item-thumb {
+  width: 45px;
+  height: 45px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+}
+
+.item-thumb.large {
+  width: 120px;
+  height: 60px;
+}
+
+.item-thumb.portrait {
+  width: 40px;
+  height: 60px;
+}
+
+.modern-delete-btn {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.modern-delete-btn:hover {
+  background-color: #dc2626;
+}
+
+/* RESPONSIVE MEDIA QUERIES */
+@media (max-width: 1024px) {
+  .admin-panel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-layout {
+    flex-direction: column;
+  }
+  .admin-sidebar {
+    width: 100%;
+    flex-direction: row;
+    height: auto;
+    overflow-x: auto;
+    padding: 10px;
+  }
+  .admin-brand {
+    display: none;
+  }
+  .admin-nav-vertical {
+    flex-direction: row;
+    padding: 0;
+  }
+  .admin-nav-btn {
+    white-space: nowrap;
+    padding: 10px 15px;
+  }
+}
+
+@media (max-width: 480px) {
+  .super-admin-card {
+    border-radius: 20px;
+  }
+  .super-admin-banner {
+    padding: 28px 20px 24px 20px;
+  }
+  .super-admin-title {
+    font-size: 22px;
+  }
+  .super-admin-body {
+    padding: 24px 20px 20px 20px;
+  }
+}
