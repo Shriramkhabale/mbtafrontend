@@ -14,6 +14,51 @@ function base64ToUint8Array(base64) {
   return bytes;
 }
 
+export const getCleanLastName = (lastName, firstName, applicantName) => {
+  let l = String(lastName || '').trim();
+  const f = String(firstName || '').trim();
+  const app = String(applicantName || '').trim();
+
+  // If no lastName provided, extract last word of applicantName
+  if (!l && app) {
+    const parts = app.split(/\s+/).filter(Boolean);
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';
+  }
+
+  // If lastName contains multiple words (e.g. full name was mistakenly stored)
+  const parts = l.split(/\s+/).filter(Boolean);
+  if (parts.length > 1) {
+    const titles = ['SHRI', 'SMT', 'KUMARI', 'MS', 'MRS', 'MR', 'DR', 'M/S'];
+    const fUpper = f.toUpperCase();
+    const lUpper = l.toUpperCase();
+    const appUpper = app.toUpperCase();
+
+    const startsWithTitle = titles.includes(parts[0].toUpperCase());
+    const containsFirstName = Boolean(fUpper && parts.map(p => p.toUpperCase()).includes(fUpper));
+    const equalsApplicantName = Boolean(appUpper && lUpper === appUpper);
+
+    if (startsWithTitle || containsFirstName || equalsApplicantName) {
+      let remaining = startsWithTitle ? parts.slice(1) : [...parts];
+      if (fUpper) {
+        remaining = remaining.filter(p => p.toUpperCase() !== fUpper);
+      }
+      if (remaining.length > 0) {
+        return remaining.join(' ');
+      }
+      return parts[parts.length - 1];
+    }
+  }
+  return l;
+};
+
+export const getIndividualCapacity = (data = {}, isMinor = false) => {
+  if (isMinor || data.isMinor === true) return 'REPRESENTATIVE ASSESSEE';
+  const g = String(data.gender || '').toUpperCase();
+  const t = String(data.title || '').toUpperCase();
+  const isFemale = g === 'FEMALE' || g === 'F' || ['SMT', 'KUMARI', 'MS', 'MRS'].includes(t);
+  return isFemale ? 'HERSELF' : 'HIMSELF';
+};
+
 /*
  * FORM NO. 93 - Individual / Citizen of India
  * --------------------------------------------
@@ -386,7 +431,8 @@ export const generateForm93Pdf = async (
     // 1. A. Applicant Name
     const nameParts = String(data.applicantName || '').trim().split(/\s+/).filter(Boolean);
     const fName = (data.firstName !== undefined && data.firstName !== '') ? data.firstName : (nameParts.length > 1 ? nameParts[0] : (nameParts[0] || ''));
-    const lName = (data.lastName !== undefined && data.lastName !== '') ? data.lastName : (nameParts.length > 1 ? nameParts[nameParts.length - 1] : '');
+    const rawLName = (data.lastName !== undefined && data.lastName !== '') ? data.lastName : (nameParts.length > 1 ? nameParts[nameParts.length - 1] : '');
+    const lName = getCleanLastName(rawLName, fName, data.applicantName);
     const mName = (data.middleName !== undefined && data.middleName !== '') ? data.middleName : (nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '');
     const fullName = `${fName} ${mName} ${lName}`.replace(/\s+/g, ' ').trim() || (data.applicantName || lName || '');
 
@@ -483,7 +529,7 @@ export const generateForm93Pdf = async (
       x: 295.0, y: 415.7, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
     });
     if (resPin) {
-      drawCells(page1, resPin, 472.0, 415.7, 15.4, 6);
+      drawCells(page1, resPin, 457.0, 415.7, 15.35, 6);
     }
 
     // 6. Office Address
@@ -511,7 +557,7 @@ export const generateForm93Pdf = async (
         x: 295.0, y: 318.1, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
       });
       if (offPin) {
-        drawCells(page1, offPin, 472.0, 318.1, 15.4, 6);
+        drawCells(page1, offPin, 457.0, 318.1, 15.35, 6);
       }
     }
 
@@ -537,7 +583,7 @@ export const generateForm93Pdf = async (
 
     // 10. Contact Details
     drawCells(page1, data.countryCode || '91', 240.3, 230.8, 14.8, 2);
-    drawCells(page1, String(data.mobileNumber || '').slice(-10), 373.0, 230.8, 15.1, 10);
+    drawCells(page1, String(data.mobileNumber || '').replace(/\D/g, '').slice(-10), 373.0, 230.8, 15.1, 10);
     if (data.email) {
       page1.drawText(String(data.email).slice(0, 48), {
         x: 245.0, y: 217.4, size: 7.5, font: fontBold, color: rgb(0, 0, 0),
@@ -551,19 +597,21 @@ export const generateForm93Pdf = async (
     }
 
     // 11. Source of Income
-    const inc = String(data.sourceOfIncome || data.incomeSource || '').toUpperCase();
-    if (inc.includes('SALARY') || data.salaryIncome) {
+    const inc = String(data.sourceofincome || data.sourceOfIncome || data.incomeSource || data.incomeSources || '').toUpperCase();
+    if (inc.includes('SALARY') || data.salaryIncome || data.salary) {
       drawTick(page1, 179.4, 164.2);
     } else if (inc.includes('BUSINESS') || inc.includes('PROFESSION') || data.businessIncome) {
       drawTick(page1, 256.1, 164.2);
     } else if (inc.includes('HOUSE') || inc.includes('PROPERTY') || data.housePropertyIncome) {
       drawTick(page1, 410.5, 164.2);
-    } else if (inc.includes('CAPITAL') || data.capitalGainsIncome) {
+    } else if (inc.includes('CAPITAL') || inc.includes('GAINS') || data.capitalGainsIncome || data.capitalGains) {
       drawTick(page1, 179.4, 148.0);
-    } else if (inc.includes('NO INCOME') || data.noIncome) {
+    } else if (inc.includes('NO INCOME') || inc.includes('NONE') || data.noIncome) {
       drawTick(page1, 410.5, 148.0);
-    } else {
-      drawTick(page1, 256.1, 148.0); // Income from Other Sources (default)
+    } else if (inc.includes('OTHER') || data.otherIncome) {
+      drawTick(page1, 256.1, 148.0);
+    } else if (inc) {
+      drawTick(page1, 256.1, 148.0); // Income from Other Sources (fallback if unknown non-empty)
     }
 
     // 12. Whether mother/father is a single parent?
@@ -666,12 +714,12 @@ export const generateForm93Pdf = async (
       });
       const raPin = String(raAddr.pincode || resPin).replace(/\D/g, '').slice(0, 6);
       if (raPin) {
-        drawCells(page2, raPin, 472.0, 512.4, 15.4, 6);
+        drawCells(page2, raPin, 454.1, 512.4, 15.35, 6);
       }
 
       // RA Contact
       drawCells(page2, data.raCountryCode || data.countryCode || '91', 240.3, 481.3, 14.8, 2);
-      drawCells(page2, String(data.raMobileNumber || data.mobileNumber || '').slice(-10), 373.0, 481.3, 15.1, 10);
+      drawCells(page2, String(data.raMobileNumber || data.mobileNumber || '').replace(/\D/g, '').slice(-10), 373.0, 481.3, 15.1, 10);
       if (data.raEmail || data.email) {
         page2.drawText(String(data.raEmail || data.email).slice(0, 48), {
           x: 245.0, y: 467.3, size: 7.5, font: fontBold, color: rgb(0, 0, 0),
@@ -708,7 +756,7 @@ export const generateForm93Pdf = async (
 
     // Verification & Declaration
     const vName = (data.verifierName || (isMinor ? `${raFirst} ${raMiddle} ${raLast}`.trim() : fullName) || fullName).toUpperCase();
-    const vCap = (data.verifierCapacity || (isMinor ? 'REPRESENTATIVE ASSESSEE' : 'SELF')).toUpperCase();
+    const vCap = getIndividualCapacity(data, isMinor);
     const vPlace = (data.verifierPlace || data.place || resDist || 'DELHI').toUpperCase();
     const vDate = data.verifierDate || data.date || new Date().toISOString().split('T')[0];
     const vDateFmt = vDate.includes('-') ? vDate.split('-').reverse().join('/') : vDate;
@@ -766,7 +814,7 @@ export const generateForm93Pdf = async (
 
     // Under signature box: Designation:
     page2.drawRectangle({ x: 420.0, y: 37.0, width: 115.0, height: 13.0, color: rgb(1, 1, 1) });
-    page2.drawText(': ' + vCap.slice(0, 24), { x: 421.0, y: 40.0, size: 7.5, font: fontBold, color: rgb(0, 0, 0) });
+    page2.drawText(': Authorized Person', { x: 421.0, y: 40.0, size: 7.5, font: fontBold, color: rgb(0, 0, 0) });
 
     // Append all uploaded documents after the first 2 pages
     try {
@@ -1077,7 +1125,8 @@ const Form93PdfTemplate = ({ data = {} }) => {
   // 1. Name normalization
   const nameParts = (data.applicantName || data.nameAsPerAadhaar || '').trim().split(' ');
   const fName = isIndividual ? ((data.firstName !== undefined && data.firstName !== '') ? data.firstName : (nameParts.length > 1 ? nameParts[0] : nameParts[0] || '')) : '';
-  const lName = isIndividual ? ((data.lastName !== undefined && data.lastName !== '') ? data.lastName : (nameParts.length > 1 ? nameParts[nameParts.length - 1] : '') || '') : (entityTitleName || data.applicantName || '');
+  const rawLName = isIndividual ? ((data.lastName !== undefined && data.lastName !== '') ? data.lastName : (nameParts.length > 1 ? nameParts[nameParts.length - 1] : '') || '') : (entityTitleName || data.applicantName || '');
+  const lName = isIndividual ? getCleanLastName(rawLName, fName, data.applicantName || data.nameAsPerAadhaar) : rawLName;
   const mName = isIndividual ? ((data.middleName !== undefined && data.middleName !== '') ? data.middleName : (nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '') || '') : '';
 
   const fullName = isIndividual ? `${fName} ${mName} ${lName}`.replace(/\s+/g, ' ').trim() : lName;
@@ -1220,6 +1269,7 @@ const Form93PdfTemplate = ({ data = {} }) => {
   const raAadhaarVal = data.raAadhaarNumber || data.guardianAadhaarNumber || data.guardianAadhaar || '';
   const raAddressVal = data.representativeAddress || data.raAddress || (isApplicantMinor ? residence : {});
   const raPhotoDisplay = data.raPhotoUrl || data.proofOfOtherUrl || data.thirdPhotoUrl;
+  const vCap = getIndividualCapacity(data, isApplicantMinor);
 
   return (
     <div
@@ -1832,8 +1882,8 @@ const Form93PdfTemplate = ({ data = {} }) => {
                 {data.verifierName || fullName.toUpperCase()}
               </span>
               , in the capacity of{' '}
-              <span style={{ textDecoration: 'underline' }}>
-                {data.verifierCapacity || data.representativeCapacity || 'Self'}
+              <span style={{ textDecoration: 'underline', fontWeight: 'bold' }}>
+                {vCap}
               </span>{' '}
               (Self/ Representative Assessee) do hereby declare that what is stated above is true to the best of my knowledge and belief.
             </div>
@@ -1920,7 +1970,7 @@ const Form93PdfTemplate = ({ data = {} }) => {
                 >
                   <div>Name: {(data.verifierName || fullName.toUpperCase() || '').trim() || '____________________________'}</div>
                   <div style={{ marginTop: '1.8mm' }}>
-                    Designation: {(data.verifierCapacity || data.representativeCapacity || '').trim() || '________________________'}
+                    Designation: Authorized Person
                   </div>
                 </div>
               </div>
@@ -2549,6 +2599,11 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
         }
       }
     }
+    if (dobDay || dobMonth || dobYear) {
+      page1.drawRectangle({ x: 181.5, y: H - 223.5, width: 29.5, height: 11.5, color: rgb(1, 1, 1) });
+      page1.drawRectangle({ x: 227.4, y: H - 223.5, width: 29.5, height: 11.5, color: rgb(1, 1, 1) });
+      page1.drawRectangle({ x: 273.5, y: H - 223.5, width: 59.5, height: 11.5, color: rgb(1, 1, 1) });
+    }
     if (dobDay) drawCells(page1, dobDay.padStart(2, '0').slice(-2), 180.64, H - 222.26 + 2.5, 15.34, 2);
     if (dobMonth) drawCells(page1, dobMonth.padStart(2, '0').slice(-2), 226.54, H - 222.26 + 2.5, 15.34, 2);
     if (dobYear) drawCells(page1, dobYear.slice(0, 4), 272.60, H - 222.26 + 2.5, 15.34, 4);
@@ -2569,7 +2624,7 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
     page1.drawText(String(off.country || off.officeCountry || 'INDIA').toUpperCase().slice(0, 16), {
       x: 292, y: H - 324.1 + 2.5, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
     });
-    drawCells(page1, off.pincode || off.officePincode || '', 472.87, H - 324.1 + 2.5, 15.35, 6);
+    drawCells(page1, off.pincode || off.officePincode || '', 457.52, H - 324.1 + 2.5, 15.35, 6);
 
     // 4. Communication Address
     const comm = (data.commFlatNo || data.commDistrict) ? data : off;
@@ -2587,7 +2642,7 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
     page1.drawText(String(comm.commCountry || off.country || 'INDIA').toUpperCase().slice(0, 16), {
       x: 292, y: H - 421.7 + 2.5, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
     });
-    drawCells(page1, comm.commPincode || off.pincode || off.officePincode || '', 472.87, H - 421.7 + 2.5, 15.35, 6);
+    drawCells(page1, comm.commPincode || off.pincode || off.officePincode || '', 457.52, H - 421.7 + 2.5, 15.35, 6);
 
     // 5. Status Checkbox (Item 5)
     const st = String(data.category || data.applicantStatus || 'COMPANY').toUpperCase();

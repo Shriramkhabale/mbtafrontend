@@ -16,6 +16,51 @@ function base64ToUint8Array(base64) {
   return bytes;
 }
 
+export const getCleanLastName = (lastName, firstName, applicantName) => {
+  let l = String(lastName || '').trim();
+  const f = String(firstName || '').trim();
+  const app = String(applicantName || '').trim();
+
+  // If no lastName provided, extract last word of applicantName
+  if (!l && app) {
+    const parts = app.split(/\s+/).filter(Boolean);
+    return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';
+  }
+
+  // If lastName contains multiple words (e.g. full name was mistakenly stored)
+  const parts = l.split(/\s+/).filter(Boolean);
+  if (parts.length > 1) {
+    const titles = ['SHRI', 'SMT', 'KUMARI', 'MS', 'MRS', 'MR', 'DR', 'M/S'];
+    const fUpper = f.toUpperCase();
+    const lUpper = l.toUpperCase();
+    const appUpper = app.toUpperCase();
+
+    const startsWithTitle = titles.includes(parts[0].toUpperCase());
+    const containsFirstName = Boolean(fUpper && parts.map(p => p.toUpperCase()).includes(fUpper));
+    const equalsApplicantName = Boolean(appUpper && lUpper === appUpper);
+
+    if (startsWithTitle || containsFirstName || equalsApplicantName) {
+      let remaining = startsWithTitle ? parts.slice(1) : [...parts];
+      if (fUpper) {
+        remaining = remaining.filter(p => p.toUpperCase() !== fUpper);
+      }
+      if (remaining.length > 0) {
+        return remaining.join(' ');
+      }
+      return parts[parts.length - 1];
+    }
+  }
+  return l;
+};
+
+export const getIndividualCapacity = (data = {}, isMinor = false) => {
+  if (isMinor || data.isMinor === true) return 'REPRESENTATIVE ASSESSEE';
+  const g = String(data.gender || '').toUpperCase();
+  const t = String(data.title || '').toUpperCase();
+  const isFemale = g === 'FEMALE' || g === 'F' || ['SMT', 'KUMARI', 'MS', 'MRS'].includes(t);
+  return isFemale ? 'HERSELF' : 'HIMSELF';
+};
+
 
 // Helper to render character grid boxes with exact sizing & crisp text
 const renderLetterBoxes = (str = '', length = 25, boxWidth = '15.5px', boxHeight = '18.5px', fontSize = '11px') => {
@@ -260,7 +305,7 @@ const Form49APdfTemplate = ({ data = {} }) => {
     aadhaar: field('aadhaarNumber', field('aadhaar')),
     firstName: field('firstName'),
     middleName: field('middleName'),
-    lastName: field('lastName'),
+    lastName: getCleanLastName(field('lastName'), field('firstName'), field('applicantName')),
     aadhaarName,
     fatherFirstName: field('fatherFirstName'),
     fatherMiddleName: field('fatherMiddleName'),
@@ -1155,15 +1200,16 @@ const Form49APdfTemplate = ({ data = {} }) => {
                   fontWeight: 'bold',
                   paddingLeft: '5px'
                 }}>
-                  {(fullNameStr || data.lastName || '').toUpperCase()}
+                  {(fullNameStr || text.lastName || '').toUpperCase()}
                 </span>
                 , in the capacity of <span style={{
                   display: 'inline-block',
                   minWidth: '180px',
                   borderBottom: '1px dotted #555',
-                  paddingLeft: '5px'
+                  paddingLeft: '5px',
+                  fontWeight: 'bold'
                 }}>
-                  {data.representativeCapacity || 'Self'}
+                  {getIndividualCapacity(data, false)}
                 </span>
                 (Self/Representative Assessee) do hereby declare that
               </div>
@@ -1172,8 +1218,12 @@ const Form49APdfTemplate = ({ data = {} }) => {
                 what is stated above is true to the best of my knowledge and belief.
               </div>
 
+              <div style={{ marginTop: '6px' }}>
+                b. I declare that the applicant does not possess Permanent Account Number and shall be liable for legal consequences under Income-Tax Act, 2025 if this declaration is found to be incorrect
+              </div>
+
               <div style={{
-                marginTop: '30px',
+                marginTop: '16px',
                 fontSize: '9px'
               }}>
                 Place<span style={{ marginLeft: '5px' }}>………</span>
@@ -1186,7 +1236,7 @@ const Form49APdfTemplate = ({ data = {} }) => {
               </div>
 
               <div style={{
-                marginTop: '25px',
+                marginTop: '16px',
                 fontSize: '9px'
               }}>
                 Date<span style={{ marginLeft: '5px' }}>….........</span>
@@ -1231,6 +1281,10 @@ const Form49APdfTemplate = ({ data = {} }) => {
                   lineHeight: '1.2'
                 }}>
                   (Signature /Left Hand Thumb Impression of Applicant or Representative Assessee)
+                </div>
+                <div style={{ marginTop: '6px', textAlign: 'left', fontSize: '8px' }}>
+                  <div><strong>Name:</strong> {(data.verifierName || fullNameStr || '').toUpperCase() || '____________________________'}</div>
+                  <div style={{ marginTop: '2px' }}><strong>Designation:</strong> Authorized Person</div>
                 </div>
               </div>
             </div>
@@ -1917,9 +1971,10 @@ export const generatePanCrIndividualPdf = async (rawData = {}, existingWin = nul
     if (selected.mother) drawCleanTick(page1, 75.51, 186.30, 16.5, 11.5);
 
     // Item 1A: Name
+    const cleanLName = getCleanLastName(data.lastName, data.firstName, data.applicantName);
     drawCenteredCells(data.firstName || '', 176.60, 629.28, 15.34, 25);
     drawCenteredCells(data.middleName || '', 176.60, 615.87, 15.34, 25);
-    drawCenteredCells(data.lastName || data.applicantName || '', 176.53, 601.92, 15.34, 25);
+    drawCenteredCells(cleanLName, 176.53, 601.92, 15.34, 25);
 
     // Item 1B: Name as per Aadhaar
     const aadhaarName = String(
@@ -2098,8 +2153,8 @@ export const generatePanCrIndividualPdf = async (rawData = {}, existingWin = nul
     }
 
     // Page 2: Verification & Declaration
-    const vName = [data.firstName, data.middleName, data.lastName].filter(Boolean).join(' ') || data.applicantName || 'APPLICANT';
-    const vCap = String(data.verifierCapacity || data.capacity || 'HIMSELF').toUpperCase();
+    const vName = [data.firstName, data.middleName, cleanLName].filter(Boolean).join(' ') || data.applicantName || 'APPLICANT';
+    const vCap = getIndividualCapacity(data, false);
     const vPlace = String(data.verifierPlace || data.place || dist || 'DELHI').toUpperCase();
     const rawDate = data.verifierDate || data.date || new Date().toISOString().split('T')[0];
     const vDateFmt = rawDate.includes('-') ? rawDate.split('-').reverse().join('/') : rawDate;
@@ -2175,6 +2230,24 @@ export const generatePanCrIndividualPdf = async (rawData = {}, existingWin = nul
     page2.drawText(': ' + vDateFmt, {
       x: 74.5,
       y: 714.5,
+      size: 7.5,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    // Under signature box: Name:
+    page2.drawText('Name: ' + vName.slice(0, 30), {
+      x: 330.0,
+      y: 595.0,
+      size: 7.5,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+
+    // Under signature box: Designation:
+    page2.drawText('Designation: Authorized Person', {
+      x: 330.0,
+      y: 580.0,
       size: 7.5,
       font: fontBold,
       color: rgb(0, 0, 0),

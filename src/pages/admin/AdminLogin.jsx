@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './AdminLogin.css';
@@ -26,12 +26,6 @@ const AdminLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Clear any existing admin session on mount so entering valid credentials is required
-  useEffect(() => {
-    localStorage.removeItem('adminAuth');
-    localStorage.removeItem('adminEmail');
-  }, []);
-
   // Direct Admin Login Handler
   const handleAdminLogin = async (e) => {
     if (e) e.preventDefault();
@@ -56,6 +50,15 @@ const AdminLogin = () => {
     }
 
     setIsLoading(true);
+    // Tab-isolated session
+    sessionStorage.setItem('adminAuth', 'true');
+    sessionStorage.setItem('currentUser', 'admin');
+    sessionStorage.setItem('adminEmail', cleanEmail);
+    sessionStorage.setItem('userRole', 'admin');
+    sessionStorage.removeItem('staffPermissions');
+    sessionStorage.removeItem('staffName');
+
+    // Persistent storage
     localStorage.setItem('adminAuth', 'true');
     localStorage.setItem('currentUser', 'admin');
     localStorage.setItem('adminEmail', cleanEmail);
@@ -99,6 +102,14 @@ const AdminLogin = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        // Tab-isolated session
+        sessionStorage.setItem('adminAuth', 'true');
+        sessionStorage.setItem('currentUser', data.staff.username);
+        sessionStorage.setItem('staffName', data.staff.name);
+        sessionStorage.setItem('userRole', 'staff');
+        sessionStorage.setItem('staffPermissions', JSON.stringify(data.staff.permissions || []));
+
+        // Persistent storage
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('currentUser', data.staff.username);
         localStorage.setItem('staffName', data.staff.name);

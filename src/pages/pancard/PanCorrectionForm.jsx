@@ -30,8 +30,15 @@ const SelectField = ({ label, name, value, onChange, children, required = false 
   </div>
 );
 
-const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload, isSubmitting, customFields = [] }) => {
+const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload, isSubmitting, customFields = [], tabs = [] }) => {
   const isIndividual = !data.category || data.category === 'INDIVIDUAL';
+  const tabObj = (Array.isArray(tabs) ? tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction') : null) || {
+    label: 'PAN Correction',
+    icon: '📝',
+    fee: 107,
+    badge: 'PAN Update Service',
+    description: 'Request changes or corrections to an existing PAN record for Individual (Form 93) or Non-Individual Entities (Form 94).'
+  };
 
   return (
     <form onSubmit={onSubmit} className="manual-pan-form">
@@ -39,16 +46,16 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
       <div className="pancard-form-hero-card" style={{ marginBottom: '20px' }}>
         <div className="hero-card-header">
           <h4 className="hero-form-title">
-            📝 PAN Correction / Already PAN Form <span className="hero-fee-pill">Fee: ₹107</span>
+            {tabObj.icon || '📝'} {tabObj.label || 'PAN Correction'} <span className="hero-fee-pill">Fee: ₹{tabObj.fee ?? 107}</span>
           </h4>
           <p className="hero-form-desc">
-            Request changes or corrections to an existing PAN record for Individual (Form 93) or Non-Individual Entities (Form 94).
+            {tabObj.description || 'Request changes or corrections to an existing PAN record for Individual (Form 93) or Non-Individual Entities (Form 94).'}
           </p>
         </div>
       </div>
 
       {/* Primary Fields: Existing PAN & Category */}
-      <div style={{ background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '14px', padding: '18px', marginBottom: '20px' }}>
+      <div className="pan-primary-fields-card">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
             <label className="form-label-pro">EXISTING PAN NUMBER <span className="req-star">*</span></label>
@@ -95,33 +102,33 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
       {isIndividual ? (
         <>
           {/* Correction / Change Selection Checkboxes */}
-          <div className="form-section-card" style={{ background: 'rgba(234, 88, 12, 0.06)', border: '1px solid rgba(234, 88, 12, 0.25)', marginBottom: '20px' }}>
+          <div className="form-section-card pan-correction-tick-card">
             <div className="form-section-header">
               <span className="form-section-icon">☑️</span>
-              <h4 className="form-section-title" style={{ color: '#f97316' }}>Select Fields to Update / Correct (Tick Boxes)</h4>
+              <h4 className="form-section-title" style={{ color: '#ea580c' }}>Select Fields to Update / Correct (Tick Boxes)</h4>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', padding: '6px 0' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+              <label className="pan-correction-tick-label">
                 <input type="checkbox" name="nameCorrection" checked={Boolean(data.nameCorrection)} onChange={(e) => onChange({ target: { name: 'nameCorrection', value: e.target.checked } })} />
                 <span>Correct Name</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+              <label className="pan-correction-tick-label">
                 <input type="checkbox" name="dobCorrection" checked={Boolean(data.dobCorrection)} onChange={(e) => onChange({ target: { name: 'dobCorrection', value: e.target.checked } })} />
                 <span>Correct Date of Birth</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+              <label className="pan-correction-tick-label">
                 <input type="checkbox" name="genderCorrection" checked={Boolean(data.genderCorrection)} onChange={(e) => onChange({ target: { name: 'genderCorrection', value: e.target.checked } })} />
                 <span>Correct Gender</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+              <label className="pan-correction-tick-label">
                 <input type="checkbox" name="addressCorrection" checked={Boolean(data.addressCorrection)} onChange={(e) => onChange({ target: { name: 'addressCorrection', value: e.target.checked } })} />
                 <span>Update Address</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+              <label className="pan-correction-tick-label">
                 <input type="checkbox" name="fatherCorrection" checked={Boolean(data.fatherCorrection)} onChange={(e) => onChange({ target: { name: 'fatherCorrection', value: e.target.checked } })} />
                 <span>Correct Parent Name</span>
               </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: '#fff' }}>
+              <label className="pan-correction-tick-label">
                 <input type="checkbox" name="contactCorrection" checked={Boolean(data.contactCorrection)} onChange={(e) => onChange({ target: { name: 'contactCorrection', value: e.target.checked } })} />
                 <span>Update Mobile / Email</span>
               </label>
@@ -276,15 +283,16 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
             IF CATEGORY IS NOT INDIVIDUAL -> RENDER NON-INDIVIDUAL CORRECTION FORM
            ========================================================================= */
         <div className="non-individual-form-wrapper" style={{ marginTop: '16px' }}>
-          <div style={{ background: 'rgba(2, 132, 199, 0.1)', border: '1px solid rgba(2, 132, 199, 0.3)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px', color: '#38bdf8', fontSize: '13px', fontWeight: '700' }}>
+          <div className="pan-nonindiv-banner">
             🏢 <strong>Request For Changes Or Correction in PAN Data [For Non-Individual]</strong>: Update of PAN Record for {data.category} (Company / Firm / Trust / Entity / Association of Persons / Body of Individuals / HUF / LLP).
           </div>
 
           {/* PART A: ENTITY INFORMATION */}
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-            <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-              Part A - Personal / Entity Information
-            </h4>
+          <div className="form-section-card">
+            <div className="form-section-header">
+              <span className="form-section-icon">🏢</span>
+              <h4 className="form-section-title">Part A - Personal / Entity Information</h4>
+            </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
               <div style={{ gridColumn: 'span 2' }}>
@@ -392,10 +400,11 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
           </div>
 
           {/* OFFICE ADDRESS */}
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-            <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-              Office Address
-            </h4>
+          <div className="form-section-card">
+            <div className="form-section-header">
+              <span className="form-section-icon">📍</span>
+              <h4 className="form-section-title">Office Address</h4>
+            </div>
 
             <div className="pancard-form-grid">
               <TextField label="FLAT / DOOR / BUILDING" name="flatNo" value={data.flatNo || data.flatDoorBuilding} onChange={onChange} required uppercase />
@@ -442,10 +451,11 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
           </div>
 
           {/* PART B: DECLARATION & PROOF DOCUMENTS */}
-          <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-            <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-              Part B - Declaration by Applicant & Proof Documents
-            </h4>
+          <div className="form-section-card">
+            <div className="form-section-header">
+              <span className="form-section-icon">📑</span>
+              <h4 className="form-section-title">Part B - Declaration by Applicant & Proof Documents</h4>
+            </div>
 
             <div className="pancard-form-grid">
               <SelectField label="PROOF OF IDENTITY" name="proofOfIdentity" value={data.proofOfIdentity} onChange={onChange} required>
@@ -482,8 +492,8 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
 
       {/* Dynamic Custom Fields Section */}
       {customFields.length > 0 && (
-        <div style={{ background: isIndividual ? 'rgba(2, 132, 199, 0.05)' : 'rgba(234, 88, 12, 0.05)', border: `1.5px dashed ${isIndividual ? 'rgba(2, 132, 199, 0.3)' : 'rgba(234, 88, 12, 0.3)'}`, borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-          <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: isIndividual ? '#0284c7' : '#ea580c', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className={`pan-custom-fields-box ${isIndividual ? 'theme-blue' : 'theme-orange'}`}>
+          <h4 className="pan-custom-fields-title">
             ✨ Additional Custom Form Fields ({isIndividual ? 'Form 93' : 'Form 94'})
           </h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
@@ -573,12 +583,111 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
         </div>
       </div>
 
-      <button type="submit" disabled={isSubmitting} className="pancard-submit-btn" style={{ marginTop: '22px' }}>
-        {isSubmitting ? 'Submitting...' : '🚀 Submit Correction Application (Fee: ₹107)'}
+      {/* Supporting Documents Upload Section (Attached after PDF) */}
+      <div className="form-section-card" style={{ marginTop: '20px' }}>
+        <div className="form-section-header">
+          <span className="form-section-icon">📁</span>
+          <h4 className="form-section-title">
+            {isIndividual ? 'Supporting Documents Upload (Attached after PDF form)' : 'Supporting Documents Upload (Registration Certificate, Identity & Address Proof)'}
+          </h4>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+          {!isIndividual && (
+            <div className="file-upload-label" style={{ padding: '10px 14px' }}>
+              <div className="file-upload-info-group">
+                <span className="file-upload-icon">📜</span>
+                <div>
+                  <div className="file-upload-title" style={{ fontSize: '12.5px' }}>Upload Registration Certificate *</div>
+                  <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>ROC, Partnership Deed, Trust Deed (PDF/JPG)</div>
+                </div>
+              </div>
+              <input type="file" accept="image/*,application/pdf" onChange={e => onFileChange(e, 'proofOfIncorporationUrl')} style={{ display: 'none' }} id="corrIncorpInput" />
+              <label htmlFor="corrIncorpInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+                {data.proofOfIncorporationUrl ? '✅ Attached' : 'Browse'}
+              </label>
+            </div>
+          )}
+
+          <div className="file-upload-label" style={{ padding: '10px 14px' }}>
+            <div className="file-upload-info-group">
+              <span className="file-upload-icon">🪪</span>
+              <div>
+                <div className="file-upload-title" style={{ fontSize: '12.5px' }}>Upload Identity Proof *</div>
+                <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>Identity document (PDF/JPG)</div>
+              </div>
+            </div>
+            <input type="file" accept="image/*,application/pdf" onChange={e => onFileChange(e, 'proofOfIdentityUrl')} style={{ display: 'none' }} id="corrPoiInput" />
+            <label htmlFor="corrPoiInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+              {data.proofOfIdentityUrl ? '✅ Attached' : 'Browse'}
+            </label>
+          </div>
+
+          <div className="file-upload-label" style={{ padding: '10px 14px' }}>
+            <div className="file-upload-info-group">
+              <span className="file-upload-icon">🏠</span>
+              <div>
+                <div className="file-upload-title" style={{ fontSize: '12.5px' }}>Upload Address Proof *</div>
+                <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>Address document (PDF/JPG)</div>
+              </div>
+            </div>
+            <input type="file" accept="image/*,application/pdf" onChange={e => onFileChange(e, 'proofOfAddressUrl')} style={{ display: 'none' }} id="corrPoaInput" />
+            <label htmlFor="corrPoaInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+              {data.proofOfAddressUrl ? '✅ Attached' : 'Browse'}
+            </label>
+          </div>
+
+          {isIndividual && (
+            <div className="file-upload-label" style={{ padding: '10px 14px' }}>
+              <div className="file-upload-info-group">
+                <span className="file-upload-icon">🎂</span>
+                <div>
+                  <div className="file-upload-title" style={{ fontSize: '12.5px' }}>Upload Date of Birth Proof</div>
+                  <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>DOB proof document (PDF/JPG)</div>
+                </div>
+              </div>
+              <input type="file" accept="image/*,application/pdf" onChange={e => onFileChange(e, 'proofOfDobUrl')} style={{ display: 'none' }} id="corrDobInput" />
+              <label htmlFor="corrDobInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+                {data.proofOfDobUrl ? '✅ Attached' : 'Browse'}
+              </label>
+            </div>
+          )}
+
+          <div className="file-upload-label" style={{ padding: '10px 14px' }}>
+            <div className="file-upload-info-group">
+              <span className="file-upload-icon">💳</span>
+              <div>
+                <div className="file-upload-title" style={{ fontSize: '12.5px' }}>Upload Copy of Existing PAN</div>
+                <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>PAN Card copy or allotment letter (PDF/JPG)</div>
+              </div>
+            </div>
+            <input type="file" accept="image/*,application/pdf" onChange={e => onFileChange(e, 'proofOfPanUrl')} style={{ display: 'none' }} id="corrPanCopyInput" />
+            <label htmlFor="corrPanCopyInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+              {data.proofOfPanUrl ? '✅ Attached' : 'Browse'}
+            </label>
+          </div>
+
+          <div className="file-upload-label" style={{ padding: '10px 14px' }}>
+            <div className="file-upload-info-group">
+              <span className="file-upload-icon">📄</span>
+              <div>
+                <div className="file-upload-title" style={{ fontSize: '12.5px' }}>Upload Other Supporting Document</div>
+                <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>Any additional proof (PDF/JPG)</div>
+              </div>
+            </div>
+            <input type="file" accept="image/*,application/pdf" onChange={e => onFileChange(e, 'proofOfOtherUrl')} style={{ display: 'none' }} id="corrOtherInput" />
+            <label htmlFor="corrOtherInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+              {data.proofOfOtherUrl ? '✅ Attached' : 'Browse'}
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" onClick={onDownload} className="pancard-submit-btn" style={{ marginTop: '22px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)' }}>
+        📥 Download Pre-Filled PAN CR PDF
       </button>
 
-      <button type="button" onClick={onDownload} className="pancard-submit-btn" style={{ marginTop: '14px', background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)' }}>
-        📥 Download Pre-Filled PAN CR PDF
+      <button type="submit" disabled={isSubmitting} className="pancard-submit-btn" style={{ marginTop: '14px' }}>
+        {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
       </button>
     </form>
   );

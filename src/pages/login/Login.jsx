@@ -100,15 +100,11 @@ const Login = () => {
   const triggerAutoLoginOtp = async (userMobile) => {
     if (!userMobile || userMobile.length < 10) return;
     try {
-      const response = await fetch(`${API_URL}/api/users/send-otp`, {
+      await fetch(`${API_URL}/api/users/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mobile: userMobile }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        Toast.fire({ icon: 'success', title: `OTP sent automatically to +91 ${maskMobileNumber(userMobile)}` });
-      }
     } catch (e) {
       console.error("Auto OTP send error:", e);
     }
@@ -181,6 +177,7 @@ const Login = () => {
       });
       const data = await response.json();
       if (response.ok) {
+        Swal.close();
         localStorage.setItem('currentUser', userId);
         if (role === 'admin' || userId === 'admin') {
           navigate('/admin-login');

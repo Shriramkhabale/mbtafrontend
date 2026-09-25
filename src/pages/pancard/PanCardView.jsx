@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib/dist/pdf-lib.esm.js';
 import './PanCardView.css';
@@ -92,6 +93,83 @@ const downloadReceiptToPc = (url) => {
     window.open(url, '_blank');
   } catch (e) {
     console.warn('Error opening receipt window:', e);
+  }
+};
+
+const copyApplicationDetailsToClipboard = (app) => {
+  if (!app) return;
+  const d = app.details || {};
+  const fullName = [d.firstName, d.middleName, d.lastName || app.applicantName].filter(Boolean).join(' ') || app.applicantName || '—';
+  const fatherName = app.fatherName || `${d.fatherFirstName || ''} ${d.fatherMiddleName || ''} ${d.fatherLastName || ''}`.trim() || '—';
+  const motherName = `${d.motherFirstName || ''} ${d.motherMiddleName || ''} ${d.motherLastName || ''}`.trim() || '—';
+  const district = (d.district && d.district !== 'SELECT') ? d.district : (app.district || '—');
+  const state = (d.state && d.state !== 'PLEASE SELECT') ? d.state : (app.state || 'MAHARASHTRA');
+
+  const text = [
+    `=== PAN APPLICATION DETAILS ===`,
+    `Ack Number: ${app.ackNumber || 'N/A'}`,
+    `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
+    `Status: ${(app.status || 'Submitted').toUpperCase()}`,
+    `Service Type: ${app.applicationType || 'Manual New PAN'}`,
+    `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
+    app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
+    app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
+    ``,
+    `--- PERSONAL PARTICULARS ---`,
+    `Title: ${d.title || app.title || 'SHRI'}`,
+    `Applicant Name: ${fullName}`,
+    `Gender: ${app.gender || d.gender || 'Male'}`,
+    `Date of Birth: ${app.dob || d.dob || '—'}`,
+    `Aadhaar Number: ${app.aadhaarNumber || d.aadhaarNumber || '—'}`,
+    `Mobile Number: ${app.mobileNumber || '—'}`,
+    `Email Address: ${app.email || '—'}`,
+    ``,
+    `--- PARENTS DETAILS ---`,
+    `Father's Name: ${fatherName}`,
+    `Mother's Name: ${motherName}`,
+    ``,
+    `--- RESIDENCE ADDRESS ---`,
+    `Flat/Door/Block: ${d.flatNo || '—'}`,
+    `Building/Premises: ${d.premises || '—'}`,
+    `Road/Street: ${d.roadStreet || '—'}`,
+    `Area/Taluka: ${d.areaTaluka || '—'}`,
+    `District: ${district}`,
+    `State: ${state}`,
+    `Pincode: ${d.pincode || '—'}`,
+    ``,
+    `--- AO CODE DETAILS ---`,
+    `Area Code: ${d.aoAreaCode || 'MUM'} | AO Type: ${d.aoType || 'C'} | Range Code: ${d.aoRangeCode || '11'} | AO No: ${d.aoNo || '1'} | City: ${d.aoCity || district || 'MUMBAI'}`,
+    `===============================`
+  ].filter(line => line !== false && line !== undefined).join('\n');
+
+  const showToast = () => {
+    showCustomToast('Details Copied!', 'All application details copied to clipboard.', 'success');
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(showToast).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast();
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast();
   }
 };
 
@@ -263,8 +341,8 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
   const isPdf = currentValue && currentValue.startsWith('data:application/pdf');
 
   return (
-    <div style={{ marginBottom: '6px' }}>
-      <label style={{ fontSize: '11.5px', fontWeight: '800', color: '#94a3b8', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+    <div className="pan-dropzone-container">
+      <label className="pan-dropzone-label">
         {label} {isRequired && <span className="req-star">*</span>}
       </label>
       <div
@@ -272,20 +350,7 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current && fileInputRef.current.click()}
-        style={{
-          border: isDragging ? '1.5px dashed #38bdf8' : (currentValue ? '1.5px solid #10b981' : '1.5px dashed rgba(56, 189, 248, 0.35)'),
-          background: isDragging ? 'rgba(56, 189, 248, 0.15)' : (currentValue ? 'rgba(16, 185, 129, 0.1)' : 'rgba(15, 23, 42, 0.75)'),
-          borderRadius: '10px',
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          transition: 'all 0.25s ease',
-          boxShadow: isDragging ? '0 0 12px rgba(56, 189, 248, 0.25)' : 'none',
-          minHeight: '44px',
-          gap: '10px'
-        }}
+        className={`pan-dropzone-box ${isDragging ? 'is-dragging' : ''} ${currentValue ? 'has-value' : ''}`}
       >
         <input
           type="file"
@@ -296,24 +361,18 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
         />
 
         {currentValue ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+          <div className="pan-dropzone-content has-file">
+            <div className="pan-dropzone-preview-wrap">
               {isPdf ? (
-                <span style={{ fontSize: '18px' }}>📑</span>
+                <span className="pan-dropzone-pdf-icon">📑</span>
               ) : (
                 <img
                   src={currentValue}
                   alt="Preview"
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    objectFit: 'cover',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255,255,255,0.2)'
-                  }}
+                  className="pan-dropzone-img-preview"
                 />
               )}
-              <span style={{ color: '#34d399', fontSize: '12px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span className="pan-dropzone-file-ready">
                 ✅ {isPdf ? 'PDF Attached' : 'File Ready'}
               </span>
             </div>
@@ -321,35 +380,25 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
             <button
               type="button"
               onClick={handleRemove}
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                color: '#f87171',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '6px',
-                padding: '2px 8px',
-                fontSize: '11px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                flexShrink: 0
-              }}
+              className="pan-dropzone-remove-btn"
             >
               ✕ Remove
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-              <span style={{ fontSize: '18px', flexShrink: 0 }}>{icon}</span>
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: isDragging ? '#38bdf8' : '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="pan-dropzone-content is-empty">
+            <div className="pan-dropzone-info-wrap">
+              <span className="pan-dropzone-icon">{icon}</span>
+              <div className="pan-dropzone-text-group">
+                <span className="pan-dropzone-title">
                   {isDragging ? 'Drop File Now' : 'Click or Drag File'}
                 </span>
-                <span style={{ fontSize: '10.5px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span className="pan-dropzone-hint">
                   {hint}
                 </span>
               </div>
             </div>
-            <span style={{ background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)', color: '#ffffff', fontSize: '10.5px', fontWeight: '800', padding: '4px 10px', borderRadius: '6px', flexShrink: 0 }}>
+            <span className="pan-dropzone-browse-btn">
               Browse
             </span>
           </div>
@@ -359,8 +408,27 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
   );
 };
 
-const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
+const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [tabs, setTabs] = useState([]);
+
+  const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'dark');
+
+  useEffect(() => {
+    if (propTheme) {
+      setCurrentTheme(propTheme);
+    }
+  }, [propTheme]);
+
+  useEffect(() => {
+    const handleStorage = () => {
+      const saved = localStorage.getItem('appTheme') || 'dark';
+      setCurrentTheme(saved);
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   // Read initial active tab from URL search parameters if available
   const getInitialTab = () => {
@@ -391,14 +459,19 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   const [isAddingDocument, setIsAddingDocument] = useState(false);
   const [selectedAppForEdit, setSelectedAppForEdit] = useState(null); // eslint-disable-line no-unused-vars
 
+  const switchTab = (tabName) => {
+    setActiveTab(tabName);
+    navigate(`/pancard?tab=${tabName}`);
+  };
+
   // Sync tab state when URL changes
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const tabFromUrl = params.get('tab');
     if (tabFromUrl && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
-  }, [window.location.search]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Form State initial defaults
   const INITIAL_FORM_DATA = {
@@ -485,13 +558,14 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     raPincode: '',
     proofOfIncorporation: 'CERTIFICATE OF INCORPORATION / REGISTRATION',
     verifierName: '',
-    verifierCapacity: 'PARTNER',
+    verifierCapacity: 'HIMSELF',
     verifierPlace: '',
     verifierDate: new Date().toISOString().split('T')[0]
   };
 
   const INITIAL_CORRECTION_DATA = {
     panNumber: '', aadhaarNumber: '', firstName: '', middleName: '', lastName: '', nameAsPerAadhaar: '', gender: '', dob: '', mobileNumber: '', email: '',
+    verifierCapacity: 'HIMSELF',
     flatNo: '', premises: '', roadStreet: '', areaTaluka: '', state: '', district: '', pincode: '',
     fatherFirstName: '', fatherMiddleName: '', fatherLastName: '', motherFirstName: '', motherMiddleName: '', motherLastName: '', parentToPrint: 'Father',
     proofOfIdentity: '', proofOfAddress: '', proofOfDob: '', passportNumber: '', taxpayerId: '', landlineNumber: '', photoUrl: '', signatureUrl: ''
@@ -505,7 +579,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   const [correctionData, setCorrectionData] = useState(INITIAL_CORRECTION_DATA);
 
   // Fetch dynamic tabs from backend
-  useEffect(() => {
+  const fetchTabs = () => {
     apiFetch('/api/pancard/tabs')
       .then(res => {
         if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -524,6 +598,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
         setTabs(getFallbackTabs());
         setLoadingTabs(false);
       });
+  };
+
+  useEffect(() => {
+    fetchTabs();
+    window.addEventListener('focus', fetchTabs);
+    window.addEventListener('pan_tabs_updated', fetchTabs);
+    return () => {
+      window.removeEventListener('focus', fetchTabs);
+      window.removeEventListener('pan_tabs_updated', fetchTabs);
+    };
   }, []);
 
   const getFallbackTabs = () => [
@@ -582,14 +666,14 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   ];
 
   // Fetch applications
-  const fetchHistory = () => {
+  const fetchHistory = (forcedMode = null) => {
     setLoadingHistory(true);
-    const userRole = (localStorage.getItem('userRole') || '').toLowerCase();
-    const currentUser = (localStorage.getItem('currentUser') || '').trim();
-    const isAdmin = userRole === 'admin' || currentUser.toLowerCase() === 'admin';
+    const userRole = (sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '').toLowerCase();
+    const activeUser = (currentUser || sessionStorage.getItem('currentUser') || localStorage.getItem('currentUser') || '').trim();
+    const isAdmin = forcedMode === 'all' || ((userRole === 'admin' || userRole === 'staff') && historyViewMode === 'all') || (!forcedMode && (activeUser.toLowerCase() === 'admin' || userRole === 'staff'));
     const url = isAdmin
       ? `${API_URL}/api/pancard/all`
-      : `${API_URL}/api/pancard/applications/${encodeURIComponent(currentUser || 'guest')}`;
+      : `${API_URL}/api/pancard/applications/${encodeURIComponent(activeUser || 'guest')}`;
 
     fetch(url)
       .then(res => res.json())
@@ -784,6 +868,40 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
       return;
     }
 
+    // Auto-set verifier capacity (HIMSELF for male, HERSELF for female)
+    if (name === 'gender') {
+      const isIndiv = !manualData.category || manualData.category === 'INDIVIDUAL';
+      setManualData(prev => ({
+        ...prev,
+        gender: value,
+        verifierCapacity: isIndiv ? (value === 'FEMALE' ? 'HERSELF' : 'HIMSELF') : prev.verifierCapacity
+      }));
+      return;
+    }
+
+    if (name === 'title') {
+      const isIndiv = !manualData.category || manualData.category === 'INDIVIDUAL';
+      const isFem = ['SMT', 'KUMARI'].includes(value);
+      setManualData(prev => ({
+        ...prev,
+        title: value,
+        gender: isFem ? 'FEMALE' : (value === 'SHRI' ? 'MALE' : prev.gender),
+        verifierCapacity: isIndiv ? (isFem ? 'HERSELF' : (value === 'SHRI' ? 'HIMSELF' : prev.verifierCapacity)) : prev.verifierCapacity
+      }));
+      return;
+    }
+
+    if (name === 'category') {
+      const isIndiv = value === 'INDIVIDUAL';
+      const isFem = manualData.gender === 'FEMALE' || ['SMT', 'KUMARI'].includes(manualData.title);
+      setManualData(prev => ({
+        ...prev,
+        category: value,
+        verifierCapacity: isIndiv ? (isFem ? 'HERSELF' : 'HIMSELF') : 'DIRECTOR'
+      }));
+      return;
+    }
+
     setManualData(prev => ({
       ...prev,
       [name]: value
@@ -822,7 +940,29 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleCorrectionChange = (e) => setCorrectionData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleCorrectionChange = (e) => {
+    const { name, value } = e.target;
+    setCorrectionData(prev => {
+      let extra = {};
+      const isIndiv = !prev.category || prev.category === 'INDIVIDUAL';
+      if (name === 'gender' && isIndiv) {
+        extra.verifierCapacity = value === 'FEMALE' ? 'HERSELF' : 'HIMSELF';
+      } else if (name === 'title' && isIndiv) {
+        if (['SMT', 'KUMARI'].includes(value)) {
+          extra.gender = 'FEMALE';
+          extra.verifierCapacity = 'HERSELF';
+        } else if (value === 'SHRI') {
+          extra.gender = 'MALE';
+          extra.verifierCapacity = 'HIMSELF';
+        }
+      } else if (name === 'category') {
+        const nowIndiv = value === 'INDIVIDUAL';
+        const isFem = prev.gender === 'FEMALE' || ['SMT', 'KUMARI'].includes(prev.title);
+        extra.verifierCapacity = nowIndiv ? (isFem ? 'HERSELF' : 'HIMSELF') : 'DIRECTOR';
+      }
+      return { ...prev, [name]: value, ...extra };
+    });
+  };
 
   const handleCorrectionFileUpload = (e, fieldName) => {
     const file = e.target.files?.[0];
@@ -895,7 +1035,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser,
-          applicationType: 'Already PAN',
+          applicationType: 'PAN Correction',
           applicantName: appDisplayName,
           fatherName: isIndiv ? `${correctionData.fatherFirstName || ''} ${correctionData.fatherLastName || ''}`.trim() : (correctionData.verifierName || 'Authorized Signatory'),
           dob: isIndiv ? correctionData.dob : (correctionData.dateOfIncorporation || correctionData.dob),
@@ -920,7 +1060,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
       await generatePanCrPdf(correctionData, 'pancr-pdf-container', pdfWin);
       setCorrectionData(INITIAL_CORRECTION_DATA);
+      setHistoryViewMode('user');
+      switchTab('history');
       fetchHistory('user');
+      Toast.fire({ icon: 'success', title: 'PAN Correction Application Submitted Successfully!' });
     } catch (error) {
       if (pdfWin) pdfWin.close();
       setIsSubmitting(false);
@@ -995,35 +1138,41 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   };
 
   // Helper to extract custom dynamic fields added via Admin Panel for Form 93 / Form 94
-  const getCustomFieldsForCurrentForm = () => {
-    const manualTab = tabs.find(t => t.id === 'manual_new_pan');
-    if (!manualTab || !Array.isArray(manualTab.fields)) return [];
+  const getCustomFieldsForCurrentForm = (targetTabId = 'manual_new_pan') => {
+    const targetTab = tabs.find(t => t.id === targetTabId) || tabs.find(t => t.id === 'manual_new_pan');
+    if (!targetTab || !Array.isArray(targetTab.fields)) return [];
 
-    const isIndividual = manualData.category === 'INDIVIDUAL';
+    const isIndividual = targetTabId === 'epan_correction'
+      ? (!correctionData.category || correctionData.category === 'INDIVIDUAL')
+      : (manualData.category === 'INDIVIDUAL');
     const currentFormType = isIndividual ? 'Form 93' : 'Form 94';
 
     const STANDARD_F93 = new Set([
-      'category', 'aadhaarNumber', 'proofOfDob', 'title', 'firstName', 'middleName', 'lastName',
+      'category', 'panNumber', 'aadhaarNumber', 'proofOfDob', 'title', 'firstName', 'middleName', 'lastName',
       'isSingleParent', 'fatherFirstName', 'fatherMiddleName', 'fatherLastName',
       'motherFirstName', 'motherMiddleName', 'motherLastName', 'nameAsPerAadhaar',
       'gender', 'dob', 'mobileNumber', 'email', 'flatNo', 'premises', 'roadStreet',
       'areaTaluka', 'state', 'district', 'pincode', 'proofOfIdentity', 'proofOfAddress',
-      'photoUrl', 'signatureUrl'
+      'photoUrl', 'signatureUrl', 'copyOfPan', 'passportNumber', 'tin', 'parentToPrint',
+      'addressType', 'postOffice', 'country', 'nameCorrection', 'dobCorrection', 'genderCorrection',
+      'addressCorrection', 'fatherCorrection', 'contactCorrection'
     ]);
 
     const STANDARD_F94 = new Set([
-      'category', 'entityName', 'dateOfIncorporation', 'registrationNumber',
+      'category', 'panNumber', 'entityName', 'dateOfIncorporation', 'registrationNumber',
       'mobileNumber', 'email', 'landlineNumber', 'stdCode', 'incomeSource', 'proofOfIncorporation',
       'commFlatNo', 'commPremises', 'commRoadStreet', 'commAreaTaluka', 'commState',
       'commDistrict', 'commPincode', 'raTitle', 'raFirstName', 'raMiddleName',
       'raLastName', 'raPanNumber', 'raAadhaarNumber', 'raMobileNumber', 'raEmail',
       'raFlatNo', 'raRoadStreet', 'raAreaTaluka', 'raDistrict', 'raState',
-      'raPincode', 'verifierName', 'verifierCapacity', 'verifierPlace', 'verifierDate'
+      'raPincode', 'verifierName', 'verifierCapacity', 'verifierPlace', 'verifierDate',
+      'tin', 'flatNo', 'roadStreet', 'postOffice', 'areaTaluka', 'state', 'district', 'pincode', 'country',
+      'proofOfIdentity', 'proofOfAddress', 'copyOfPan', 'designation'
     ]);
 
     const stdSet = isIndividual ? STANDARD_F93 : STANDARD_F94;
 
-    return manualTab.fields.filter(f => {
+    return targetTab.fields.filter(f => {
       if (!f || f.hidden) return false;
 
       const fFormType = f.formType || 'Both';
@@ -1820,11 +1969,25 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
             `,
             confirmButtonText: 'OK',
             confirmButtonColor: '#0284c7'
+          }).then(() => {
+            setHistoryViewMode('user');
+            setActiveTab('history');
+            fetchHistory('user');
+            try {
+              const url = new URL(window.location);
+              url.searchParams.set('tab', 'history');
+              window.history.replaceState({}, '', url);
+            } catch (e) {}
           });
           setFormData(INITIAL_FORM_DATA);
           setHistoryViewMode('user');
           setActiveTab('history');
           fetchHistory('user');
+          try {
+            const url = new URL(window.location);
+            url.searchParams.set('tab', 'history');
+            window.history.replaceState({}, '', url);
+          } catch (e) {}
         } else {
           Toast.fire({ icon: 'error', title: data.message || 'Submission failed.' });
         }
@@ -1948,7 +2111,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           signatureUrl: manualData.signatureUrl || '',
           details: {
             ...manualData,
-            lastName: applicantDisplayName,
+            incomeSource: manualData.sourceofincome || manualData.sourceOfIncome || manualData.incomeSource || '',
+            sourceOfIncome: manualData.sourceofincome || manualData.sourceOfIncome || manualData.incomeSource || '',
+            sourceofincome: manualData.sourceofincome || manualData.sourceOfIncome || manualData.incomeSource || '',
+            lastName: manualData.category === 'INDIVIDUAL' ? (manualData.lastName || '') : applicantDisplayName,
             dob: manualData.category === 'INDIVIDUAL' ? manualData.dob : (manualData.dateOfIncorporation || manualData.dob),
             applicantStatus: manualData.category
           },
@@ -1968,7 +2134,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           verifierDate: new Date().toISOString().split('T')[0]
         });
         setHistoryViewMode('user');
-        setActiveTab('history');
+        switchTab('history');
         fetchHistory('user');
       } else {
         if (pdfWin) pdfWin.close();
@@ -1985,15 +2151,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   const getApplicationTypeLabel = () => {
     if (activeTab === 'manual_new_pan') return 'Manual New PAN';
     if (activeTab === 'epan_kyc') return 'Aadhaar OTP New PAN';
-    if (activeTab === 'epan_correction') return 'Already PAN / Correction';
+    if (activeTab === 'epan_correction') return tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction';
     return 'Manual New PAN';
   };
 
   const currentTabObj = tabs.find(t => t.id === activeTab) || tabs[0];
 
   return (
-    <div className="pancard-inline-container">
-      <div className="pancard-card">
+    <div className={`pancard-inline-container theme-${currentTheme}`}>
+      <div className={`pancard-card theme-${currentTheme}`}>
 
         {/* Header Bar */}
         <div className="pancard-header">
@@ -2053,7 +2219,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           <button
             type="button"
             className={`pancard-tab-btn ${(activeTab === 'new_app_landing' || activeTab === 'manual_new_pan' || activeTab === 'epan_kyc') ? 'active' : ''}`}
-            onClick={() => setActiveTab('new_app_landing')}
+            onClick={() => switchTab('new_app_landing')}
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -2065,7 +2231,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           <button
             type="button"
             className={`pancard-tab-btn ${activeTab === 'epan_correction' ? 'active' : ''}`}
-            onClick={() => setActiveTab('epan_correction')}
+            onClick={() => switchTab('epan_correction')}
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -2073,12 +2239,12 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
               </svg>
             </span>
-            <span>Already PAN / Correction</span>
+            <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
           </button>
           <button
             type="button"
             className={`pancard-tab-btn history-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => setActiveTab('history')}
+            onClick={() => switchTab('history')}
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -2165,7 +2331,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                   <button
                     type="button"
                     className="pan-btn-manual small-btn"
-                    onClick={() => setActiveTab('manual_new_pan')}
+                    onClick={() => switchTab('manual_new_pan')}
                   >
                     <span>Apply Manual New PAN</span>
                     <span className="btn-arrow">➔</span>
@@ -2211,7 +2377,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                   <button
                     type="button"
                     className="pan-btn-kyc small-btn"
-                    onClick={() => setActiveTab('epan_kyc')}
+                    onClick={() => switchTab('epan_kyc')}
                   >
                     <span>Apply Aadhaar OTP PAN</span>
                     <span className="btn-arrow">➔</span>
@@ -2423,19 +2589,19 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                   </div>
                 ) : (
                   <div>
-                  <div className="history-table-wrapper" style={{ overflowX: 'auto', width: '100%' }}>
-                    <table className="pancard-history-table" style={{ width: '100%', minWidth: '1000px', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
+                  <div className="history-table-wrapper" style={{ width: '100%', overflowX: 'auto' }}>
+                    <table className="pancard-history-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px', tableLayout: 'auto' }}>
                       <thead>
                         <tr style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', borderBottom: '2px solid #fed7aa' }}>
-                          <th style={{ padding: '12px 10px', borderRadius: '10px 0 0 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
-                          <th style={{ padding: '12px 10px', textAlign: 'center', borderRadius: '0 10px 10px 0', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
+                          <th style={{ padding: '9px 6px', borderRadius: '8px 0 0 8px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
+                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
+                          <th style={{ padding: '9px 5px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
+                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
+                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
+                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
+                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
+                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
+                          <th style={{ padding: '9px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2446,60 +2612,65 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                           return (
                             <tr
                               key={app._id}
+                              onClick={() => setSelectedAppForModal(app)}
+                              title="Click to view full applicant details"
                               style={{
                                 background: '#ffffff',
                                 border: '1px solid #fed7aa',
-                                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.05)'
+                                boxShadow: '0 1px 6px rgba(234, 88, 12, 0.04)',
+                                cursor: 'pointer'
                               }}
                             >
                               {/* ACK NO */}
-                              <td className="col-ack" style={{ padding: '11px 10px', borderRadius: '10px 0 0 10px', whiteSpace: 'nowrap' }}>
-                                <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', fontFamily: 'monospace' }}>
+                              <td className="col-ack" style={{ padding: '8px 6px', borderRadius: '8px 0 0 8px', whiteSpace: 'nowrap' }}>
+                                <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 6px', borderRadius: '5px', fontSize: '11px', fontWeight: '800', fontFamily: 'monospace' }}>
                                   {app.ackNumber}
                                 </span>
                               </td>
 
                               {/* CATEGORY */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '2px 5px', borderRadius: '5px', fontSize: '9.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                                   {app.category || app.details?.category || 'INDIVIDUAL'}
                                 </span>
                               </td>
 
                               {/* TYPE */}
-                              <td style={{ padding: '11px 10px', fontSize: '11.5px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '8px 5px', fontSize: '11px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 {app.applicationType}
                               </td>
 
                               {/* APPLICANT NAME */}
-                              <td style={{ padding: '11px 10px', fontSize: '12.5px', fontWeight: '800', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '8px 6px', fontSize: '11.5px', fontWeight: '800', color: '#0f172a' }}>
                                 {app.applicantName}
                               </td>
 
                               {/* MOBILE / EMAIL */}
-                              <td style={{ padding: '11px 10px', fontSize: '11.5px', color: '#334155', whiteSpace: 'nowrap' }}>
-                                <div style={{ fontWeight: '600' }}>📞 {app.mobileNumber}</div>
-                                <div style={{ fontSize: '10.5px', color: '#64748b' }}>✉️ {app.email}</div>
+                              <td style={{ padding: '8px 6px', fontSize: '11px', color: '#334155' }}>
+                                <div style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>📞 {app.mobileNumber}</div>
+                                <div style={{ fontSize: '10px', color: '#64748b', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={app.email}>✉️ {app.email}</div>
                               </td>
 
                               {/* SUBMITTED DATE */}
-                              <td style={{ padding: '11px 10px', fontSize: '11.5px', color: '#475569', fontWeight: '500', whiteSpace: 'nowrap' }}>
-                                {new Date(app.createdAt).toLocaleDateString()} {new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              <td style={{ padding: '8px 6px', color: '#475569' }}>
+                                <div style={{ fontWeight: '700', fontSize: '11px', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleDateString()}</div>
+                                <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                               </td>
 
                               {/* STATUS */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <span style={{ ...statusStyle, padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', display: 'inline-block', textTransform: 'capitalize' }}>
+                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <span style={{ ...statusStyle, padding: '3px 7px', borderRadius: '16px', fontSize: '10px', fontWeight: '800', display: 'inline-block', textTransform: 'capitalize' }}>
                                   ● {app.status || 'Submitted'}
                                 </span>
                               </td>
 
-                              {/* NSDL RECEIPT (15-DIGIT RECEIPT BUTTON / DASH) */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              {/* NSDL RECEIPT */}
+                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                 {hasReceipt ? (
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       if (app.receiptUrl) {
                                         downloadReceiptToPc(app.receiptUrl, app.ackNumber || app.nsdlReceiptNumber || 'PAN');
                                       } else {
@@ -2513,13 +2684,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                     style={{
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '5px',
+                                      gap: '3px',
                                       background: '#f0f9ff',
                                       color: '#0284c7',
                                       border: '1px solid #7dd3fc',
-                                      padding: '4px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '3px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10px',
                                       fontWeight: '800',
                                       fontFamily: 'monospace',
                                       cursor: app.receiptUrl ? 'pointer' : 'default',
@@ -2528,35 +2699,38 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                       transition: 'all 0.15s ease'
                                     }}
                                   >
-                                    <span style={{ fontSize: '11.5px' }}>🗎</span>
+                                    <span style={{ fontSize: '10.5px' }}>🗎</span>
                                     <span style={{ textDecoration: app.receiptUrl ? 'underline' : 'none' }}>
                                       {app.nsdlReceiptNumber || app.ackNumber}
                                     </span>
                                   </button>
                                 ) : (
-                                  <span style={{ color: '#94a3b8', fontSize: '14px', fontWeight: '600' }}>—</span>
+                                  <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>—</span>
                                 )}
                               </td>
 
-                              {/* ADMIN ACTIONS (SINGLE-LINE SPACIOUS ACTIONS) */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', borderRadius: '0 10px 10px 0', whiteSpace: 'nowrap', minWidth: '240px' }}>
-                                <div style={{ display: 'inline-flex', gap: '5px', justifyContent: 'center', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                              {/* ADMIN ACTIONS */}
+                              <td style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'inline-flex', gap: '4px', justifyContent: 'center', alignItems: 'center', whiteSpace: 'nowrap' }}>
                                   {/* View Full Form Details */}
                                   <button
                                     type="button"
-                                    onClick={() => setSelectedAppForModal(app)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedAppForModal(app);
+                                    }}
                                     style={{
                                       background: '#f0f9ff',
                                       color: '#0284c7',
                                       border: '1px solid #bae6fd',
-                                      padding: '5px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
                                       fontWeight: '700',
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '4px',
+                                      gap: '3px',
                                       transition: 'all 0.15s ease',
                                       whiteSpace: 'nowrap'
                                     }}
@@ -2568,7 +2742,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                   {/* Add Documents */}
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       setSelectedAppForDocument(app);
                                       setDocumentToAdd('');
                                       setDocumentName('');
@@ -2577,38 +2752,41 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                       background: '#fff7ed',
                                       color: '#ea580c',
                                       border: '1px solid #fdba74',
-                                      padding: '5px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
                                       fontWeight: '700',
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '4px',
+                                      gap: '3px',
                                       transition: 'all 0.15s ease',
                                       whiteSpace: 'nowrap'
                                     }}
                                     title="Add a supporting document to this application"
                                   >
-                                    <span>📁</span> <span>Add Documents</span>
+                                    <span>📁</span> <span>Docs</span>
                                   </button>
 
-                                   {/* Download Pre-Filled PDF */}
+                                  {/* Download Pre-Filled PDF */}
                                   <button
                                     type="button"
-                                    onClick={() => generateForm49APdf(app.details || app)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      generateForm49APdf(app.details || app);
+                                    }}
                                     style={{
                                       background: '#ecfdf5',
                                       color: '#059669',
                                       border: '1px solid #a7f3d0',
-                                      padding: '5px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
                                       fontWeight: '700',
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '4px',
+                                      gap: '3px',
                                       transition: 'all 0.15s ease',
                                       whiteSpace: 'nowrap'
                                     }}
@@ -2624,42 +2802,45 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                         background: '#f1f5f9',
                                         color: '#94a3b8',
                                         border: '1px solid #cbd5e1',
-                                        padding: '5px 9px',
-                                        borderRadius: '7px',
-                                        fontSize: '11px',
+                                        padding: '4px 7px',
+                                        borderRadius: '6px',
+                                        fontSize: '10.5px',
                                         fontWeight: '700',
                                         cursor: 'not-allowed',
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '4px',
+                                        gap: '3px',
                                         whiteSpace: 'nowrap'
                                       }}
                                       title="Approved by Admin — Cannot be deleted"
                                     >
-                                      <span>🔒</span> <span>Approved</span>
+                                      <span>🔒</span>
                                     </span>
                                   ) : (
                                     <button
                                       type="button"
-                                      onClick={() => handleRetailerDeleteApplication(app)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRetailerDeleteApplication(app);
+                                      }}
                                       style={{
                                         background: '#fef2f2',
                                         color: '#dc2626',
                                         border: '1px solid #fca5a5',
-                                        padding: '5px 9px',
-                                        borderRadius: '7px',
-                                        fontSize: '11px',
+                                        padding: '4px 7px',
+                                        borderRadius: '6px',
+                                        fontSize: '10.5px',
                                         fontWeight: '700',
                                         cursor: 'pointer',
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '4px',
+                                        gap: '3px',
                                         transition: 'all 0.15s ease',
                                         whiteSpace: 'nowrap'
                                       }}
                                       title="Delete application and get instant wallet refund"
                                     >
-                                      <span>🗑️</span> <span>Delete</span>
+                                      <span>🗑️</span>
                                     </button>
                                   )}
                                 </div>
@@ -2781,7 +2962,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                 <div style={{ background: '#1e293b', border: '1.5px solid #0284c7', borderRadius: '16px', width: '96%', maxWidth: '940px', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', color: '#fff', boxShadow: '0 25px 60px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
 
                   {/* Fixed Header Bar */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '12px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '12px 20px', gap: '10px' }}>
                     <div>
                       <h4 style={{ margin: 0, fontSize: '16px', color: '#38bdf8', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>📋</span> <span>PAN Form Details</span>
@@ -2793,15 +2974,39 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                         Submitted by User: <strong style={{ color: '#e2e8f0' }}>{selectedAppForModal.userId || selectedAppForModal.userMobile || 'Retailer'}</strong>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAppForModal(null)}
-                      style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#ef4444'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    >
-                      ✕
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
+                        style={{
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          color: '#ffffff',
+                          border: '1px solid rgba(56, 189, 248, 0.5)',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Copy all application details to clipboard"
+                      >
+                        <span>📋</span> <span>Copy Details</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAppForModal(null)}
+                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#ef4444'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
 
                   {/* Scrollable Body Content (Compact 2-Column Dashboard Layout) */}
@@ -2978,6 +3183,27 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
                   {/* Fixed Footer Bar */}
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center', background: '#0f172a', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '10px 20px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
+                      style={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
+                      }}
+                      title="Copy all application details to clipboard"
+                    >
+                      <span>📋</span> <span>Copy All Details</span>
+                    </button>
                     {selectedAppForModal.receiptUrl && (
                       <button
                         type="button"
@@ -3134,7 +3360,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
             onSubmit={handleCorrectionSubmit}
             onDownload={handleCorrectionDownload}
             isSubmitting={isSubmitting}
-            customFields={getCustomFieldsForCurrentForm()}
+            customFields={getCustomFieldsForCurrentForm('epan_correction')}
             tabs={tabs}
           />
 
@@ -3266,8 +3492,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
               </div>
 
               {/* Photo, Signature & Proof Document Upload Section */}
-              <div style={{ background: 'rgba(15, 23, 42, 0.85)', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#fb923c', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="form-section-card pan-upload-card" style={{ marginBottom: '24px' }}>
+                <h4 className="form-section-title" style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#ea580c', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>📷</span> <span>{manualData.category === 'INDIVIDUAL' ? 'Photo & Signature Upload Form (Physical PAN Processing)' : 'Authorized Representative Signature & Stamp Upload'}</span>
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: manualData.category === 'INDIVIDUAL' ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '20px' }}>
@@ -3365,12 +3591,12 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
-                <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
-                  {isSubmitting ? 'Submitting...' : `🚀 Submit Application (Fee: ₹${tabs.find(t => t.id === 'manual_new_pan')?.fee ?? 107})`}
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
                 <button type="button" onClick={handleDownloadPdf} className="pancard-submit-btn" style={{ background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)' }}>
                   📥 Download Pre-Filled PDF
+                </button>
+                <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
+                  {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
                 </button>
               </div>
 
@@ -3430,7 +3656,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
                   <div style={{ marginTop: '20px' }}>
                     <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
-                      {isSubmitting ? 'Submitting...' : `🚀 Submit Application (Fee: ₹${currentTabObj?.fee ?? 107})`}
+                      {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
                     </button>
                   </div>
 

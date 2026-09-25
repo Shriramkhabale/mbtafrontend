@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib/dist/pdf-lib.esm.js';
 import './PanCardView.css';
@@ -92,6 +93,83 @@ const downloadReceiptToPc = (url) => {
     window.open(url, '_blank');
   } catch (e) {
     console.warn('Error opening receipt window:', e);
+  }
+};
+
+const copyApplicationDetailsToClipboard = (app) => {
+  if (!app) return;
+  const d = app.details || {};
+  const fullName = [d.firstName, d.middleName, d.lastName || app.applicantName].filter(Boolean).join(' ') || app.applicantName || '—';
+  const fatherName = app.fatherName || `${d.fatherFirstName || ''} ${d.fatherMiddleName || ''} ${d.fatherLastName || ''}`.trim() || '—';
+  const motherName = `${d.motherFirstName || ''} ${d.motherMiddleName || ''} ${d.motherLastName || ''}`.trim() || '—';
+  const district = (d.district && d.district !== 'SELECT') ? d.district : (app.district || '—');
+  const state = (d.state && d.state !== 'PLEASE SELECT') ? d.state : (app.state || 'MAHARASHTRA');
+
+  const text = [
+    `=== PAN APPLICATION DETAILS ===`,
+    `Ack Number: ${app.ackNumber || 'N/A'}`,
+    `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
+    `Status: ${(app.status || 'Submitted').toUpperCase()}`,
+    `Service Type: ${app.applicationType || 'Manual New PAN'}`,
+    `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
+    app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
+    app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
+    ``,
+    `--- PERSONAL PARTICULARS ---`,
+    `Title: ${d.title || app.title || 'SHRI'}`,
+    `Applicant Name: ${fullName}`,
+    `Gender: ${app.gender || d.gender || 'Male'}`,
+    `Date of Birth: ${app.dob || d.dob || '—'}`,
+    `Aadhaar Number: ${app.aadhaarNumber || d.aadhaarNumber || '—'}`,
+    `Mobile Number: ${app.mobileNumber || '—'}`,
+    `Email Address: ${app.email || '—'}`,
+    ``,
+    `--- PARENTS DETAILS ---`,
+    `Father's Name: ${fatherName}`,
+    `Mother's Name: ${motherName}`,
+    ``,
+    `--- RESIDENCE ADDRESS ---`,
+    `Flat/Door/Block: ${d.flatNo || '—'}`,
+    `Building/Premises: ${d.premises || '—'}`,
+    `Road/Street: ${d.roadStreet || '—'}`,
+    `Area/Taluka: ${d.areaTaluka || '—'}`,
+    `District: ${district}`,
+    `State: ${state}`,
+    `Pincode: ${d.pincode || '—'}`,
+    ``,
+    `--- AO CODE DETAILS ---`,
+    `Area Code: ${d.aoAreaCode || 'MUM'} | AO Type: ${d.aoType || 'C'} | Range Code: ${d.aoRangeCode || '11'} | AO No: ${d.aoNo || '1'} | City: ${d.aoCity || district || 'MUMBAI'}`,
+    `===============================`
+  ].filter(line => line !== false && line !== undefined).join('\n');
+
+  const showToast = () => {
+    showCustomToast('Details Copied!', 'All application details copied to clipboard.', 'success');
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(showToast).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast();
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast();
   }
 };
 
@@ -263,8 +341,8 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
   const isPdf = currentValue && currentValue.startsWith('data:application/pdf');
 
   return (
-    <div style={{ marginBottom: '6px' }}>
-      <label style={{ fontSize: '11.5px', fontWeight: '800', color: '#94a3b8', marginBottom: '4px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+    <div className="pan-dropzone-container">
+      <label className="pan-dropzone-label">
         {label} {isRequired && <span className="req-star">*</span>}
       </label>
       <div
@@ -272,20 +350,7 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current && fileInputRef.current.click()}
-        style={{
-          border: isDragging ? '1.5px dashed #38bdf8' : (currentValue ? '1.5px solid #10b981' : '1.5px dashed rgba(56, 189, 248, 0.35)'),
-          background: isDragging ? 'rgba(56, 189, 248, 0.15)' : (currentValue ? 'rgba(16, 185, 129, 0.1)' : 'rgba(15, 23, 42, 0.75)'),
-          borderRadius: '10px',
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          transition: 'all 0.25s ease',
-          boxShadow: isDragging ? '0 0 12px rgba(56, 189, 248, 0.25)' : 'none',
-          minHeight: '44px',
-          gap: '10px'
-        }}
+        className={`pan-dropzone-box ${isDragging ? 'is-dragging' : ''} ${currentValue ? 'has-value' : ''}`}
       >
         <input
           type="file"
@@ -296,24 +361,18 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
         />
 
         {currentValue ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+          <div className="pan-dropzone-content has-file">
+            <div className="pan-dropzone-preview-wrap">
               {isPdf ? (
-                <span style={{ fontSize: '18px' }}>📑</span>
+                <span className="pan-dropzone-pdf-icon">📑</span>
               ) : (
                 <img
                   src={currentValue}
                   alt="Preview"
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    objectFit: 'cover',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255,255,255,0.2)'
-                  }}
+                  className="pan-dropzone-img-preview"
                 />
               )}
-              <span style={{ color: '#34d399', fontSize: '12px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span className="pan-dropzone-file-ready">
                 ✅ {isPdf ? 'PDF Attached' : 'File Ready'}
               </span>
             </div>
@@ -321,35 +380,25 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
             <button
               type="button"
               onClick={handleRemove}
-              style={{
-                background: 'rgba(239, 68, 68, 0.15)',
-                color: '#f87171',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '6px',
-                padding: '2px 8px',
-                fontSize: '11px',
-                fontWeight: '700',
-                cursor: 'pointer',
-                flexShrink: 0
-              }}
+              className="pan-dropzone-remove-btn"
             >
               ✕ Remove
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-              <span style={{ fontSize: '18px', flexShrink: 0 }}>{icon}</span>
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontSize: '12px', fontWeight: '700', color: isDragging ? '#38bdf8' : '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <div className="pan-dropzone-content is-empty">
+            <div className="pan-dropzone-info-wrap">
+              <span className="pan-dropzone-icon">{icon}</span>
+              <div className="pan-dropzone-text-group">
+                <span className="pan-dropzone-title">
                   {isDragging ? 'Drop File Now' : 'Click or Drag File'}
                 </span>
-                <span style={{ fontSize: '10.5px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span className="pan-dropzone-hint">
                   {hint}
                 </span>
               </div>
             </div>
-            <span style={{ background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)', color: '#ffffff', fontSize: '10.5px', fontWeight: '800', padding: '4px 10px', borderRadius: '6px', flexShrink: 0 }}>
+            <span className="pan-dropzone-browse-btn">
               Browse
             </span>
           </div>
@@ -359,8 +408,27 @@ const DropzoneBox = ({ label, fieldName, isRequired, currentValue, onFileSelect,
   );
 };
 
-const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
+const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [tabs, setTabs] = useState([]);
+
+  const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'dark');
+
+  useEffect(() => {
+    if (propTheme) {
+      setCurrentTheme(propTheme);
+    }
+  }, [propTheme]);
+
+  useEffect(() => {
+    const handleStorage = () => {
+      const saved = localStorage.getItem('appTheme') || 'dark';
+      setCurrentTheme(saved);
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
 
   // Read initial active tab from URL search parameters if available
   const getInitialTab = () => {
@@ -376,6 +444,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   const [historyViewMode, setHistoryViewMode] = useState('user'); // 'all' (Admin View) or 'user' (My Applications)
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
   const [selectedAppForModal, setSelectedAppForModal] = useState(null);
   const [selectedAppForStatusUpdate, setSelectedAppForStatusUpdate] = useState(null);
   const [statusUpdateVal, setStatusUpdateVal] = useState('Submitted');
@@ -389,17 +459,22 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   const [isAddingDocument, setIsAddingDocument] = useState(false);
   const [selectedAppForEdit, setSelectedAppForEdit] = useState(null); // eslint-disable-line no-unused-vars
 
+  const switchTab = (tabName) => {
+    setActiveTab(tabName);
+    navigate(`/pancard?tab=${tabName}`);
+  };
+
   // Sync tab state when URL changes
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const tabFromUrl = params.get('tab');
     if (tabFromUrl && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
-  }, [window.location.search]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Form State for E-KYC & Correction
-  const [formData, setFormData] = useState({
+  // Form State initial defaults
+  const INITIAL_FORM_DATA = {
     applicantName: '',
     fatherName: '',
     dob: '',
@@ -411,10 +486,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     photoUrl: '',
     signatureUrl: '',
     remarks: ''
-  });
+  };
 
-  // Dedicated Form State for Manual New PAN (Individual & Non-Individual Entity)
-  const [manualData, setManualData] = useState({
+  const INITIAL_MANUAL_DATA = {
     category: 'INDIVIDUAL',
     aadhaarNumber: '',
     proofOfDob: 'ABHA HEALTH GOVT ID CARD (CENTRAL GOVT)',
@@ -450,12 +524,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     aoNo: '',
     photoUrl: '',
     signatureUrl: '',
-    // Document Proof Upload Fields (Identity, Address, Birth & Other Proof)
     proofOfIdentityUrl: '',
     proofOfAddressUrl: '',
     proofOfDobUrl: '',
     proofOfOtherUrl: '',
-    // Non-Individual Entity Fields (Form No. 94 / Form 49A Non-Individual)
     entityName: '',
     dateOfIncorporation: '',
     registrationNumber: '',
@@ -478,32 +550,36 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     raAadhaarNumber: '',
     raMobileNumber: '',
     raEmail: '',
-    raStdCode: '',
-    raLandlineNumber: '',
     raFlatNo: '',
-    raPremises: '',
     raRoadStreet: '',
     raAreaTaluka: '',
     raDistrict: 'SELECT',
     raState: 'PLEASE SELECT',
     raPincode: '',
-    raProofOfIdentity: '',
-    raProofOfAddress: '',
     proofOfIncorporation: 'CERTIFICATE OF INCORPORATION / REGISTRATION',
     verifierName: '',
-    verifierCapacity: 'PARTNER',
+    verifierCapacity: 'HIMSELF',
     verifierPlace: '',
     verifierDate: new Date().toISOString().split('T')[0]
-  });
-  const [correctionData, setCorrectionData] = useState({
+  };
+
+  const INITIAL_CORRECTION_DATA = {
     panNumber: '', aadhaarNumber: '', firstName: '', middleName: '', lastName: '', nameAsPerAadhaar: '', gender: '', dob: '', mobileNumber: '', email: '',
+    verifierCapacity: 'HIMSELF',
     flatNo: '', premises: '', roadStreet: '', areaTaluka: '', state: '', district: '', pincode: '',
     fatherFirstName: '', fatherMiddleName: '', fatherLastName: '', motherFirstName: '', motherMiddleName: '', motherLastName: '', parentToPrint: 'Father',
     proofOfIdentity: '', proofOfAddress: '', proofOfDob: '', passportNumber: '', taxpayerId: '', landlineNumber: '', photoUrl: '', signatureUrl: ''
-  });
+  };
+
+  // Form State for E-KYC & Correction
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+
+  // Dedicated Form State for Manual New PAN (Individual & Non-Individual Entity)
+  const [manualData, setManualData] = useState(INITIAL_MANUAL_DATA);
+  const [correctionData, setCorrectionData] = useState(INITIAL_CORRECTION_DATA);
 
   // Fetch dynamic tabs from backend
-  useEffect(() => {
+  const fetchTabs = () => {
     apiFetch('/api/pancard/tabs')
       .then(res => {
         if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -522,6 +598,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
         setTabs(getFallbackTabs());
         setLoadingTabs(false);
       });
+  };
+
+  useEffect(() => {
+    fetchTabs();
+    window.addEventListener('focus', fetchTabs);
+    window.addEventListener('pan_tabs_updated', fetchTabs);
+    return () => {
+      window.removeEventListener('focus', fetchTabs);
+      window.removeEventListener('pan_tabs_updated', fetchTabs);
+    };
   }, []);
 
   const getFallbackTabs = () => [
@@ -580,13 +666,14 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   ];
 
   // Fetch applications
-  const fetchHistory = () => {
+  const fetchHistory = (forcedMode = null) => {
     setLoadingHistory(true);
-    const userRole = localStorage.getItem('userRole') || '';
-    const isAdmin = userRole.toLowerCase() === 'admin' || !currentUser || currentUser.toLowerCase() === 'admin';
+    const userRole = (sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || '').toLowerCase();
+    const activeUser = (currentUser || sessionStorage.getItem('currentUser') || localStorage.getItem('currentUser') || '').trim();
+    const isAdmin = forcedMode === 'all' || ((userRole === 'admin' || userRole === 'staff') && historyViewMode === 'all') || (!forcedMode && (activeUser.toLowerCase() === 'admin' || userRole === 'staff'));
     const url = isAdmin
       ? `${API_URL}/api/pancard/all`
-      : `${API_URL}/api/pancard/applications/${currentUser || 'guest'}`;
+      : `${API_URL}/api/pancard/applications/${encodeURIComponent(activeUser || 'guest')}`;
 
     fetch(url)
       .then(res => res.json())
@@ -655,6 +742,47 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
       fetchHistory();
     }
   }, [activeTab, currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const searchedList = historyList.filter(app => {
+    const q = (searchQuery || '').toLowerCase().trim();
+    return !q ||
+      (app.ackNumber && app.ackNumber.toLowerCase().includes(q)) ||
+      (app.applicantName && app.applicantName.toLowerCase().includes(q)) ||
+      (app.mobileNumber && app.mobileNumber.toLowerCase().includes(q)) ||
+      (app.userId && app.userId.toLowerCase().includes(q)) ||
+      (app.aadhaarNumber && app.aadhaarNumber.toLowerCase().includes(q));
+  });
+
+  const sortedList = [...searchedList].sort((a, b) => {
+    const statusA = (a.status || 'Submitted').toLowerCase();
+    const statusB = (b.status || 'Submitted').toLowerCase();
+    if (statusA === 'submitted' && statusB !== 'submitted') return -1;
+    if (statusA !== 'submitted' && statusB === 'submitted') return 1;
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+
+  const filteredList = sortedList.filter(app => {
+    return statusFilter === 'ALL' || (app.status || 'Submitted').toLowerCase() === statusFilter.toLowerCase();
+  });
+
+  const totalPages = Math.ceil(filteredList.length / historyPageSize) || 1;
+  const currentPage = Math.min(historyPage, totalPages);
+  const startIndex = (currentPage - 1) * historyPageSize;
+  const paginatedList = filteredList.slice(startIndex, startIndex + historyPageSize);
+
+  const getStatusBadgeStyle = (st = 'Submitted') => {
+    const s = st.toLowerCase();
+    if (s === 'approved' || s === 'completed') {
+      return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
+    }
+    if (s === 'in progress') {
+      return { background: '#fffbe6', color: '#d97706', border: '1px solid #fde68a' };
+    }
+    if (s === 'rejected') {
+      return { background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5' };
+    }
+    return { background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74' };
+  };
 
   const handleSaveStatus = async (appId) => {
     if (!statusUpdateVal) return;
@@ -727,6 +855,53 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
       return;
     }
 
+    // When isSingleParent changes, hide father fields and auto-set parentToPrint if YES
+    if (name === 'isSingleParent') {
+      setManualData(prev => ({
+        ...prev,
+        isSingleParent: value,
+        fatherFirstName: value === 'YES' ? '' : prev.fatherFirstName,
+        fatherMiddleName: value === 'YES' ? '' : prev.fatherMiddleName,
+        fatherLastName: value === 'YES' ? '' : prev.fatherLastName,
+        parentToPrint: value === 'YES' ? 'Mother' : prev.parentToPrint
+      }));
+      return;
+    }
+
+    // Auto-set verifier capacity (HIMSELF for male, HERSELF for female)
+    if (name === 'gender') {
+      const isIndiv = !manualData.category || manualData.category === 'INDIVIDUAL';
+      setManualData(prev => ({
+        ...prev,
+        gender: value,
+        verifierCapacity: isIndiv ? (value === 'FEMALE' ? 'HERSELF' : 'HIMSELF') : prev.verifierCapacity
+      }));
+      return;
+    }
+
+    if (name === 'title') {
+      const isIndiv = !manualData.category || manualData.category === 'INDIVIDUAL';
+      const isFem = ['SMT', 'KUMARI'].includes(value);
+      setManualData(prev => ({
+        ...prev,
+        title: value,
+        gender: isFem ? 'FEMALE' : (value === 'SHRI' ? 'MALE' : prev.gender),
+        verifierCapacity: isIndiv ? (isFem ? 'HERSELF' : (value === 'SHRI' ? 'HIMSELF' : prev.verifierCapacity)) : prev.verifierCapacity
+      }));
+      return;
+    }
+
+    if (name === 'category') {
+      const isIndiv = value === 'INDIVIDUAL';
+      const isFem = manualData.gender === 'FEMALE' || ['SMT', 'KUMARI'].includes(manualData.title);
+      setManualData(prev => ({
+        ...prev,
+        category: value,
+        verifierCapacity: isIndiv ? (isFem ? 'HERSELF' : 'HIMSELF') : 'DIRECTOR'
+      }));
+      return;
+    }
+
     setManualData(prev => ({
       ...prev,
       [name]: value
@@ -765,7 +940,29 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     reader.readAsDataURL(file);
   };
 
-  const handleCorrectionChange = (e) => setCorrectionData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleCorrectionChange = (e) => {
+    const { name, value } = e.target;
+    setCorrectionData(prev => {
+      let extra = {};
+      const isIndiv = !prev.category || prev.category === 'INDIVIDUAL';
+      if (name === 'gender' && isIndiv) {
+        extra.verifierCapacity = value === 'FEMALE' ? 'HERSELF' : 'HIMSELF';
+      } else if (name === 'title' && isIndiv) {
+        if (['SMT', 'KUMARI'].includes(value)) {
+          extra.gender = 'FEMALE';
+          extra.verifierCapacity = 'HERSELF';
+        } else if (value === 'SHRI') {
+          extra.gender = 'MALE';
+          extra.verifierCapacity = 'HIMSELF';
+        }
+      } else if (name === 'category') {
+        const nowIndiv = value === 'INDIVIDUAL';
+        const isFem = prev.gender === 'FEMALE' || ['SMT', 'KUMARI'].includes(prev.title);
+        extra.verifierCapacity = nowIndiv ? (isFem ? 'HERSELF' : 'HIMSELF') : 'DIRECTOR';
+      }
+      return { ...prev, [name]: value, ...extra };
+    });
+  };
 
   const handleCorrectionFileUpload = (e, fieldName) => {
     const file = e.target.files?.[0];
@@ -776,23 +973,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   };
 
   const handleCorrectionDownload = async () => {
-    const isIndiv = !correctionData.category || correctionData.category === 'INDIVIDUAL';
     if (!correctionData.panNumber) {
-      Toast.fire({ icon: 'warning', title: 'Please enter Existing PAN Number first.' });
+      Toast.fire({ icon: 'warning', title: 'Please enter Existing PAN number before downloading.' });
       return;
     }
-    if (isIndiv && !correctionData.nameAsPerAadhaar && !correctionData.lastName) {
-      Toast.fire({ icon: 'warning', title: 'Enter Aadhaar name before downloading.' });
-      return;
-    }
-    if (!isIndiv && !correctionData.entityName && !correctionData.lastName) {
-      Toast.fire({ icon: 'warning', title: 'Enter Name of Entity before downloading.' });
-      return;
-    }
-    const docTitle = isIndiv ? 'PAN Correction' : 'Official Non-Individual PAN Changes/Correction (1-Page)';
-    Toast.fire({ icon: 'info', title: `Generating ${docTitle} PDF...` });
+    Toast.fire({ icon: 'info', title: 'Generating PAN Correction PDF...' });
     const success = await generatePanCrPdf(correctionData);
-    Toast.fire({ icon: success ? 'success' : 'error', title: success ? `${docTitle} PDF generated and downloaded.` : 'Could not generate PAN CR PDF.' });
+    Toast.fire({ icon: success ? 'success' : 'error', title: success ? 'PAN CR PDF generated and downloaded!' : 'Could not generate PAN CR PDF. Please check your inputs.' });
   };
 
   const handleCorrectionSubmit = async (e) => {
@@ -800,8 +987,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     if (Swal.isVisible() && Swal.getPopup()?.classList?.contains('swal2-toast')) {
       Swal.close();
     }
-    const correctionFee = tabs.find(t => t.id === 'epan_correction')?.fee ?? 107;
-    
+    const correctionFee = tabs.find(t => t.id === 'manual_pan_correction' || t.id === 'epan_correction')?.fee ?? 107;
+
     if (!correctionData.panNumber) {
       Toast.fire({ icon: 'error', title: 'Please enter Existing PAN Number' });
       return;
@@ -809,36 +996,22 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
     const isIndiv = !correctionData.category || correctionData.category === 'INDIVIDUAL';
     if (isIndiv) {
-      if (!correctionData.aadhaarNumber || !correctionData.lastName || !correctionData.mobileNumber || !correctionData.email) {
-        Toast.fire({ icon: 'error', title: 'Please complete all required Individual correction details.' });
+      if (!correctionData.aadhaarNumber || (!correctionData.lastName && !correctionData.nameAsPerAadhaar) || !correctionData.mobileNumber || !correctionData.email) {
+        Toast.fire({ icon: 'error', title: 'Please complete Aadhaar Number, Name, Mobile Number and Email.' });
         return;
       }
-      if (!correctionData.signatureUrl) {
-        Toast.fire({ icon: 'warning', title: 'Please upload Applicant Signature.' });
+      if (!correctionData.photoUrl || !correctionData.signatureUrl) {
+        Toast.fire({ icon: 'error', title: 'Please upload both Applicant Photo and Signature.' });
         return;
       }
     } else {
       const entityTitle = correctionData.entityName || correctionData.lastName;
-      if (!entityTitle) {
-        Toast.fire({ icon: 'error', title: 'Please enter Name of Entity.' });
-        return;
-      }
-      if (!correctionData.mobileNumber || !correctionData.email) {
-        Toast.fire({ icon: 'error', title: 'Please complete Entity Mobile Number and Email.' });
+      if (!entityTitle || !correctionData.mobileNumber || !correctionData.email) {
+        Toast.fire({ icon: 'error', title: 'Please complete Entity Name, Mobile Number and Email.' });
         return;
       }
       if (!correctionData.signatureUrl) {
-        Toast.fire({ icon: 'warning', title: 'Please upload Authorized Signatory Signature / Stamp.' });
-        return;
-      }
-    }
-
-    // Dynamic Custom Fields Validation (Only if defined for Correction tab)
-    const corrTab = tabs.find(t => t.id === 'epan_correction');
-    const activeCustomFields = (corrTab?.fields || []).filter(f => f && !f.hidden && f.isCustom);
-    for (const cf of activeCustomFields) {
-      if (cf.required && !correctionData[cf.name]) {
-        Toast.fire({ icon: 'error', title: `Please enter ${cf.label}` });
+        Toast.fire({ icon: 'error', title: 'Please upload Authorized Signatory Signature / Stamp.' });
         return;
       }
     }
@@ -849,26 +1022,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     }
 
     const appDisplayName = isIndiv
-      ? (correctionData.nameAsPerAadhaar || `${correctionData.firstName || ''} ${correctionData.lastName || ''}`.trim())
-      : (correctionData.entityName || correctionData.lastName || 'Entity');
+      ? (correctionData.nameAsPerAadhaar || `${correctionData.firstName || ''} ${correctionData.lastName || ''}`.trim() || 'Individual Applicant')
+      : (correctionData.entityName || correctionData.lastName || 'Non-Individual Entity');
 
-    const confirmRes = await Swal.fire({
-      title: `Submit PAN Correction (${correctionData.category || 'INDIVIDUAL'}) Application`,
-      html: `
-        <div style="text-align: left; font-size: 14px; line-height: 1.6; background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 10px;">
-          <p style="margin: 0 0 6px 0;"><b>PAN Number:</b> ${correctionData.panNumber}</p>
-          <p style="margin: 0 0 6px 0;"><b>Applicant / Entity:</b> ${appDisplayName}</p>
-          <p style="margin: 0;"><b>Fee Deducted:</b> <span style="color: #ea580c; font-weight: 800;">₹${correctionFee}</span></p>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: `Submit & Pay ₹${correctionFee}`,
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#ea580c',
-      cancelButtonColor: '#64748b'
-    });
-
-    if (!confirmRes.isConfirmed) return;
+    // Pre-open window synchronously to avoid browser pop-up blocker
+    const pdfWin = window.open('about:blank', '_blank');
 
     setIsSubmitting(true);
     try {
@@ -877,10 +1035,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser,
-          applicationType: 'Already PAN',
+          applicationType: 'PAN Correction',
           applicantName: appDisplayName,
           fatherName: isIndiv ? `${correctionData.fatherFirstName || ''} ${correctionData.fatherLastName || ''}`.trim() : (correctionData.verifierName || 'Authorized Signatory'),
-          dob: isIndiv ? (correctionData.dob || '') : (correctionData.dateOfIncorporation || correctionData.dob || '2000-01-01'),
+          dob: isIndiv ? correctionData.dob : (correctionData.dateOfIncorporation || correctionData.dob),
           gender: correctionData.gender || 'N/A',
           mobileNumber: correctionData.mobileNumber,
           email: correctionData.email,
@@ -888,34 +1046,28 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           panNumber: correctionData.panNumber,
           photoUrl: correctionData.photoUrl || '',
           signatureUrl: correctionData.signatureUrl || '',
-          details: {
-            ...correctionData,
-            country: correctionData.country || 'INDIA',
-            proofOfIncorporation: correctionData.proofOfIncorporation || (isIndiv ? '' : 'CERTIFICATE OF INCORPORATION'),
-            proofOfIdentity: correctionData.proofOfIdentity || (isIndiv ? '' : 'CERTIFICATE OF INCORPORATION'),
-            proofOfAddress: correctionData.proofOfAddress || (isIndiv ? '' : 'CERTIFICATE OF INCORPORATION')
-          },
+          details: correctionData,
           remarks: 'PAN correction request submitted'
         })
       });
       const result = await response.json();
-      if (!result.success) throw new Error(result.message || 'Submission failed.');
-      await generatePanCrPdf(correctionData);
-      const isIndivApp = !correctionData.category || correctionData.category === 'INDIVIDUAL';
-      const docMsg = isIndivApp
-        ? 'Your PAN CR PDF download has started.'
-        : 'Your official 1-page Non-Individual PAN Changes/Correction PDF download has started.';
-      Swal.fire({
-        icon: 'success',
-        title: 'PAN Correction Application Submitted!',
-        html: `<p>Ack No: <b>${result.ackNumber}</b></p><p style="margin-top: 10px; color: #16a34a; font-weight: 600;">📄 ${docMsg}</p>`,
-        confirmButtonColor: '#0284c7'
-      });
-      fetchHistory('user');
-    } catch (error) {
-      Toast.fire({ icon: 'error', title: error.message || 'Error submitting correction application.' });
-    } finally {
       setIsSubmitting(false);
+
+      if (!result.success) {
+        if (pdfWin) pdfWin.close();
+        throw new Error(result.message || 'Submission failed.');
+      }
+
+      await generatePanCrPdf(correctionData, 'pancr-pdf-container', pdfWin);
+      setCorrectionData(INITIAL_CORRECTION_DATA);
+      setHistoryViewMode('user');
+      switchTab('history');
+      fetchHistory('user');
+      Toast.fire({ icon: 'success', title: 'PAN Correction Application Submitted Successfully!' });
+    } catch (error) {
+      if (pdfWin) pdfWin.close();
+      setIsSubmitting(false);
+      Toast.fire({ icon: 'error', title: error.message || 'Error submitting correction application.' });
     }
   };
 
@@ -958,6 +1110,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
   // Helper to check if a specific field is set to Display or Hide by Admin
   const isFieldVisible = (fieldName, defaultVal = true) => {
+    if (manualData.isSingleParent === 'YES' && ['fatherFirstName', 'fatherMiddleName', 'fatherLastName'].includes(fieldName)) {
+      return false;
+    }
     const manualTab = tabs.find(t => t.id === 'manual_new_pan');
     if (manualTab && Array.isArray(manualTab.fields)) {
       const found = manualTab.fields.find(f => f.name === fieldName);
@@ -983,35 +1138,41 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   };
 
   // Helper to extract custom dynamic fields added via Admin Panel for Form 93 / Form 94
-  const getCustomFieldsForCurrentForm = () => {
-    const manualTab = tabs.find(t => t.id === 'manual_new_pan');
-    if (!manualTab || !Array.isArray(manualTab.fields)) return [];
+  const getCustomFieldsForCurrentForm = (targetTabId = 'manual_new_pan') => {
+    const targetTab = tabs.find(t => t.id === targetTabId) || tabs.find(t => t.id === 'manual_new_pan');
+    if (!targetTab || !Array.isArray(targetTab.fields)) return [];
 
-    const isIndividual = manualData.category === 'INDIVIDUAL';
+    const isIndividual = targetTabId === 'epan_correction'
+      ? (!correctionData.category || correctionData.category === 'INDIVIDUAL')
+      : (manualData.category === 'INDIVIDUAL');
     const currentFormType = isIndividual ? 'Form 93' : 'Form 94';
 
     const STANDARD_F93 = new Set([
-      'category', 'aadhaarNumber', 'proofOfDob', 'title', 'firstName', 'middleName', 'lastName',
+      'category', 'panNumber', 'aadhaarNumber', 'proofOfDob', 'title', 'firstName', 'middleName', 'lastName',
       'isSingleParent', 'fatherFirstName', 'fatherMiddleName', 'fatherLastName',
       'motherFirstName', 'motherMiddleName', 'motherLastName', 'nameAsPerAadhaar',
       'gender', 'dob', 'mobileNumber', 'email', 'flatNo', 'premises', 'roadStreet',
       'areaTaluka', 'state', 'district', 'pincode', 'proofOfIdentity', 'proofOfAddress',
-      'photoUrl', 'signatureUrl'
+      'photoUrl', 'signatureUrl', 'copyOfPan', 'passportNumber', 'tin', 'parentToPrint',
+      'addressType', 'postOffice', 'country', 'nameCorrection', 'dobCorrection', 'genderCorrection',
+      'addressCorrection', 'fatherCorrection', 'contactCorrection'
     ]);
 
     const STANDARD_F94 = new Set([
-      'category', 'entityName', 'dateOfIncorporation', 'registrationNumber',
+      'category', 'panNumber', 'entityName', 'dateOfIncorporation', 'registrationNumber',
       'mobileNumber', 'email', 'landlineNumber', 'stdCode', 'incomeSource', 'proofOfIncorporation',
       'commFlatNo', 'commPremises', 'commRoadStreet', 'commAreaTaluka', 'commState',
       'commDistrict', 'commPincode', 'raTitle', 'raFirstName', 'raMiddleName',
       'raLastName', 'raPanNumber', 'raAadhaarNumber', 'raMobileNumber', 'raEmail',
       'raFlatNo', 'raRoadStreet', 'raAreaTaluka', 'raDistrict', 'raState',
-      'raPincode', 'verifierName', 'verifierCapacity', 'verifierPlace', 'verifierDate'
+      'raPincode', 'verifierName', 'verifierCapacity', 'verifierPlace', 'verifierDate',
+      'tin', 'flatNo', 'roadStreet', 'postOffice', 'areaTaluka', 'state', 'district', 'pincode', 'country',
+      'proofOfIdentity', 'proofOfAddress', 'copyOfPan', 'designation'
     ]);
 
     const stdSet = isIndividual ? STANDARD_F93 : STANDARD_F94;
 
-    return manualTab.fields.filter(f => {
+    return targetTab.fields.filter(f => {
       if (!f || f.hidden) return false;
 
       const fFormType = f.formType || 'Both';
@@ -1024,6 +1185,581 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
       return !stdSet.has(f.name);
     });
+  };
+
+  // Helper to extract fields in the EXACT ORDER configured via Admin Panel Drag & Drop
+  const getOrderedFieldsForCurrentForm = () => {
+    const manualTab = tabs.find(t => t.id === 'manual_new_pan');
+    const DEFAULT_FORM_FIELDS = [
+      { name: 'category', label: 'CATEGORY OF APPLICANT', type: 'select', formType: 'Both', required: true },
+      { name: 'aadhaarNumber', label: 'AADHAAR NO', type: 'text', formType: 'Form 93', required: true },
+      { name: 'proofOfDob', label: 'PROOF OF DOB', type: 'select', formType: 'Form 93', required: true },
+      { name: 'title', label: 'TITLE', type: 'select', formType: 'Form 93', required: true },
+      { name: 'firstName', label: 'FIRST NAME', type: 'text', formType: 'Form 93', required: false },
+      { name: 'middleName', label: 'MIDDLE NAME', type: 'text', formType: 'Form 93', required: false },
+      { name: 'lastName', label: 'LAST NAME / SURNAME', type: 'text', formType: 'Form 93', required: true },
+      { name: 'isSingleParent', label: 'WHETHER MOTHER/FATHER IS A SINGLE PARENT', type: 'select', formType: 'Form 93', required: true },
+      { name: 'fatherFirstName', label: "FATHER'S FIRST NAME", type: 'text', formType: 'Form 93', required: false },
+      { name: 'fatherMiddleName', label: "FATHER'S MIDDLE NAME", type: 'text', formType: 'Form 93', required: false },
+      { name: 'fatherLastName', label: "FATHER'S LAST NAME", type: 'text', formType: 'Form 93', required: false },
+      { name: 'motherFirstName', label: "MOTHER'S FIRST NAME", type: 'text', formType: 'Form 93', required: false },
+      { name: 'motherMiddleName', label: "MOTHER'S MIDDLE NAME", type: 'text', formType: 'Form 93', required: false },
+      { name: 'motherLastName', label: "MOTHER'S LAST NAME", type: 'text', formType: 'Form 93', required: false },
+      { name: 'nameAsPerAadhaar', label: 'NAME AS PER AADHAAR', type: 'text', formType: 'Form 93', required: true },
+      { name: 'gender', label: 'GENDER', type: 'select', formType: 'Form 93', required: true },
+      { name: 'dob', label: 'DATE OF BIRTH', type: 'date', formType: 'Form 93', required: true },
+      { name: 'mobileNumber', label: 'MOBILE NO.', type: 'tel', formType: 'Both', required: true },
+      { name: 'email', label: 'EMAIL ID', type: 'email', formType: 'Both', required: true },
+      { name: 'flatNo', label: 'FLAT/DOOR/BLOCK NO', type: 'text', formType: 'Form 93', required: true },
+      { name: 'premises', label: 'PREMISES/BUILDING/VILLAGE', type: 'text', formType: 'Form 93', required: true },
+      { name: 'roadStreet', label: 'ROAD/STREET/POST OFFICE', type: 'text', formType: 'Form 93', required: true },
+      { name: 'areaTaluka', label: 'AREA/TALUKA/SUB DIVISION', type: 'text', formType: 'Form 93', required: true },
+      { name: 'state', label: 'STATE', type: 'select', formType: 'Form 93', required: true },
+      { name: 'district', label: 'TOWN/DISTRICT', type: 'select', formType: 'Form 93', required: true },
+      { name: 'pincode', label: 'PINCODE', type: 'text', formType: 'Form 93', required: true },
+      { name: 'proofOfIdentity', label: 'PROOF OF IDENTITY', type: 'select', formType: 'Form 93', required: true },
+      { name: 'proofOfAddress', label: 'PROOF OF ADDRESS', type: 'select', formType: 'Form 93', required: true },
+      { name: 'photoUrl', label: 'Upload Applicant Photo', type: 'file', formType: 'Form 93', required: false },
+      { name: 'signatureUrl', label: 'Upload Applicant Signature', type: 'file', formType: 'Form 93', required: false }
+    ];
+
+    const fieldsList = (manualTab && Array.isArray(manualTab.fields) && manualTab.fields.length > 0)
+      ? manualTab.fields
+      : DEFAULT_FORM_FIELDS;
+
+    const isIndividual = manualData.category === 'INDIVIDUAL';
+    const isF94 = (f) => {
+      if (!f) return false;
+      if (f.formType === 'Form 94') return true;
+      if (f.formType === 'Form 93' || f.formType === 'Both') return false;
+      const name = f.name || '';
+      return name.startsWith('comm') || name.startsWith('ra') || name.startsWith('verifier') || name === 'entityName' || name === 'dateOfIncorporation' || name === 'registrationNumber' || name === 'incomeSource' || name === 'proofOfIncorporation';
+    };
+
+    return fieldsList.filter(f => {
+      if (!f || f.hidden === true || !isFieldVisible(f.name)) return false;
+      if (isIndividual) {
+        return !isF94(f);
+      } else {
+        return isF94(f) || f.name === 'category' || f.name === 'mobileNumber' || f.name === 'email';
+      }
+    });
+  };
+
+  const renderSingleField = (field) => {
+    const fieldName = field.name;
+    const fieldLabel = field.label || fieldName;
+    const req = isFieldReq(fieldName, field.required !== false);
+    const placeholder = field.placeholder || `Enter ${fieldLabel}`;
+
+    // Determine grid column span out of 12
+    let gridSpan = 'span 6';
+    if (['category', 'aadhaarNumber', 'proofOfDob', 'isSingleParent', 'entityName', 'proofOfIncorporation', 'pincode', 'commPincode'].includes(fieldName)) {
+      gridSpan = 'span 12';
+    } else if (['title', 'firstName', 'middleName', 'lastName'].includes(fieldName)) {
+      gridSpan = 'span 3';
+    } else if (['fatherFirstName', 'fatherMiddleName', 'fatherLastName', 'motherFirstName', 'motherMiddleName', 'motherLastName'].includes(fieldName)) {
+      gridSpan = 'span 4';
+    } else if (field.type === 'file') {
+      gridSpan = 'span 6';
+    }
+
+    if (fieldName === 'category') {
+      return (
+        <div key="category" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select
+            name="category"
+            value={manualData.category}
+            onChange={handleManualChange}
+            className="form-select-pro"
+            style={{ width: '100%' }}
+          >
+            <option value="INDIVIDUAL">INDIVIDUAL</option>
+            <option value="FIRM">FIRM</option>
+            <option value="BODY OF INDIVIDUALS">BODY OF INDIVIDUALS</option>
+            <option value="TRUST">TRUST</option>
+            <option value="ASSOCIATION OF PERSONS">ASSOCIATION OF PERSONS</option>
+            <option value="LOCAL AUTHORITY">LOCAL AUTHORITY</option>
+            <option value="COMPANY">COMPANY</option>
+            <option value="HINDU UNDIVIDED FAMILY">HINDU UNDIVIDED FAMILY</option>
+            <option value="LIMITED LIABILITY PARTNERSHIP">LIMITED LIABILITY PARTNERSHIP</option>
+            <option value="ARTIFICIAL JURIDICAL PERSON">ARTIFICIAL JURIDICAL PERSON</option>
+            <option value="GOVERNMENT">GOVERNMENT</option>
+          </select>
+        </div>
+      );
+    }
+
+    if (fieldName === 'aadhaarNumber') {
+      return (
+        <div key="aadhaarNumber" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input
+            type="text"
+            name="aadhaarNumber"
+            value={manualData.aadhaarNumber}
+            onChange={handleManualChange}
+            placeholder={placeholder || '12 DIGITS UID NO'}
+            maxLength={12}
+            className="form-input-pro"
+            style={{ width: '100%' }}
+          />
+        </div>
+      );
+    }
+
+    if (fieldName === 'proofOfDob') {
+      return (
+        <div key="proofOfDob" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <div style={{ background: 'rgba(234, 88, 12, 0.08)', border: '1px solid rgba(234, 88, 12, 0.3)', borderRadius: '10px', padding: '10px 14px', marginBottom: '10px', color: '#fb923c', fontSize: '12.5px', fontWeight: '700' }}>
+            📌 If any other DOB (Date of Birth) Proof is not available, choose PROOF OF DOB List or ABHA Card.
+          </div>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select
+            name="proofOfDob"
+            value={manualData.proofOfDob}
+            onChange={handleManualChange}
+            className="form-select-pro"
+            style={{ width: '100%' }}
+          >
+            <option value="">Please Select</option>
+            {PROOF_OF_DOB_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (fieldName === 'title') {
+      return (
+        <div key="title" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select name="title" value={manualData.title} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
+            <option value="SELECT">SELECT</option>
+            <option value="SHRI">SHRI</option>
+            <option value="SMT">SMT</option>
+            <option value="KUMARI">KUMARI</option>
+          </select>
+        </div>
+      );
+    }
+
+    if (['firstName', 'middleName', 'lastName'].includes(fieldName)) {
+      return (
+        <div key={fieldName} style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input
+            type="text"
+            name={fieldName}
+            value={manualData[fieldName] || ''}
+            onChange={handleManualChange}
+            placeholder={placeholder}
+            className="form-input-pro uppercase-text"
+            style={{ width: '100%' }}
+          />
+        </div>
+      );
+    }
+
+    if (fieldName === 'isSingleParent') {
+      return (
+        <div key="isSingleParent" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select name="isSingleParent" value={manualData.isSingleParent} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
+            <option value="NO">NO</option>
+            <option value="YES">YES</option>
+          </select>
+        </div>
+      );
+    }
+
+    if (['fatherFirstName', 'fatherMiddleName', 'fatherLastName', 'motherFirstName', 'motherMiddleName', 'motherLastName'].includes(fieldName)) {
+      return (
+        <div key={fieldName} style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input
+            type="text"
+            name={fieldName}
+            value={manualData[fieldName] || ''}
+            onChange={handleManualChange}
+            placeholder={placeholder}
+            className="form-input-pro uppercase-text"
+            style={{ width: '100%' }}
+          />
+        </div>
+      );
+    }
+
+    if (fieldName === 'nameAsPerAadhaar') {
+      return (
+        <div key="nameAsPerAadhaar" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input
+            type="text"
+            name="nameAsPerAadhaar"
+            value={manualData.nameAsPerAadhaar}
+            onChange={handleManualChange}
+            placeholder={placeholder || 'NAME AS PER AADHAAR'}
+            className="form-input-pro uppercase-text"
+            style={{ width: '100%' }}
+          />
+        </div>
+      );
+    }
+
+    if (fieldName === 'gender') {
+      return (
+        <div key="gender" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select name="gender" value={manualData.gender} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
+            <option value="SELECT">SELECT</option>
+            <option value="MALE">MALE</option>
+            <option value="FEMALE">FEMALE</option>
+            <option value="TRANSGENDER">TRANSGENDER</option>
+          </select>
+        </div>
+      );
+    }
+
+    if (fieldName === 'dob') {
+      return (
+        <div key="dob" style={{ gridColumn: isMinor ? 'span 12' : gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input type="date" name="dob" value={manualData.dob} onChange={handleManualChange} className="form-input-pro" style={{ width: '100%' }} />
+
+          {isMinor && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(234, 88, 12, 0.06) 100%)',
+              border: '1.5px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: '14px',
+              padding: '18px 20px',
+              marginTop: '14px',
+              marginBottom: '8px',
+              boxShadow: '0 8px 25px rgba(239, 68, 68, 0.1)'
+            }}>
+              <div style={{ color: '#f87171', fontWeight: '800', fontSize: '14px', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', paddingBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>👶</span> <span>UNDERAGE MINOR APPLICANT DETAILS (Age &lt; 18 Years)</span>
+                </div>
+                <span style={{ background: '#ef4444', color: '#fff', fontSize: '10px', padding: '3px 8px', borderRadius: '12px', fontWeight: '800' }}>
+                  MANDATORY FOR MINOR
+                </span>
+              </div>
+
+              <p style={{ color: '#cbd5e1', fontSize: '12px', marginTop: 0, marginBottom: '14px', lineHeight: '1.4' }}>
+                As per Income Tax Department & NSDL rules, since the applicant is under 18 years old, Representative Assessee (Parent / Guardian) details and Guardian Photo are required for Form 49A (PART E).
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                <div>
+                  <label className="form-label-pro">RA TITLE <span className="req-star">*</span></label>
+                  <select name="raTitle" value={manualData.raTitle || 'SHRI'} onChange={handleManualChange} className="form-select-pro">
+                    <option value="SHRI">SHRI</option>
+                    <option value="SMT">SMT</option>
+                    <option value="KUMARI">KUMARI</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label-pro">GUARDIAN FIRST NAME <span className="req-star">*</span></label>
+                  <input type="text" name="raFirstName" value={manualData.raFirstName || ''} onChange={handleManualChange} placeholder="GUARDIAN FIRST NAME" className="form-input-pro uppercase-text" required={isMinor} />
+                </div>
+                <div>
+                  <label className="form-label-pro">GUARDIAN MIDDLE NAME</label>
+                  <input type="text" name="raMiddleName" value={manualData.raMiddleName || ''} onChange={handleManualChange} placeholder="MIDDLE NAME" className="form-input-pro uppercase-text" />
+                </div>
+                <div>
+                  <label className="form-label-pro">GUARDIAN LAST NAME <span className="req-star">*</span></label>
+                  <input type="text" name="raLastName" value={manualData.raLastName || ''} onChange={handleManualChange} placeholder="LAST NAME / SURNAME" className="form-input-pro uppercase-text" required={isMinor} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <label className="form-label-pro">GUARDIAN AADHAAR NUMBER <span className="req-star">*</span></label>
+                  <input type="text" name="raAadhaarNumber" value={manualData.raAadhaarNumber || ''} onChange={handleManualChange} placeholder="12-DIGIT AADHAAR NUMBER" maxLength={12} className="form-input-pro" required={isMinor} />
+                </div>
+                <div>
+                  <label className="form-label-pro">GUARDIAN PAN NUMBER (IF ANY)</label>
+                  <input type="text" name="raPanNumber" value={manualData.raPanNumber || ''} onChange={handleManualChange} placeholder="10-CHARACTER PAN (OPTIONAL)" maxLength={10} className="form-input-pro uppercase-text" />
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '14px' }}>
+                <label className="form-label-pro" style={{ color: '#fb923c', fontWeight: '800', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <span>📷</span> <span>UPLOAD GUARDIAN PHOTO (Parent / Representative Assessee Photo) <span className="req-star">*</span></span>
+                </label>
+                <DropzoneBox
+                  label="Upload Parent / Guardian Photo (Minor Application)"
+                  fieldName="raPhotoUrl"
+                  isRequired={isMinor}
+                  currentValue={manualData.raPhotoUrl || manualData.proofOfOtherUrl}
+                  onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, raPhotoUrl: dataUrl, proofOfOtherUrl: dataUrl }))}
+                  accept="image/*"
+                  hint="Drag & drop Parent / Guardian passport photo here (JPG, PNG)."
+                  icon="👨‍👦"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (fieldName === 'mobileNumber') {
+      return (
+        <div key="mobileNumber" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input type="tel" name="mobileNumber" value={manualData.mobileNumber} onChange={handleManualChange} placeholder={placeholder || 'MOBILE NO.'} maxLength={10} className="form-input-pro" style={{ width: '100%' }} />
+        </div>
+      );
+    }
+
+    if (fieldName === 'email') {
+      return (
+        <div key="email" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input type="email" name="email" value={manualData.email} onChange={handleManualChange} placeholder={placeholder || 'EMAIL ID'} className="form-input-pro" style={{ width: '100%' }} />
+        </div>
+      );
+    }
+
+    if (fieldName === 'state') {
+      return (
+        <div key="state" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select name="state" value={manualData.state} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
+            <option value="PLEASE SELECT">PLEASE SELECT</option>
+            {ALL_INDIAN_STATES.map(st => (
+              <option key={st} value={st}>{st}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (fieldName === 'district') {
+      return (
+        <div key="district" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select name="district" value={manualData.district} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
+            <option value="SELECT">SELECT</option>
+            {((manualData.state && INDIAN_STATES_DISTRICTS[manualData.state])
+              ? INDIAN_STATES_DISTRICTS[manualData.state]
+              : ALL_INDIAN_DISTRICTS
+            ).map(dist => (
+              <option key={dist} value={dist}>{dist}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (['flatNo', 'premises', 'roadStreet', 'areaTaluka', 'pincode'].includes(fieldName)) {
+      return (
+        <div key={fieldName} style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input type="text" name={fieldName} value={manualData[fieldName] || ''} onChange={handleManualChange} placeholder={placeholder} maxLength={fieldName === 'pincode' ? 6 : undefined} className="form-input-pro uppercase-text" style={{ width: '100%' }} />
+        </div>
+      );
+    }
+
+    if (fieldName === 'proofOfIdentity') {
+      return (
+        <div key="proofOfIdentity" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select name="proofOfIdentity" value={manualData.proofOfIdentity} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
+            <option value="">Please Select</option>
+            {PROOF_OF_IDENTITY_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (fieldName === 'proofOfAddress') {
+      return (
+        <div key="proofOfAddress" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <select name="proofOfAddress" value={manualData.proofOfAddress} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
+            <option value="">Please Select</option>
+            {PROOF_OF_ADDRESS_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (fieldName === 'photoUrl') {
+      if (manualData.category !== 'INDIVIDUAL') return null;
+      return (
+        <div key="photoUrl" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro" style={{ color: '#38bdf8', fontWeight: '800', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <span>📷</span> <span>{fieldLabel} {!isMinor && req && <span className="req-star">*</span>}</span>
+          </label>
+          <DropzoneBox
+            label="Upload Applicant Photo"
+            fieldName="photoUrl"
+            isRequired={!isMinor && req}
+            currentValue={manualData.photoUrl}
+            onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, photoUrl: dataUrl }))}
+            accept="image/*"
+            hint="Drag & drop applicant photo here (JPG, PNG)."
+            icon="👤"
+          />
+        </div>
+      );
+    }
+
+    if (fieldName === 'signatureUrl') {
+      return (
+        <div key="signatureUrl" style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro" style={{ color: '#38bdf8', fontWeight: '800', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <span>✍️</span> <span>{fieldLabel} {req && <span className="req-star">*</span>}</span>
+          </label>
+          <DropzoneBox
+            label="Upload Applicant Signature"
+            fieldName="signatureUrl"
+            isRequired={req}
+            currentValue={manualData.signatureUrl}
+            onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, signatureUrl: dataUrl }))}
+            accept="image/*"
+            hint="Drag & drop signature image here (JPG, PNG)."
+            icon="✍️"
+          />
+        </div>
+      );
+    }
+
+    if (['entityName', 'dateOfIncorporation', 'registrationNumber', 'incomeSource', 'proofOfIncorporation', 'commFlatNo', 'commPremises', 'commRoadStreet', 'commAreaTaluka', 'commState', 'commDistrict', 'commPincode', 'stdCode', 'landlineNumber', 'raTitle', 'raFirstName', 'raMiddleName', 'raLastName', 'raPanNumber', 'raAadhaarNumber', 'raMobileNumber', 'raEmail', 'raFlatNo', 'raRoadStreet', 'raAreaTaluka', 'raDistrict', 'raState', 'raPincode', 'verifierName', 'verifierCapacity', 'verifierPlace', 'verifierDate'].includes(fieldName)) {
+      if (field.type === 'select') {
+        let optionsList = field.options || [];
+        if (fieldName === 'commState' || fieldName === 'raState') optionsList = ['PLEASE SELECT', ...ALL_INDIAN_STATES];
+        if (fieldName === 'commDistrict' || fieldName === 'raDistrict') optionsList = ['SELECT', ...ALL_INDIAN_DISTRICTS];
+
+        return (
+          <div key={fieldName} style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+            <label className="form-label-pro">
+              {fieldLabel} {req && <span className="req-star">*</span>}
+            </label>
+            <select
+              name={fieldName}
+              value={manualData[fieldName] || ''}
+              onChange={handleManualChange}
+              className="form-select-pro"
+              style={{ width: '100%' }}
+            >
+              <option value="">-- Select {fieldLabel} --</option>
+              {optionsList.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+        );
+      }
+      
+      return (
+        <div key={fieldName} style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+          <label className="form-label-pro">
+            {fieldLabel} {req && <span className="req-star">*</span>}
+          </label>
+          <input
+            type={field.type || 'text'}
+            name={fieldName}
+            value={manualData[fieldName] || ''}
+            onChange={handleManualChange}
+            placeholder={placeholder}
+            className="form-input-pro uppercase-text"
+            style={{ width: '100%' }}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div key={fieldName} style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
+        <label className="form-label-pro">
+          {field.icon ? `${field.icon} ` : ''}{fieldLabel} {req && <span className="req-star">*</span>}
+        </label>
+        {field.type === 'select' ? (
+          <select
+            name={fieldName}
+            value={manualData[fieldName] || ''}
+            onChange={handleManualChange}
+            className="form-select-pro"
+            style={{ width: '100%' }}
+          >
+            <option value="">-- Select {fieldLabel} --</option>
+            {(field.options || []).map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : field.type === 'file' ? (
+          <input
+            type="file"
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  setManualData(prev => ({ ...prev, [fieldName]: reader.result }));
+                };
+                reader.readAsDataURL(file);
+              }
+            }}
+            className="form-input-pro"
+            style={{ width: '100%' }}
+          />
+        ) : (
+          <input
+            type={field.type || 'text'}
+            name={fieldName}
+            value={manualData[fieldName] || ''}
+            onChange={handleManualChange}
+            placeholder={placeholder}
+            className="form-input-pro"
+            style={{ width: '100%' }}
+          />
+        )}
+      </div>
+    );
   };
 
 
@@ -1055,19 +1791,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   const applicantAge = getAgeFromDob(manualData.dob);
   const isMinor = applicantAge !== null && applicantAge >= 0 && applicantAge < 18;
 
-  // Download Pre-Filled Form 49A / Form 94 PDF
+  // Download Pre-Filled Form 49A PDF
   const handleDownloadPdf = async () => {
-    const isNonInd = manualData.category && manualData.category !== 'INDIVIDUAL';
-    if (!isNonInd && !manualData.lastName && !manualData.nameAsPerAadhaar && !manualData.aadhaarNumber) {
+    if (!manualData.lastName && !manualData.nameAsPerAadhaar && !manualData.aadhaarNumber) {
       Toast.fire({ icon: 'warning', title: 'Please fill in basic application form details first' });
       return;
     }
-    if (isNonInd && !manualData.entityName && !manualData.lastName) {
-      Toast.fire({ icon: 'warning', title: 'Please enter Name of Entity first' });
-      return;
-    }
-    const docTitle = isNonInd ? 'Form No. 94' : 'Form 49A';
-    Toast.fire({ icon: 'info', title: `Generating official ${docTitle} PDF...` });
+    Toast.fire({ icon: 'info', title: 'Generating Form 49A PDF with Photo & Signature...' });
     const payload = {
       ...manualData,
       isMinor,
@@ -1075,12 +1805,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
     };
     const success = await generateForm49APdf(payload);
     if (success) {
-      Toast.fire({ icon: 'success', title: `Official ${docTitle} PDF generated and downloaded!` });
+      Toast.fire({ icon: 'success', title: 'Form 49A PDF generated and downloaded!' });
     } else {
       Toast.fire({ icon: 'error', title: 'Could not generate PDF. Please check your data.' });
     }
   };
-
 
   // eslint-disable-next-line no-unused-vars
   const handleAutoFillForm = () => {
@@ -1240,10 +1969,25 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
             `,
             confirmButtonText: 'OK',
             confirmButtonColor: '#0284c7'
+          }).then(() => {
+            setHistoryViewMode('user');
+            setActiveTab('history');
+            fetchHistory('user');
+            try {
+              const url = new URL(window.location);
+              url.searchParams.set('tab', 'history');
+              window.history.replaceState({}, '', url);
+            } catch (e) {}
           });
+          setFormData(INITIAL_FORM_DATA);
           setHistoryViewMode('user');
           setActiveTab('history');
           fetchHistory('user');
+          try {
+            const url = new URL(window.location);
+            url.searchParams.set('tab', 'history');
+            window.history.replaceState({}, '', url);
+          } catch (e) {}
         } else {
           Toast.fire({ icon: 'error', title: data.message || 'Submission failed.' });
         }
@@ -1344,24 +2088,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
       ? `${manualData.title !== 'SELECT' ? manualData.title : ''} ${manualData.firstName} ${manualData.lastName}`.trim() || manualData.lastName
       : (manualData.entityName || manualData.lastName);
 
-    const confirmRes = await Swal.fire({
-      title: `Submit Manual New PAN (${manualData.category}) Application`,
-      html: `
-        <div style="text-align: left; font-size: 14px; line-height: 1.6; background: rgba(15, 23, 42, 0.6); padding: 16px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 10px;">
-          <p style="margin: 0 0 6px 0;"><b>Applicant / Entity:</b> ${applicantDisplayName}</p>
-          <p style="margin: 0 0 6px 0;"><b>Category:</b> ${manualData.category}</p>
-          <p style="margin: 0 0 6px 0;"><b>Mobile:</b> ${manualData.mobileNumber}</p>
-          <p style="margin: 0;"><b>Fee Deducted:</b> <span style="color: #ea580c; font-weight: 800;">₹${feeAmount}</span></p>
-        </div>
-      `,
-      showCancelButton: true,
-      confirmButtonText: `Submit & Pay ₹${feeAmount}`,
-      cancelButtonText: 'Cancel',
-      confirmButtonColor: '#ea580c',
-      cancelButtonColor: '#64748b'
-    });
-
-    if (!confirmRes.isConfirmed) return;
+    // Pre-open window synchronously for Form 93 PDF to prevent pop-up blocker
+    const pdfWin = window.open('about:blank', '_blank');
 
     setIsSubmitting(true);
     try {
@@ -1370,7 +2098,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser,
-          applicationType: 'Manual New PAN',
+          applicationType: getApplicationTypeLabel(),
           applicantName: applicantDisplayName,
           fatherName: manualData.category === 'INDIVIDUAL' ? `${manualData.fatherFirstName} ${manualData.fatherLastName}`.trim() : (manualData.verifierName || 'Representative Assessee'),
           dob: manualData.category === 'INDIVIDUAL' ? manualData.dob : (manualData.dateOfIncorporation || manualData.dob),
@@ -1383,7 +2111,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           signatureUrl: manualData.signatureUrl || '',
           details: {
             ...manualData,
-            lastName: applicantDisplayName,
+            incomeSource: manualData.sourceofincome || manualData.sourceOfIncome || manualData.incomeSource || '',
+            sourceOfIncome: manualData.sourceofincome || manualData.sourceOfIncome || manualData.incomeSource || '',
+            sourceofincome: manualData.sourceofincome || manualData.sourceOfIncome || manualData.incomeSource || '',
+            lastName: manualData.category === 'INDIVIDUAL' ? (manualData.lastName || '') : applicantDisplayName,
             dob: manualData.category === 'INDIVIDUAL' ? manualData.dob : (manualData.dateOfIncorporation || manualData.dob),
             applicantStatus: manualData.category
           },
@@ -1395,34 +2126,22 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
       setIsSubmitting(false);
 
       if (data.success) {
-        // Automatically convert application into official Form No. 94 / Form 49A document layout & download PDF
-        const isNonInd = manualData.category && manualData.category !== 'INDIVIDUAL';
-        const docTitle = isNonInd ? 'Form No. 94' : 'Form 49A';
-        generateForm49APdf(manualData);
+        // Automatically convert application into official Form 93 document layout, download PDF & open in new tab
+        await generateForm49APdf(manualData, 'form93-pdf-container', pdfWin);
 
-        Swal.fire({
-          icon: 'success',
-          title: '✅ PAN Application Submitted!',
-          html: `
-            <div style="text-align: center; line-height: 1.6;">
-              <p style="font-size: 16px; color: #16a34a; font-weight: 700;">Ack No: ${data.ackNumber}</p>
-              <p>Fee ₹${data.feeDeducted} deducted from wallet balance.</p>
-              <div style="margin-top: 12px; padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; color: #15803d; font-size: 13px; font-weight: 600;">
-                📄 Application automatically converted to official ${docTitle}! Your official 2-page PDF download has started.
-              </div>
-            </div>
-          `,
-          showConfirmButton: true,
-          confirmButtonText: 'OK',
-          confirmButtonColor: '#0284c7'
+        setManualData({
+          ...INITIAL_MANUAL_DATA,
+          verifierDate: new Date().toISOString().split('T')[0]
         });
         setHistoryViewMode('user');
-        setActiveTab('history');
+        switchTab('history');
         fetchHistory('user');
       } else {
+        if (pdfWin) pdfWin.close();
         Toast.fire({ icon: 'error', title: data.message || 'Submission failed.' });
       }
     } catch (err) {
+      if (pdfWin) pdfWin.close();
       setIsSubmitting(false);
       console.error('Submit error:', err);
       Toast.fire({ icon: 'error', title: 'Error submitting application.' });
@@ -1432,15 +2151,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
   const getApplicationTypeLabel = () => {
     if (activeTab === 'manual_new_pan') return 'Manual New PAN';
     if (activeTab === 'epan_kyc') return 'Aadhaar OTP New PAN';
-    if (activeTab === 'epan_correction') return 'Already PAN / Correction';
+    if (activeTab === 'epan_correction') return tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction';
     return 'Manual New PAN';
   };
 
   const currentTabObj = tabs.find(t => t.id === activeTab) || tabs[0];
 
   return (
-    <div className="pancard-inline-container">
-      <div className="pancard-card">
+    <div className={`pancard-inline-container theme-${currentTheme}`}>
+      <div className={`pancard-card theme-${currentTheme}`}>
 
         {/* Header Bar */}
         <div className="pancard-header">
@@ -1500,7 +2219,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           <button
             type="button"
             className={`pancard-tab-btn ${(activeTab === 'new_app_landing' || activeTab === 'manual_new_pan' || activeTab === 'epan_kyc') ? 'active' : ''}`}
-            onClick={() => setActiveTab('new_app_landing')}
+            onClick={() => switchTab('new_app_landing')}
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1512,7 +2231,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           <button
             type="button"
             className={`pancard-tab-btn ${activeTab === 'epan_correction' ? 'active' : ''}`}
-            onClick={() => setActiveTab('epan_correction')}
+            onClick={() => switchTab('epan_correction')}
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1520,12 +2239,12 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
               </svg>
             </span>
-            <span>Already PAN / Correction</span>
+            <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
           </button>
           <button
             type="button"
             className={`pancard-tab-btn history-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => setActiveTab('history')}
+            onClick={() => switchTab('history')}
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1612,7 +2331,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                   <button
                     type="button"
                     className="pan-btn-manual small-btn"
-                    onClick={() => setActiveTab('manual_new_pan')}
+                    onClick={() => switchTab('manual_new_pan')}
                   >
                     <span>Apply Manual New PAN</span>
                     <span className="btn-arrow">➔</span>
@@ -1658,7 +2377,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                   <button
                     type="button"
                     className="pan-btn-kyc small-btn"
-                    onClick={() => setActiveTab('epan_kyc')}
+                    onClick={() => switchTab('epan_kyc')}
                   >
                     <span>Apply Aadhaar OTP PAN</span>
                     <span className="btn-arrow">➔</span>
@@ -1691,207 +2410,202 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
           </div>
         ) : activeTab === 'history' ? (
           <div className="pancard-history-section" style={{ padding: '4px' }}>
-            {/* Header & Controls Bar */}
-            <div style={{ background: '#ffffff', border: '1px solid #fed7aa', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '14px' }}>
-                <div>
-                  <h4 style={{ margin: 0, color: '#ea580c', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>📑</span> <span>Submitted PAN Application Requests</span>
-                  </h4>
-                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '12px' }}>
-                    View all submitted Form 49A applications, inspect full form data, download PDFs, and update processing status.
-                  </p>
-                </div>
+                {/* Header & Controls Bar */}
+                <div style={{ background: '#ffffff', border: '1px solid #fed7aa', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '14px' }}>
+                    <div>
+                      <h4 style={{ margin: 0, color: '#ea580c', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>📑</span> <span>Submitted PAN Application Requests</span>
+                      </h4>
+                      <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '12px' }}>
+                        View all submitted Form 49A applications, inspect full form data, download PDFs, and update processing status.
+                      </p>
+                    </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={() => fetchHistory()}
-                    style={{
-                      background: '#fff7ed',
-                      color: '#ea580c',
-                      border: '1px solid #fdba74',
-                      padding: '7px 14px',
-                      borderRadius: '10px',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      boxShadow: '0 2px 6px rgba(234, 88, 12, 0.08)'
-                    }}
-                  >
-                    <span>🔄</span> <span>Refresh</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Summary Statistics Cards Bar */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '16px' }}>
-                {/* Total Applications Sent */}
-                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                    📤
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Total Sent to Admin</div>
-                    <div style={{ fontSize: '19px', color: '#0f172a', fontWeight: '800' }}>{historyList.length}</div>
-                  </div>
-                </div>
-
-                {/* Approved Applications */}
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                    ✅
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '10.5px', color: '#15803d', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Approved Applications</div>
-                    <div style={{ fontSize: '19px', color: '#166534', fontWeight: '800' }}>
-                      {historyList.filter(a => (a.status || '').toLowerCase() === 'approved' || (a.status || '').toLowerCase() === 'completed').length}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => fetchHistory()}
+                        style={{
+                          background: '#fff7ed',
+                          color: '#ea580c',
+                          border: '1px solid #fdba74',
+                          padding: '7px 14px',
+                          borderRadius: '10px',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 6px rgba(234, 88, 12, 0.08)'
+                        }}
+                      >
+                        <span>🔄</span> <span>Refresh</span>
+                      </button>
                     </div>
                   </div>
-                </div>
 
-                {/* In Progress / Pending */}
-                <div style={{ background: '#fffbe6', border: '1px solid #fde68a', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                    ⏳
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '10.5px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Pending / In Progress</div>
-                    <div style={{ fontSize: '19px', color: '#92400e', fontWeight: '800' }}>
-                      {historyList.filter(a => (a.status || '').toLowerCase() === 'submitted' || (a.status || '').toLowerCase() === 'in progress').length}
+                  {/* Summary Statistics Cards Bar (Accurate matching counts per retailer / search query) */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                    {/* Total Applications Sent */}
+                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                        🪪
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>TOTAL SENT TO ADMIN</div>
+                        <div style={{ fontSize: '19px', color: '#0f172a', fontWeight: '800' }}>{searchedList.length}</div>
+                      </div>
+                    </div>
+
+                    {/* Approved Applications */}
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                        ✅
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10.5px', color: '#15803d', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>APPROVED APPLICATIONS</div>
+                        <div style={{ fontSize: '19px', color: '#166534', fontWeight: '800' }}>
+                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'approved').length}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Completed Applications */}
+                    <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                        🎯
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10.5px', color: '#0369a1', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>COMPLETED APPLICATIONS</div>
+                        <div style={{ fontSize: '19px', color: '#075985', fontWeight: '800' }}>
+                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'completed').length}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* In Progress / Pending */}
+                    <div style={{ background: '#fffbe6', border: '1px solid #fde68a', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                        ⌛
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10.5px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>PENDING / IN PROGRESS</div>
+                        <div style={{ fontSize: '19px', color: '#92400e', fontWeight: '800' }}>
+                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'submitted' || (a.status || '').toLowerCase() === 'in progress').length}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rejected / Correction */}
+                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                        ❌
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '10.5px', color: '#b91c1c', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>REJECTED / CORRECTION</div>
+                        <div style={{ fontSize: '19px', color: '#991b1b', fontWeight: '800' }}>
+                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'rejected').length}
+                        </div>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Filters Bar */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px 170px', gap: '12px', alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      placeholder="🔍 Search by Ack No, Applicant Name, Mobile or User ID..."
+                      value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setHistoryPage(1); }}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #fdba74',
+                        borderRadius: '10px',
+                        padding: '9px 14px',
+                        color: '#1e293b',
+                        fontSize: '13px',
+                        outline: 'none'
+                      }}
+                    />
+
+                    <select
+                      value={statusFilter}
+                      onChange={e => { setStatusFilter(e.target.value); setHistoryPage(1); }}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #fdba74',
+                        borderRadius: '10px',
+                        padding: '9px 12px',
+                        color: '#1e293b',
+                        fontSize: '13px',
+                        outline: 'none',
+                        fontWeight: '600'
+                      }}
+                    >
+                      <option value="ALL">All Statuses</option>
+                      <option value="Submitted">Submitted</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Approved">Approved</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+
+                    <select
+                      value={historyPageSize}
+                      onChange={e => { setHistoryPageSize(Number(e.target.value)); setHistoryPage(1); }}
+                      style={{
+                        background: '#ffffff',
+                        border: '1px solid #fdba74',
+                        borderRadius: '10px',
+                        padding: '9px 12px',
+                        color: '#1e293b',
+                        fontSize: '13px',
+                        outline: 'none',
+                        fontWeight: '600'
+                      }}
+                    >
+                      <option value={10}>10 per page</option>
+                      <option value={25}>25 per page</option>
+                      <option value={50}>50 per page</option>
+                      <option value={100}>100 per page</option>
+                    </select>
+                  </div>
                 </div>
 
-                {/* Rejected */}
-                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                    ❌
+                {/* Applications Data Table */}
+                {loadingHistory ? (
+                  <div className="pancard-loading-state" style={{ padding: '40px', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1px solid #fed7aa' }}>
+                    <div className="spinner"></div>
+                    <p style={{ marginTop: '12px', color: '#ea580c', fontWeight: '600' }}>Loading PAN application requests...</p>
                   </div>
-                  <div>
-                    <div style={{ fontSize: '10.5px', color: '#b91c1c', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Rejected / Correction</div>
-                    <div style={{ fontSize: '19px', color: '#991b1b', fontWeight: '800' }}>
-                      {historyList.filter(a => (a.status || '').toLowerCase() === 'rejected').length}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filters Bar */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '12px', alignItems: 'center' }}>
-                <input
-                  type="text"
-                  placeholder="🔍 Search by Ack No, Applicant Name, Mobile or User ID..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #fdba74',
-                    borderRadius: '10px',
-                    padding: '9px 14px',
-                    color: '#1e293b',
-                    fontSize: '13px',
-                    outline: 'none'
-                  }}
-                />
-
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  style={{
-                    background: '#ffffff',
-                    border: '1px solid #fdba74',
-                    borderRadius: '10px',
-                    padding: '9px 12px',
-                    color: '#1e293b',
-                    fontSize: '13px',
-                    outline: 'none',
-                    fontWeight: '600'
-                  }}
-                >
-                  <option value="ALL">All Statuses</option>
-                  <option value="Submitted">Submitted</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Applications Data Table */}
-            {loadingHistory ? (
-              <div className="pancard-loading-state" style={{ padding: '40px', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1px solid #fed7aa' }}>
-                <div className="spinner"></div>
-                <p style={{ marginTop: '12px', color: '#ea580c', fontWeight: '600' }}>Loading PAN application requests...</p>
-              </div>
-            ) : (() => {
-              const filteredList = historyList.filter(app => {
-                const matchesStatus = statusFilter === 'ALL' || (app.status || 'Submitted').toLowerCase() === statusFilter.toLowerCase();
-                const q = searchQuery.toLowerCase().trim();
-                const matchesSearch = !q ||
-                  (app.ackNumber && app.ackNumber.toLowerCase().includes(q)) ||
-                  (app.applicantName && app.applicantName.toLowerCase().includes(q)) ||
-                  (app.mobileNumber && app.mobileNumber.toLowerCase().includes(q)) ||
-                  (app.userId && app.userId.toLowerCase().includes(q)) ||
-                  (app.aadhaarNumber && app.aadhaarNumber.toLowerCase().includes(q));
-
-                return matchesStatus && matchesSearch;
-              }).sort((a, b) => {
-                const statusA = (a.status || 'Submitted').toLowerCase();
-                const statusB = (b.status || 'Submitted').toLowerCase();
-                if (statusA === 'submitted' && statusB !== 'submitted') return -1;
-                if (statusA !== 'submitted' && statusB === 'submitted') return 1;
-                return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-              });
-
-              if (filteredList.length === 0) {
-                return (
+                ) : filteredList.length === 0 ? (
                   <div className="pancard-empty-history" style={{ padding: '50px 20px', textAlign: 'center', background: '#fff7ed', borderRadius: '16px', border: '1px dashed #fdba74' }}>
                     <span style={{ fontSize: '36px', display: 'block', marginBottom: '10px' }}>📂</span>
                     <p style={{ color: '#ea580c', margin: 0, fontSize: '14px', fontWeight: '600' }}>
                       No PAN application requests found matching your filter.
                     </p>
                   </div>
-                );
-              }
-
-              const getStatusBadgeStyle = (st = 'Submitted') => {
-                const s = st.toLowerCase();
-                if (s === 'approved' || s === 'completed') {
-                  return { background: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' };
-                }
-                if (s === 'in progress') {
-                  return { background: '#fffbe6', color: '#d97706', border: '1px solid #fde68a' };
-                }
-                if (s === 'rejected') {
-                  return { background: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5' };
-                }
-                return { background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74' };
-              };
-
-              return (
-                  <div className="history-table-wrapper" style={{ overflowX: 'auto', width: '100%' }}>
-                    <table className="pancard-history-table" style={{ width: '100%', minWidth: '1000px', borderCollapse: 'separate', borderSpacing: '0 8px' }}>
+                ) : (
+                  <div>
+                  <div className="history-table-wrapper" style={{ width: '100%', overflowX: 'auto' }}>
+                    <table className="pancard-history-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px', tableLayout: 'auto' }}>
                       <thead>
                         <tr style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', borderBottom: '2px solid #fed7aa' }}>
-                          <th style={{ padding: '12px 10px', borderRadius: '10px 0 0 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
-                          <th style={{ padding: '12px 10px', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
-                          <th style={{ padding: '12px 10px', textAlign: 'center', borderRadius: '0 10px 10px 0', color: '#c2410c', fontWeight: '800', fontSize: '11px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
+                          <th style={{ padding: '9px 6px', borderRadius: '8px 0 0 8px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
+                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
+                          <th style={{ padding: '9px 5px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
+                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
+                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
+                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
+                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
+                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
+                          <th style={{ padding: '9px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredList.map((app) => {
-                          const fullPayload = { ...(app || {}), ...(app.details || {}) };
+                        {paginatedList.map((app) => {
                           const statusStyle = getStatusBadgeStyle(app.status || 'Submitted');
                           const hasReceipt = Boolean(app.receiptUrl || app.nsdlReceiptNumber || (app.status || '').toLowerCase() === 'approved');
 
@@ -1901,53 +2615,54 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                               style={{
                                 background: '#ffffff',
                                 border: '1px solid #fed7aa',
-                                boxShadow: '0 2px 8px rgba(234, 88, 12, 0.05)'
+                                boxShadow: '0 1px 6px rgba(234, 88, 12, 0.04)'
                               }}
                             >
                               {/* ACK NO */}
-                              <td className="col-ack" style={{ padding: '11px 10px', borderRadius: '10px 0 0 10px', whiteSpace: 'nowrap' }}>
-                                <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74', padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', fontFamily: 'monospace' }}>
+                              <td className="col-ack" style={{ padding: '8px 6px', borderRadius: '8px 0 0 8px', whiteSpace: 'nowrap' }}>
+                                <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 6px', borderRadius: '5px', fontSize: '11px', fontWeight: '800', fontFamily: 'monospace' }}>
                                   {app.ackNumber}
                                 </span>
                               </td>
 
                               {/* CATEGORY */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '3px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '2px 5px', borderRadius: '5px', fontSize: '9.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
                                   {app.category || app.details?.category || 'INDIVIDUAL'}
                                 </span>
                               </td>
 
                               {/* TYPE */}
-                              <td style={{ padding: '11px 10px', fontSize: '11.5px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '8px 5px', fontSize: '11px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 {app.applicationType}
                               </td>
 
                               {/* APPLICANT NAME */}
-                              <td style={{ padding: '11px 10px', fontSize: '12.5px', fontWeight: '800', color: '#0f172a', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '8px 6px', fontSize: '11.5px', fontWeight: '800', color: '#0f172a' }}>
                                 {app.applicantName}
                               </td>
 
                               {/* MOBILE / EMAIL */}
-                              <td style={{ padding: '11px 10px', fontSize: '11.5px', color: '#334155', whiteSpace: 'nowrap' }}>
-                                <div style={{ fontWeight: '600' }}>📞 {app.mobileNumber}</div>
-                                <div style={{ fontSize: '10.5px', color: '#64748b' }}>✉️ {app.email}</div>
+                              <td style={{ padding: '8px 6px', fontSize: '11px', color: '#334155' }}>
+                                <div style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>📞 {app.mobileNumber}</div>
+                                <div style={{ fontSize: '10px', color: '#64748b', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={app.email}>✉️ {app.email}</div>
                               </td>
 
                               {/* SUBMITTED DATE */}
-                              <td style={{ padding: '11px 10px', fontSize: '11.5px', color: '#475569', fontWeight: '500', whiteSpace: 'nowrap' }}>
-                                {new Date(app.createdAt).toLocaleDateString()} {new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              <td style={{ padding: '8px 6px', color: '#475569' }}>
+                                <div style={{ fontWeight: '700', fontSize: '11px', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleDateString()}</div>
+                                <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                               </td>
 
                               {/* STATUS */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <span style={{ ...statusStyle, padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '800', display: 'inline-block', textTransform: 'capitalize' }}>
+                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <span style={{ ...statusStyle, padding: '3px 7px', borderRadius: '16px', fontSize: '10px', fontWeight: '800', display: 'inline-block', textTransform: 'capitalize' }}>
                                   ● {app.status || 'Submitted'}
                                 </span>
                               </td>
 
-                              {/* NSDL RECEIPT (15-DIGIT RECEIPT BUTTON / DASH) */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              {/* NSDL RECEIPT */}
+                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                                 {hasReceipt ? (
                                   <button
                                     type="button"
@@ -1965,13 +2680,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                     style={{
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '5px',
+                                      gap: '3px',
                                       background: '#f0f9ff',
                                       color: '#0284c7',
                                       border: '1px solid #7dd3fc',
-                                      padding: '4px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '3px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10px',
                                       fontWeight: '800',
                                       fontFamily: 'monospace',
                                       cursor: app.receiptUrl ? 'pointer' : 'default',
@@ -1980,19 +2695,19 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                       transition: 'all 0.15s ease'
                                     }}
                                   >
-                                    <span style={{ fontSize: '11.5px' }}>🗎</span>
+                                    <span style={{ fontSize: '10.5px' }}>🗎</span>
                                     <span style={{ textDecoration: app.receiptUrl ? 'underline' : 'none' }}>
                                       {app.nsdlReceiptNumber || app.ackNumber}
                                     </span>
                                   </button>
                                 ) : (
-                                  <span style={{ color: '#94a3b8', fontSize: '14px', fontWeight: '600' }}>—</span>
+                                  <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>—</span>
                                 )}
                               </td>
 
-                              {/* ADMIN ACTIONS (SINGLE-LINE SPACIOUS ACTIONS) */}
-                              <td style={{ padding: '11px 10px', textAlign: 'center', borderRadius: '0 10px 10px 0', whiteSpace: 'nowrap', minWidth: '240px' }}>
-                                <div style={{ display: 'inline-flex', gap: '5px', justifyContent: 'center', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                              {/* ADMIN ACTIONS */}
+                              <td style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'inline-flex', gap: '4px', justifyContent: 'center', alignItems: 'center', whiteSpace: 'nowrap' }}>
                                   {/* View Full Form Details */}
                                   <button
                                     type="button"
@@ -2001,14 +2716,14 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                       background: '#f0f9ff',
                                       color: '#0284c7',
                                       border: '1px solid #bae6fd',
-                                      padding: '5px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
                                       fontWeight: '700',
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '4px',
+                                      gap: '3px',
                                       transition: 'all 0.15s ease',
                                       whiteSpace: 'nowrap'
                                     }}
@@ -2029,44 +2744,38 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                       background: '#fff7ed',
                                       color: '#ea580c',
                                       border: '1px solid #fdba74',
-                                      padding: '5px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
                                       fontWeight: '700',
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '4px',
+                                      gap: '3px',
                                       transition: 'all 0.15s ease',
                                       whiteSpace: 'nowrap'
                                     }}
                                     title="Add a supporting document to this application"
                                   >
-                                    <span>📁</span> <span>Add Documents</span>
+                                    <span>📁</span> <span>Docs</span>
                                   </button>
 
                                   {/* Download Pre-Filled PDF */}
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (app.applicationType === 'Already PAN') {
-                                        generatePanCrPdf(fullPayload);
-                                      } else {
-                                        generateForm49APdf(fullPayload);
-                                      }
-                                    }}
+                                    onClick={() => generateForm49APdf(app.details || app)}
                                     style={{
                                       background: '#ecfdf5',
                                       color: '#059669',
                                       border: '1px solid #a7f3d0',
-                                      padding: '5px 9px',
-                                      borderRadius: '7px',
-                                      fontSize: '11px',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
                                       fontWeight: '700',
                                       cursor: 'pointer',
                                       display: 'inline-flex',
                                       alignItems: 'center',
-                                      gap: '4px',
+                                      gap: '3px',
                                       transition: 'all 0.15s ease',
                                       whiteSpace: 'nowrap'
                                     }}
@@ -2082,19 +2791,19 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                         background: '#f1f5f9',
                                         color: '#94a3b8',
                                         border: '1px solid #cbd5e1',
-                                        padding: '5px 9px',
-                                        borderRadius: '7px',
-                                        fontSize: '11px',
+                                        padding: '4px 7px',
+                                        borderRadius: '6px',
+                                        fontSize: '10.5px',
                                         fontWeight: '700',
                                         cursor: 'not-allowed',
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '4px',
+                                        gap: '3px',
                                         whiteSpace: 'nowrap'
                                       }}
                                       title="Approved by Admin — Cannot be deleted"
                                     >
-                                      <span>🔒</span> <span>Approved</span>
+                                      <span>🔒</span>
                                     </span>
                                   ) : (
                                     <button
@@ -2104,20 +2813,20 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                                         background: '#fef2f2',
                                         color: '#dc2626',
                                         border: '1px solid #fca5a5',
-                                        padding: '5px 9px',
-                                        borderRadius: '7px',
-                                        fontSize: '11px',
+                                        padding: '4px 7px',
+                                        borderRadius: '6px',
+                                        fontSize: '10.5px',
                                         fontWeight: '700',
                                         cursor: 'pointer',
                                         display: 'inline-flex',
                                         alignItems: 'center',
-                                        gap: '4px',
+                                        gap: '3px',
                                         transition: 'all 0.15s ease',
                                         whiteSpace: 'nowrap'
                                       }}
                                       title="Delete application and get instant wallet refund"
                                     >
-                                      <span>🗑️</span> <span>Delete</span>
+                                      <span>🗑️</span>
                                     </button>
                                   )}
                                 </div>
@@ -2128,8 +2837,68 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                       </tbody>
                     </table>
                   </div>
-              );
-            })()}
+
+                  {/* Pagination Footer Controls */}
+                  <div style={{
+                    display: 'flex',
+                    justify: 'space-between',
+                    alignItems: 'center',
+                    marginTop: '14px',
+                    padding: '12px 18px',
+                    background: '#ffffff',
+                    borderRadius: '12px',
+                    border: '1px solid #fed7aa',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>
+                      Showing <strong>{filteredList.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + historyPageSize, filteredList.length)}</strong> of <strong>{filteredList.length}</strong> applications
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        disabled={currentPage <= 1}
+                        onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          border: '1px solid #fdba74',
+                          background: currentPage <= 1 ? '#f1f5f9' : '#fff7ed',
+                          color: currentPage <= 1 ? '#94a3b8' : '#ea580c',
+                          fontWeight: '700',
+                          fontSize: '12px',
+                          cursor: currentPage <= 1 ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        ◀ Prev
+                      </button>
+
+                      <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', padding: '0 8px' }}>
+                        Page {currentPage} of {totalPages}
+                      </span>
+
+                      <button
+                        type="button"
+                        disabled={currentPage >= totalPages}
+                        onClick={() => setHistoryPage(prev => Math.min(totalPages, prev + 1))}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          border: '1px solid #fdba74',
+                          background: currentPage >= totalPages ? '#f1f5f9' : '#fff7ed',
+                          color: currentPage >= totalPages ? '#94a3b8' : '#ea580c',
+                          fontWeight: '700',
+                          fontSize: '12px',
+                          cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        Next ▶
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             {selectedAppForDocument && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -2179,7 +2948,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                 <div style={{ background: '#1e293b', border: '1.5px solid #0284c7', borderRadius: '16px', width: '96%', maxWidth: '940px', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', color: '#fff', boxShadow: '0 25px 60px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
 
                   {/* Fixed Header Bar */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '12px 20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '12px 20px', gap: '10px' }}>
                     <div>
                       <h4 style={{ margin: 0, fontSize: '16px', color: '#38bdf8', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span>📋</span> <span>PAN Form Details</span>
@@ -2191,15 +2960,39 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                         Submitted by User: <strong style={{ color: '#e2e8f0' }}>{selectedAppForModal.userId || selectedAppForModal.userMobile || 'Retailer'}</strong>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAppForModal(null)}
-                      style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#ef4444'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    >
-                      ✕
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
+                        style={{
+                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          color: '#ffffff',
+                          border: '1px solid rgba(56, 189, 248, 0.5)',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Copy all application details to clipboard"
+                      >
+                        <span>📋</span> <span>Copy Details</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAppForModal(null)}
+                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#ef4444'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
 
                   {/* Scrollable Body Content (Compact 2-Column Dashboard Layout) */}
@@ -2376,6 +3169,27 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
                   {/* Fixed Footer Bar */}
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center', background: '#0f172a', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '10px 20px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
+                      style={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)'
+                      }}
+                      title="Copy all application details to clipboard"
+                    >
+                      <span>📋</span> <span>Copy All Details</span>
+                    </button>
                     {selectedAppForModal.receiptUrl && (
                       <button
                         type="button"
@@ -2387,14 +3201,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                     )}
                     <button
                       type="button"
-                      onClick={() => {
-                        const fullPayload = { ...(selectedAppForModal || {}), ...(selectedAppForModal.details || {}), ...(selectedAppForModal.details || {}) };
-                        if (selectedAppForModal.applicationType === 'Already PAN') {
-                          generatePanCrPdf(fullPayload);
-                        } else {
-                          generateForm49APdf(fullPayload);
-                        }
-                      }}
+                      onClick={() => generateForm49APdf(selectedAppForModal.details?.lastName ? selectedAppForModal.details : selectedAppForModal)}
                       style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '12px' }}
                     >
                       📄 Download Form 49A PDF
@@ -2530,7 +3337,6 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                 </div>
               </div>
             )}
-
           </div>
         ) : activeTab === 'epan_correction' ? (
           <PanCorrectionForm
@@ -2540,7 +3346,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
             onSubmit={handleCorrectionSubmit}
             onDownload={handleCorrectionDownload}
             isSubmitting={isSubmitting}
-            customFields={(tabs.find(t => t.id === 'epan_correction')?.fields || []).filter(f => f && !f.hidden && f.isCustom)}
+            customFields={getCustomFieldsForCurrentForm('epan_correction')}
+            tabs={tabs}
           />
 
         ) : activeTab === 'manual_new_pan' ? (
@@ -2558,1065 +3365,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
             </div>
 
             <form onSubmit={handleManualSubmit} className="manual-pan-form">
-              {/* Row 1: Category */}
-              {isFieldVisible('category') && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label className="form-label-pro">CATEGORY OF APPLICANT {isFieldReq('category') && <span className="req-star">*</span>}</label>
-                  <select
-                    name="category"
-                    value={manualData.category}
-                    onChange={handleManualChange}
-                    className="form-select-pro"
-                    style={{ width: '100%' }}
-                  >
-                    <option value="INDIVIDUAL">INDIVIDUAL</option>
-                    <option value="FIRM">FIRM</option>
-                    <option value="BODY OF INDIVIDUALS">BODY OF INDIVIDUALS</option>
-                    <option value="TRUST">TRUST</option>
-                    <option value="ASSOCIATION OF PERSONS">ASSOCIATION OF PERSONS</option>
-                    <option value="LOCAL AUTHORITY">LOCAL AUTHORITY</option>
-                    <option value="COMPANY">COMPANY</option>
-                    <option value="HINDU UNDIVIDED FAMILY">HINDU UNDIVIDED FAMILY</option>
-                    <option value="LIMITED LIABILITY PARTNERSHIP">LIMITED LIABILITY PARTNERSHIP</option>
-                    <option value="ARTIFICIAL JURIDICAL PERSON">ARTIFICIAL JURIDICAL PERSON</option>
-                    <option value="GOVERNMENT">GOVERNMENT</option>
-                  </select>
-                </div>
-              )}
-
-              {/* =========================================================================
-                  IF CATEGORY IS INDIVIDUAL -> RENDER INDIVIDUAL FORM FIELDS (EXISTING)
-                 ========================================================================= */}
-              {manualData.category === 'INDIVIDUAL' ? (
-                <>
-                  {/* Row 2: Aadhaar No */}
-                  {isFieldVisible('aadhaarNumber') && (
-                    <div style={{ marginBottom: '16px' }}>
-                      <label className="form-label-pro">AADHAAR NO {isFieldReq('aadhaarNumber') && <span className="req-star">*</span>}</label>
-                      <input
-                        type="text"
-                        name="aadhaarNumber"
-                        value={manualData.aadhaarNumber}
-                        onChange={handleManualChange}
-                        placeholder="12 DIGITS UID NO"
-                        maxLength={12}
-                        className="form-input-pro"
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Row 3: Important DOB Proof Note */}
-                  <div style={{ background: 'rgba(234, 88, 12, 0.08)', border: '1px solid rgba(234, 88, 12, 0.3)', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', color: '#fb923c', fontSize: '12.5px', fontWeight: '700' }}>
-                    📌 If any other DOB (Date of Birth) Proof is not available, choose PROOF OF DOB List or ABHA Card.
-                  </div>
-
-                  {/* Row 4: Proof of DOB */}
-                  {isFieldVisible('proofOfDob') && (
-                    <div style={{ marginBottom: '20px' }}>
-                      <label className="form-label-pro">PROOF OF DOB {isFieldReq('proofOfDob') && <span className="req-star">*</span>}</label>
-                      <select
-                        name="proofOfDob"
-                        value={manualData.proofOfDob}
-                        onChange={handleManualChange}
-                        className="form-select-pro"
-                        style={{ width: '100%' }}
-                      >
-                        <option value="">Please Select</option>
-                        {PROOF_OF_DOB_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-
-                  {/* Row 5: Applicant's Name Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    {isFieldVisible('title') && (
-                      <div>
-                        <label className="form-label-pro">TITLE {isFieldReq('title') && <span className="req-star">*</span>}</label>
-                        <select name="title" value={manualData.title} onChange={handleManualChange} className="form-select-pro">
-                          <option value="SELECT">SELECT</option>
-                          <option value="SHRI">SHRI</option>
-                          <option value="SMT">SMT</option>
-                          <option value="KUMARI">KUMARI</option>
-                        </select>
-                      </div>
-                    )}
-                    {isFieldVisible('firstName') && (
-                      <div>
-                        <label className="form-label-pro">FIRST NAME {isFieldReq('firstName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="firstName" value={manualData.firstName} onChange={handleManualChange} placeholder="FIRST NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                    {isFieldVisible('middleName') && (
-                      <div>
-                        <label className="form-label-pro">MIDDLE NAME {isFieldReq('middleName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="middleName" value={manualData.middleName} onChange={handleManualChange} placeholder="MIDDLE NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                    {isFieldVisible('lastName') && (
-                      <div>
-                        <label className="form-label-pro">LAST NAME / SURNAME {isFieldReq('lastName') && <span className="req-star">*</span>}</label>
-                        <input type="text" name="lastName" value={manualData.lastName} onChange={handleManualChange} placeholder="LAST NAME / SURNAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Row 6: Single Parent Question */}
-                  {isFieldVisible('isSingleParent') && (
-                    <div style={{ marginBottom: '16px' }}>
-                      <label className="form-label-pro">WHETHER MOTHER/FATHER IS A SINGLE PARENT {isFieldReq('isSingleParent') && <span className="req-star">*</span>}</label>
-                      <select name="isSingleParent" value={manualData.isSingleParent} onChange={handleManualChange} className="form-select-pro">
-                        <option value="NO">NO</option>
-                        <option value="YES">YES</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Row 7: Father's Name Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    {isFieldVisible('fatherFirstName') && (
-                      <div>
-                        <label className="form-label-pro">FATHER'S FIRST NAME {isFieldReq('fatherFirstName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="fatherFirstName" value={manualData.fatherFirstName} onChange={handleManualChange} placeholder="FATHER FIRST NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                    {isFieldVisible('fatherMiddleName') && (
-                      <div>
-                        <label className="form-label-pro">FATHER'S MIDDLE NAME {isFieldReq('fatherMiddleName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="fatherMiddleName" value={manualData.fatherMiddleName} onChange={handleManualChange} placeholder="FATHER MIDDLE NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                    {isFieldVisible('fatherLastName') && (
-                      <div>
-                        <label className="form-label-pro">FATHER'S LAST NAME {isFieldReq('fatherLastName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="fatherLastName" value={manualData.fatherLastName} onChange={handleManualChange} placeholder="FATHER LAST NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Row 8: Mother's Name Grid */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    {isFieldVisible('motherFirstName') && (
-                      <div>
-                        <label className="form-label-pro">MOTHER'S FIRST NAME {isFieldReq('motherFirstName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="motherFirstName" value={manualData.motherFirstName} onChange={handleManualChange} placeholder="MOTHER FIRST NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                    {isFieldVisible('motherMiddleName') && (
-                      <div>
-                        <label className="form-label-pro">MOTHER'S MIDDLE NAME {isFieldReq('motherMiddleName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="motherMiddleName" value={manualData.motherMiddleName} onChange={handleManualChange} placeholder="MOTHER MIDDLE NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                    {isFieldVisible('motherLastName') && (
-                      <div>
-                        <label className="form-label-pro">MOTHER'S LAST NAME {isFieldReq('motherLastName', false) && <span className="req-star">*</span>}</label>
-                        <input type="text" name="motherLastName" value={manualData.motherLastName} onChange={handleManualChange} placeholder="MOTHER LAST NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Row 9: Aadhaar Name, Gender, DOB, Mobile, Email */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                    {isFieldVisible('nameAsPerAadhaar') && (
-                      <div>
-                        <label className="form-label-pro">NAME AS PER AADHAAR {isFieldReq('nameAsPerAadhaar') && <span className="req-star">*</span>}</label>
-                        <input type="text" name="nameAsPerAadhaar" value={manualData.nameAsPerAadhaar} onChange={handleManualChange} placeholder="NAME AS PER AADHAAR" className="form-input-pro uppercase-text" />
-                      </div>
-                    )}
-                    {isFieldVisible('gender') && (
-                      <div>
-                        <label className="form-label-pro">GENDER {isFieldReq('gender') && <span className="req-star">*</span>}</label>
-                        <select name="gender" value={manualData.gender} onChange={handleManualChange} className="form-select-pro">
-                          <option value="SELECT">SELECT</option>
-                          <option value="MALE">MALE</option>
-                          <option value="FEMALE">FEMALE</option>
-                          <option value="TRANSGENDER">TRANSGENDER</option>
-                        </select>
-                      </div>
-                    )}
-                    {isFieldVisible('dob') && (
-                      <div style={{ gridColumn: isMinor ? 'span 2' : 'span 1' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <label className="form-label-pro" style={{ margin: 0 }}>
-                            DATE OF BIRTH {isFieldReq('dob') && <span className="req-star">*</span>}
-                          </label>
-                        </div>
-                        <input type="date" name="dob" value={manualData.dob} onChange={handleManualChange} className="form-input-pro" />
-
-                        {/* Inline Minor Applicant & Representative Assessee (Guardian) Fields directly below DOB */}
-                        {isMinor && (
-                          <div style={{
-                            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(234, 88, 12, 0.06) 100%)',
-                            border: '1.5px solid rgba(239, 68, 68, 0.35)',
-                            borderRadius: '14px',
-                            padding: '18px 20px',
-                            marginTop: '14px',
-                            marginBottom: '8px',
-                            boxShadow: '0 8px 25px rgba(239, 68, 68, 0.1)'
-                          }}>
-                            <div style={{ color: '#f87171', fontWeight: '800', fontSize: '14px', marginBottom: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', paddingBottom: '8px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span>👶</span> <span>UNDERAGE MINOR APPLICANT DETAILS (Age &lt; 18 Years)</span>
-                              </div>
-                              <span style={{ background: '#ef4444', color: '#fff', fontSize: '10px', padding: '3px 8px', borderRadius: '12px', fontWeight: '800' }}>
-                                MANDATORY FOR MINOR
-                              </span>
-                            </div>
-
-                            <p style={{ color: '#cbd5e1', fontSize: '12px', marginTop: 0, marginBottom: '14px', lineHeight: '1.4' }}>
-                              As per Income Tax Department & NSDL rules, since the applicant is under 18 years old, Representative Assessee (Parent / Guardian) details and Guardian Photo are required for Form 49A (PART E).
-                            </p>
-
-                            {/* Representative Assessee Name Fields */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                              <div>
-                                <label className="form-label-pro">RA TITLE <span className="req-star">*</span></label>
-                                <select name="raTitle" value={manualData.raTitle || 'SHRI'} onChange={handleManualChange} className="form-select-pro">
-                                  <option value="SHRI">SHRI</option>
-                                  <option value="SMT">SMT</option>
-                                  <option value="KUMARI">KUMARI</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="form-label-pro">GUARDIAN FIRST NAME <span className="req-star">*</span></label>
-                                <input
-                                  type="text"
-                                  name="raFirstName"
-                                  value={manualData.raFirstName || ''}
-                                  onChange={handleManualChange}
-                                  placeholder="GUARDIAN FIRST NAME"
-                                  className="form-input-pro uppercase-text"
-                                  required={isMinor}
-                                />
-                              </div>
-                              <div>
-                                <label className="form-label-pro">GUARDIAN MIDDLE NAME</label>
-                                <input
-                                  type="text"
-                                  name="raMiddleName"
-                                  value={manualData.raMiddleName || ''}
-                                  onChange={handleManualChange}
-                                  placeholder="MIDDLE NAME"
-                                  className="form-input-pro uppercase-text"
-                                />
-                              </div>
-                              <div>
-                                <label className="form-label-pro">GUARDIAN LAST NAME <span className="req-star">*</span></label>
-                                <input
-                                  type="text"
-                                  name="raLastName"
-                                  value={manualData.raLastName || ''}
-                                  onChange={handleManualChange}
-                                  placeholder="LAST NAME / SURNAME"
-                                  className="form-input-pro uppercase-text"
-                                  required={isMinor}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Guardian Aadhaar / PAN */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                              <div>
-                                <label className="form-label-pro">GUARDIAN AADHAAR NUMBER <span className="req-star">*</span></label>
-                                <input
-                                  type="text"
-                                  name="raAadhaarNumber"
-                                  value={manualData.raAadhaarNumber || ''}
-                                  onChange={handleManualChange}
-                                  placeholder="12-DIGIT AADHAAR NUMBER"
-                                  maxLength={12}
-                                  className="form-input-pro"
-                                  required={isMinor}
-                                />
-                              </div>
-                              <div>
-                                <label className="form-label-pro">GUARDIAN PAN NUMBER (IF ANY)</label>
-                                <input
-                                  type="text"
-                                  name="raPanNumber"
-                                  value={manualData.raPanNumber || ''}
-                                  onChange={handleManualChange}
-                                  placeholder="10-CHARACTER PAN (OPTIONAL)"
-                                  maxLength={10}
-                                  className="form-input-pro uppercase-text"
-                                />
-                              </div>
-                            </div>
-
-                            {/* Upload Guardian Photo (2nd Photo for Minor) */}
-                            <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '14px' }}>
-                              <label className="form-label-pro" style={{ color: '#fb923c', fontWeight: '800', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                                <span>📷</span> <span>UPLOAD GUARDIAN PHOTO (Parent / Representative Assessee Photo) <span className="req-star">*</span></span>
-                              </label>
-                              <DropzoneBox
-                                label="Upload Parent / Guardian Photo (Minor Application)"
-                                fieldName="raPhotoUrl"
-                                isRequired={isMinor}
-                                currentValue={manualData.raPhotoUrl || manualData.proofOfOtherUrl}
-                                onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, raPhotoUrl: dataUrl, proofOfOtherUrl: dataUrl }))}
-                                accept="image/*"
-                                hint="Drag & drop Parent / Guardian passport photo here (JPG, PNG). Populated into PART E of downloadable Form 49A PDF."
-                                icon="👨‍👦"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {isFieldVisible('mobileNumber') && (
-                      <div>
-                        <label className="form-label-pro">MOBILE NO. {isFieldReq('mobileNumber') && <span className="req-star">*</span>}</label>
-                        <input type="tel" name="mobileNumber" value={manualData.mobileNumber} onChange={handleManualChange} placeholder="MOBILE NO." maxLength={10} className="form-input-pro" />
-                      </div>
-                    )}
-                    {isFieldVisible('email') && (
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <label className="form-label-pro">EMAIL ID {isFieldReq('email') && <span className="req-star">*</span>}</label>
-                        <input type="email" name="email" value={manualData.email} onChange={handleManualChange} placeholder="EMAIL ID" className="form-input-pro" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Row 10: Address Section */}
-                  <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px dashed rgba(255, 255, 255, 0.12)', marginBottom: '20px' }}>
-                    <div style={{ color: '#ef4444', fontSize: '13px', fontWeight: '800', marginBottom: '12px' }}>
-                      NOTE: Please fill Address details as per Aadhaar
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                      {isFieldVisible('flatNo') && (
-                        <div>
-                          <label className="form-label-pro">FLAT/DOOR/BLOCK NO {isFieldReq('flatNo') && <span className="req-star">*</span>}</label>
-                          <input type="text" name="flatNo" value={manualData.flatNo} onChange={handleManualChange} placeholder="FLAT/DOOR/BLOCK NO" className="form-input-pro uppercase-text" />
-                        </div>
-                      )}
-                      {isFieldVisible('premises') && (
-                        <div>
-                          <label className="form-label-pro">PREMISES/BUILDING/VILLAGE {isFieldReq('premises') && <span className="req-star">*</span>}</label>
-                          <input type="text" name="premises" value={manualData.premises} onChange={handleManualChange} placeholder="PREMISES/BUILDING/VILLAGE" className="form-input-pro uppercase-text" />
-                        </div>
-                      )}
-                      {isFieldVisible('roadStreet') && (
-                        <div>
-                          <label className="form-label-pro">ROAD/STREET/POST OFFICE {isFieldReq('roadStreet') && <span className="req-star">*</span>}</label>
-                          <input type="text" name="roadStreet" value={manualData.roadStreet} onChange={handleManualChange} placeholder="ROAD/STREET/LANE/POST OFFICE" className="form-input-pro uppercase-text" />
-                        </div>
-                      )}
-                      {isFieldVisible('areaTaluka') && (
-                        <div>
-                          <label className="form-label-pro">AREA/TALUKA/SUB DIVISION {isFieldReq('areaTaluka') && <span className="req-star">*</span>}</label>
-                          <input type="text" name="areaTaluka" value={manualData.areaTaluka} onChange={handleManualChange} placeholder="AREA/TALUKA/SUB DIVISION" className="form-input-pro uppercase-text" />
-                        </div>
-                      )}
-                      {isFieldVisible('state') && (
-                        <div>
-                          <label className="form-label-pro">STATE {isFieldReq('state') && <span className="req-star">*</span>}</label>
-                          <select name="state" value={manualData.state} onChange={handleManualChange} className="form-select-pro">
-                            <option value="PLEASE SELECT">PLEASE SELECT</option>
-                            {ALL_INDIAN_STATES.map(st => (
-                              <option key={st} value={st}>{st}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      {isFieldVisible('district') && (
-                        <div>
-                          <label className="form-label-pro">TOWN/DISTRICT <span className="req-star">*</span></label>
-                          <select name="district" value={manualData.district} onChange={handleManualChange} className="form-select-pro">
-                            <option value="SELECT">SELECT</option>
-                            {((manualData.state && INDIAN_STATES_DISTRICTS[manualData.state])
-                              ? INDIAN_STATES_DISTRICTS[manualData.state]
-                              : ALL_INDIAN_DISTRICTS
-                            ).map(dist => (
-                              <option key={dist} value={dist}>{dist}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      {isFieldVisible('pincode') && (
-                        <div style={{ gridColumn: 'span 2' }}>
-                          <label className="form-label-pro">PINCODE {isFieldReq('pincode') && <span className="req-star">*</span>}</label>
-                          <input type="text" name="pincode" value={manualData.pincode} onChange={handleManualChange} placeholder="PINCODE" maxLength={6} className="form-input-pro" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Row 11: Proof of Identity & Proof of Address */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
-                    {isFieldVisible('proofOfIdentity') && (
-                      <div>
-                        <label className="form-label-pro">PROOF OF IDENTITY {isFieldReq('proofOfIdentity') && <span className="req-star">*</span>}</label>
-                        <select name="proofOfIdentity" value={manualData.proofOfIdentity} onChange={handleManualChange} className="form-select-pro">
-                          <option value="">Please Select</option>
-                          {PROOF_OF_IDENTITY_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    {isFieldVisible('proofOfAddress') && (
-                      <div>
-                        <label className="form-label-pro">PROOF OF ADDRESS {isFieldReq('proofOfAddress') && <span className="req-star">*</span>}</label>
-                        <select name="proofOfAddress" value={manualData.proofOfAddress} onChange={handleManualChange} className="form-select-pro">
-                          <option value="">Please Select</option>
-                          {PROOF_OF_ADDRESS_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-
-
-                  {/* Dynamic Custom Fields (Form 93) */}
-                  {getCustomFieldsForCurrentForm().length > 0 && (
-                    <div style={{ background: 'rgba(2, 132, 199, 0.05)', border: '1px dashed rgba(2, 132, 199, 0.3)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-                      <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        📝 Additional Form Fields (Form 93)
-                      </h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-                        {getCustomFieldsForCurrentForm().map(f => (
-                          <div key={f.name}>
-                            <label className="form-label-pro">
-                              {f.icon ? `${f.icon} ` : ''}{f.label} {f.required && <span className="req-star">*</span>}
-                            </label>
-                            {f.type === 'select' ? (
-                              <select
-                                name={f.name}
-                                value={manualData[f.name] || ''}
-                                onChange={handleManualChange}
-                                className="form-select-pro"
-                                style={{ width: '100%' }}
-                                required={f.required}
-                              >
-                                <option value="">-- Select {f.label} --</option>
-                                {(f.options || []).map(opt => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </select>
-                            ) : f.type === 'file' ? (
-                              <input
-                                type="file"
-                                onChange={(e) => {
-                                  const file = e.target.files[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      setManualData(prev => ({ ...prev, [f.name]: reader.result }));
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                                className="form-input-pro"
-                                style={{ width: '100%' }}
-                              />
-                            ) : (
-                              <input
-                                type={f.type || 'text'}
-                                name={f.name}
-                                value={manualData[f.name] || ''}
-                                onChange={handleManualChange}
-                                placeholder={f.placeholder || `Enter ${f.label}`}
-                                className="form-input-pro"
-                                style={{ width: '100%' }}
-                                required={f.required}
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-
-              ) : (
-                /* =========================================================================
-                    IF CATEGORY IS NOT INDIVIDUAL -> RENDER FORM NO. 94 / 49A NON-INDIVIDUAL
-                   ========================================================================= */
-                <div className="non-individual-form-wrapper" style={{ marginTop: '16px' }}>
-
-                  {/* Header Notice Banner */}
-                  <div style={{ background: 'rgba(2, 132, 199, 0.1)', border: '1px solid rgba(2, 132, 199, 0.3)', borderRadius: '10px', padding: '12px 16px', marginBottom: '20px', color: '#38bdf8', fontSize: '13px', fontWeight: '700' }}>
-                    🏛️ <strong>FORM NO. 94 / 49A</strong>: Application for Allotment of Permanent Account Number for {manualData.category} (Company / Firm / Trust / Entity / Association of Persons / Body of Individuals).
-                  </div>
-
-                  {/* PART A: ENTITY INFORMATION */}
-                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-                    <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                      PART A - Personal / Entity Information
-                    </h4>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <label className="form-label-pro">1. NAME OF {manualData.category} / ENTITY <span className="req-star">*</span></label>
-                        <input
-                          type="text"
-                          name="entityName"
-                          value={manualData.entityName || manualData.lastName || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setManualData(prev => ({ ...prev, entityName: val, lastName: val }));
-                          }}
-                          placeholder={`ENTER FULL NAME OF ${manualData.category}`}
-                          className="form-input-pro uppercase-text"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="form-label-pro">2. DATE OF INCORPORATION / AGREEMENT / TRUST DEED / FORMATION <span className="req-star">*</span></label>
-                        <input
-                          type="date"
-                          name="dateOfIncorporation"
-                          value={manualData.dateOfIncorporation || manualData.dob || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setManualData(prev => ({ ...prev, dateOfIncorporation: val, dob: val }));
-                          }}
-                          className="form-input-pro"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="form-label-pro">3. REGISTRATION NUMBER (FOR COMPANY, FIRM, LLP, TRUST, ETC.)</label>
-                        <input
-                          type="text"
-                          name="registrationNumber"
-                          value={manualData.registrationNumber || ''}
-                          onChange={handleManualChange}
-                          placeholder="ENTER REGISTRATION / CIN NO."
-                          className="form-input-pro uppercase-text"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Contact Details */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginTop: '14px' }}>
-                      <div>
-                        <label className="form-label-pro">MOBILE NO. <span className="req-star">*</span></label>
-                        <input
-                          type="tel"
-                          name="mobileNumber"
-                          value={manualData.mobileNumber}
-                          onChange={handleManualChange}
-                          placeholder="10-DIGIT MOBILE NO."
-                          maxLength={10}
-                          className="form-input-pro"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="form-label-pro">EMAIL ID <span className="req-star">*</span></label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={manualData.email}
-                          onChange={handleManualChange}
-                          placeholder="OFFICIAL EMAIL ID"
-                          className="form-input-pro"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="form-label-pro">LANDLINE NO. WITH STD CODE</label>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <input
-                            type="text"
-                            name="stdCode"
-                            value={manualData.stdCode || ''}
-                            onChange={handleManualChange}
-                            placeholder="STD"
-                            style={{ width: '60px' }}
-                            className="form-input-pro"
-                          />
-                          <input
-                            type="text"
-                            name="landlineNumber"
-                            value={manualData.landlineNumber || ''}
-                            onChange={handleManualChange}
-                            placeholder="LANDLINE NO."
-                            className="form-input-pro"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Dynamic Custom Fields (Form 94) */}
-                    {getCustomFieldsForCurrentForm().length > 0 && (
-                      <div style={{ background: 'rgba(234, 88, 12, 0.05)', border: '1.5px dashed rgba(234, 88, 12, 0.3)', borderRadius: '10px', padding: '14px', marginTop: '16px' }}>
-                        <h5 style={{ margin: '0 0 12px 0', fontSize: '13.5px', color: '#ea580c', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          ✨ Additional Custom Form Fields (Form 94)
-                        </h5>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
-                          {getCustomFieldsForCurrentForm().map(f => (
-                            <div key={f.name}>
-                              <label className="form-label-pro">
-                                {f.icon ? `${f.icon} ` : ''}{f.label} {f.required && <span className="req-star">*</span>}
-                              </label>
-                              {f.type === 'select' ? (
-                                <select
-                                  name={f.name}
-                                  value={manualData[f.name] || ''}
-                                  onChange={handleManualChange}
-                                  className="form-select-pro"
-                                  style={{ width: '100%' }}
-                                  required={f.required}
-                                >
-                                  <option value="">-- Select {f.label} --</option>
-                                  {(f.options || []).map(opt => (
-                                    <option key={opt} value={opt}>{opt}</option>
-                                  ))}
-                                </select>
-                              ) : f.type === 'file' ? (
-                                <input
-                                  type="file"
-                                  onChange={(e) => {
-                                    const file = e.target.files[0];
-                                    if (file) {
-                                      const reader = new FileReader();
-                                      reader.onloadend = () => {
-                                        setManualData(prev => ({ ...prev, [f.name]: reader.result }));
-                                      };
-                                      reader.readAsDataURL(file);
-                                    }
-                                  }}
-                                  className="form-input-pro"
-                                  style={{ width: '100%' }}
-                                />
-                              ) : (
-                                <input
-                                  type={f.type || 'text'}
-                                  name={f.name}
-                                  value={manualData[f.name] || ''}
-                                  onChange={handleManualChange}
-                                  placeholder={f.placeholder || `Enter ${f.label}`}
-                                  className="form-input-pro"
-                                  style={{ width: '100%' }}
-                                  required={f.required}
-                                />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-
-                  {/* OFFICE & COMMUNICATION ADDRESS (Items 3 & 4 in Form 94) */}
-                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-                    <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                      Office & Communication Address
-                    </h4>
-
-                    <div style={{ color: '#fb923c', fontSize: '12.5px', fontWeight: '700', marginBottom: '12px' }}>
-                      🏢 3. Office Address:
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                      <div>
-                        <label className="form-label-pro">FLAT / DOOR / BUILDING NO. <span className="req-star">*</span></label>
-                        <input type="text" name="flatNo" value={manualData.flatNo} onChange={handleManualChange} placeholder="FLAT/DOOR/BLOCK NO" className="form-input-pro uppercase-text" required />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">ROAD / STREET / BLOCK / SECTOR <span className="req-star">*</span></label>
-                        <input type="text" name="roadStreet" value={manualData.roadStreet} onChange={handleManualChange} placeholder="ROAD/STREET/SECTOR" className="form-input-pro uppercase-text" required />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">PREMISES / POST OFFICE</label>
-                        <input type="text" name="premises" value={manualData.premises} onChange={handleManualChange} placeholder="POST OFFICE / PREMISES" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">AREA / LOCALITY / TOWN / CITY</label>
-                        <input type="text" name="areaTaluka" value={manualData.areaTaluka} onChange={handleManualChange} placeholder="AREA/LOCALITY/TOWN/CITY" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">STATE / UNION TERRITORY <span className="req-star">*</span></label>
-                        <select name="state" value={manualData.state} onChange={handleManualChange} className="form-select-pro">
-                          <option value="PLEASE SELECT">PLEASE SELECT</option>
-                          {ALL_INDIAN_STATES.map(st => (
-                            <option key={st} value={st}>{st}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label-pro">TOWN / DISTRICT <span className="req-star">*</span></label>
-                        <select name="district" value={manualData.district} onChange={handleManualChange} className="form-select-pro">
-                          <option value="SELECT">SELECT</option>
-                          {((manualData.state && INDIAN_STATES_DISTRICTS[manualData.state])
-                            ? INDIAN_STATES_DISTRICTS[manualData.state]
-                            : ALL_INDIAN_DISTRICTS
-                          ).map(dist => (
-                            <option key={dist} value={dist}>{dist}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <label className="form-label-pro">PIN / ZIP CODE <span className="req-star">*</span></label>
-                        <input type="text" name="pincode" value={manualData.pincode} onChange={handleManualChange} placeholder="6-DIGIT PINCODE" maxLength={6} className="form-input-pro" required />
-                      </div>
-                    </div>
-
-                    {/* 4. COMMUNICATION ADDRESS */}
-                    <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.1)', paddingTop: '16px', marginTop: '16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
-                        <div style={{ color: '#fb923c', fontSize: '12.5px', fontWeight: '700' }}>
-                          📬 4. Communication Address:
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <span style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: '600' }}>Same as Office Address?</span>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#38bdf8', cursor: 'pointer', fontWeight: '700' }}>
-                            <input
-                              type="radio"
-                              name="sameAsOfficeAddress"
-                              checked={manualData.sameAsOfficeAddress === true || manualData.sameAsOfficeAddress === 'YES' || manualData.sameAsOfficeAddress === undefined}
-                              onChange={() => setManualData(prev => ({ ...prev, sameAsOfficeAddress: true }))}
-                              style={{ accentColor: '#38bdf8', cursor: 'pointer' }}
-                            />
-                            Yes
-                          </label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#f97316', cursor: 'pointer', fontWeight: '700' }}>
-                            <input
-                              type="radio"
-                              name="sameAsOfficeAddress"
-                              checked={manualData.sameAsOfficeAddress === false || manualData.sameAsOfficeAddress === 'NO'}
-                              onChange={() => setManualData(prev => ({ ...prev, sameAsOfficeAddress: false }))}
-                              style={{ accentColor: '#f97316', cursor: 'pointer' }}
-                            />
-                            No
-                          </label>
-                        </div>
-                      </div>
-
-                      {(!manualData.sameAsOfficeAddress || manualData.sameAsOfficeAddress === 'NO') && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px', padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <div>
-                            <label className="form-label-pro">FLAT / DOOR / BUILDING NO. <span className="req-star">*</span></label>
-                            <input type="text" name="commFlatNo" value={manualData.commFlatNo || ''} onChange={handleManualChange} placeholder="FLAT/DOOR/BLOCK NO" className="form-input-pro uppercase-text" required={!manualData.sameAsOfficeAddress} />
-                          </div>
-                          <div>
-                            <label className="form-label-pro">ROAD / STREET / BLOCK / SECTOR <span className="req-star">*</span></label>
-                            <input type="text" name="commRoadStreet" value={manualData.commRoadStreet || ''} onChange={handleManualChange} placeholder="ROAD/STREET/SECTOR" className="form-input-pro uppercase-text" required={!manualData.sameAsOfficeAddress} />
-                          </div>
-                          <div>
-                            <label className="form-label-pro">PREMISES / POST OFFICE</label>
-                            <input type="text" name="commPremises" value={manualData.commPremises || ''} onChange={handleManualChange} placeholder="POST OFFICE / PREMISES" className="form-input-pro uppercase-text" />
-                          </div>
-                          <div>
-                            <label className="form-label-pro">AREA / LOCALITY / TOWN / CITY</label>
-                            <input type="text" name="commAreaTaluka" value={manualData.commAreaTaluka || ''} onChange={handleManualChange} placeholder="AREA/LOCALITY/TOWN/CITY" className="form-input-pro uppercase-text" />
-                          </div>
-                          <div>
-                            <label className="form-label-pro">STATE / UNION TERRITORY <span className="req-star">*</span></label>
-                            <select name="commState" value={manualData.commState || 'PLEASE SELECT'} onChange={handleManualChange} className="form-select-pro">
-                              <option value="PLEASE SELECT">PLEASE SELECT</option>
-                              {ALL_INDIAN_STATES.map(st => (
-                                <option key={st} value={st}>{st}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="form-label-pro">TOWN / DISTRICT <span className="req-star">*</span></label>
-                            <select name="commDistrict" value={manualData.commDistrict || 'SELECT'} onChange={handleManualChange} className="form-select-pro">
-                              <option value="SELECT">SELECT</option>
-                              {((manualData.commState && INDIAN_STATES_DISTRICTS[manualData.commState])
-                                ? INDIAN_STATES_DISTRICTS[manualData.commState]
-                                : ALL_INDIAN_DISTRICTS
-                              ).map(dist => (
-                                <option key={dist} value={dist}>{dist}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div style={{ gridColumn: 'span 2' }}>
-                            <label className="form-label-pro">PIN / ZIP CODE <span className="req-star">*</span></label>
-                            <input type="text" name="commPincode" value={manualData.commPincode || ''} onChange={handleManualChange} placeholder="6-DIGIT PINCODE" maxLength={6} className="form-input-pro" required={!manualData.sameAsOfficeAddress} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* PART B: SOURCE OF INCOME */}
-                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-                    <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                      PART B - Source of Income
-                    </h4>
-                    <label className="form-label-pro">8. SOURCE OF INCOME <span className="req-star">*</span></label>
-                    <select name="incomeSource" value={manualData.incomeSource || 'Income from Business/Profession'} onChange={handleManualChange} className="form-select-pro" style={{ width: '100%' }}>
-                      <option value="Income from Business/Profession">Income from Business/Profession</option>
-                      <option value="Income from House Property">Income from House Property</option>
-                      <option value="Capital Gains">Capital Gains</option>
-                      <option value="Income from Other Sources">Income from Other Sources</option>
-                      <option value="No Income">No Income</option>
-                    </select>
-                  </div>
-
-                  {/* PART D: REPRESENTATIVE ASSESSEE (RA) / AUTHORIZED REPRESENTATIVE (AR) */}
-                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-                    <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                      PART D - Representative Assessee (RA) / Authorized Representative (AR)
-                    </h4>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '-6px 0 14px 0' }}>
-                      10. Details of Representative Assessee / Authorized Representative (Partner, Director, Trustee, Authorized Signatory)
-                    </p>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                      <div>
-                        <label className="form-label-pro">TITLE</label>
-                        <select name="raTitle" value={manualData.raTitle || 'SHRI'} onChange={handleManualChange} className="form-select-pro">
-                          <option value="SHRI">SHRI</option>
-                          <option value="SMT">SMT</option>
-                          <option value="KUMARI">KUMARI</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label-pro">RA FIRST NAME</label>
-                        <input type="text" name="raFirstName" value={manualData.raFirstName || ''} onChange={handleManualChange} placeholder="FIRST NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">RA MIDDLE NAME</label>
-                        <input type="text" name="raMiddleName" value={manualData.raMiddleName || ''} onChange={handleManualChange} placeholder="MIDDLE NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">RA LAST NAME</label>
-                        <input type="text" name="raLastName" value={manualData.raLastName || ''} onChange={handleManualChange} placeholder="LAST NAME" className="form-input-pro uppercase-text" />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                      <div>
-                        <label className="form-label-pro">11. RA PERMANENT ACCOUNT NUMBER (PAN)</label>
-                        <input type="text" name="raPanNumber" value={manualData.raPanNumber || ''} onChange={handleManualChange} placeholder="10-CHARACTER PAN (IF ANY)" maxLength={10} className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">12. RA AADHAAR NUMBER</label>
-                        <input type="text" name="raAadhaarNumber" value={manualData.raAadhaarNumber || ''} onChange={handleManualChange} placeholder="12-DIGIT AADHAAR NO (IF PAN NOT AVAILABLE)" maxLength={12} className="form-input-pro" />
-                      </div>
-                    </div>
-
-                    {/* RA Address (Item 13 in Form 94) */}
-                    <div style={{ color: '#fb923c', fontSize: '12.5px', fontWeight: '700', margin: '14px 0 8px 0' }}>
-                      🏠 13. Address of Representative Assessee:
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                      <div>
-                        <label className="form-label-pro">FLAT / DOOR / BUILDING NO.</label>
-                        <input type="text" name="raFlatNo" value={manualData.raFlatNo || ''} onChange={handleManualChange} placeholder="FLAT/DOOR/BLOCK NO" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">ROAD / STREET / BLOCK / SECTOR</label>
-                        <input type="text" name="raRoadStreet" value={manualData.raRoadStreet || ''} onChange={handleManualChange} placeholder="ROAD/STREET/SECTOR" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">PREMISES / POST OFFICE</label>
-                        <input type="text" name="raPremises" value={manualData.raPremises || ''} onChange={handleManualChange} placeholder="POST OFFICE / PREMISES" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">AREA / LOCALITY / TOWN / CITY</label>
-                        <input type="text" name="raAreaTaluka" value={manualData.raAreaTaluka || ''} onChange={handleManualChange} placeholder="AREA/LOCALITY/TOWN/CITY" className="form-input-pro uppercase-text" />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">STATE / UNION TERRITORY</label>
-                        <select name="raState" value={manualData.raState || 'PLEASE SELECT'} onChange={handleManualChange} className="form-select-pro">
-                          <option value="PLEASE SELECT">PLEASE SELECT</option>
-                          {ALL_INDIAN_STATES.map(st => (
-                            <option key={st} value={st}>{st}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="form-label-pro">TOWN / DISTRICT</label>
-                        <select name="raDistrict" value={manualData.raDistrict || 'SELECT'} onChange={handleManualChange} className="form-select-pro">
-                          <option value="SELECT">SELECT</option>
-                          {((manualData.raState && INDIAN_STATES_DISTRICTS[manualData.raState])
-                            ? INDIAN_STATES_DISTRICTS[manualData.raState]
-                            : ALL_INDIAN_DISTRICTS
-                          ).map(dist => (
-                            <option key={dist} value={dist}>{dist}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <label className="form-label-pro">PIN / ZIP CODE</label>
-                        <input type="text" name="raPincode" value={manualData.raPincode || ''} onChange={handleManualChange} placeholder="6-DIGIT PINCODE" maxLength={6} className="form-input-pro" />
-                      </div>
-                    </div>
-
-                    {/* RA Contact Details (Item 14 in Form 94) */}
-                    <div style={{ color: '#fb923c', fontSize: '12.5px', fontWeight: '700', margin: '14px 0 8px 0' }}>
-                      📞 14. Contact Details of Representative Assessee:
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                      <div>
-                        <label className="form-label-pro">RA MOBILE NO.</label>
-                        <input
-                          type="tel"
-                          name="raMobileNumber"
-                          value={manualData.raMobileNumber || ''}
-                          onChange={handleManualChange}
-                          placeholder="10-DIGIT MOBILE NO."
-                          maxLength={10}
-                          className="form-input-pro"
-                        />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">RA EMAIL ID</label>
-                        <input
-                          type="email"
-                          name="raEmail"
-                          value={manualData.raEmail || ''}
-                          onChange={handleManualChange}
-                          placeholder="RA EMAIL ID"
-                          className="form-input-pro"
-                        />
-                      </div>
-                      <div>
-                        <label className="form-label-pro">RA LANDLINE NO. WITH STD CODE</label>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <input
-                            type="text"
-                            name="raStdCode"
-                            value={manualData.raStdCode || ''}
-                            onChange={handleManualChange}
-                            placeholder="STD"
-                            style={{ width: '60px' }}
-                            className="form-input-pro"
-                          />
-                          <input
-                            type="text"
-                            name="raLandlineNumber"
-                            value={manualData.raLandlineNumber || ''}
-                            onChange={handleManualChange}
-                            placeholder="LANDLINE NO."
-                            className="form-input-pro"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* PART E: DOCUMENTS SUBMITTED & VERIFICATION DECLARATION */}
-                  <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '12px', padding: '18px', marginBottom: '20px' }}>
-                    <h4 style={{ margin: '0 0 14px 0', fontSize: '15px', color: '#0284c7', fontWeight: '800', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                      PART E - Documents Submitted & Verification Declaration
-                    </h4>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-                      <div>
-                        <label className="form-label-pro">15. PROOF OF IDENTITY OF ENTITY <span className="req-star">*</span></label>
-                        <select name="proofOfIdentity" value={manualData.proofOfIdentity} onChange={handleManualChange} className="form-select-pro">
-                          <option value="CERTIFICATE OF REGISTRATION ISSUED BY REGISTRAR OF COMPANIES/FIRMS">CERTIFICATE OF REGISTRATION (ROC/FIRMS)</option>
-                          <option value="PARTNERSHIP DEED">PARTNERSHIP DEED</option>
-                          <option value="TRUST DEED / AGREEMENT">TRUST DEED / AGREEMENT</option>
-                          <option value="REGISTRATION CERTIFICATE ISSUED BY COMPETENT AUTHORITY">REGISTRATION CERTIFICATE ISSUED BY GOVT</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="form-label-pro">PROOF OF ADDRESS OF ENTITY <span className="req-star">*</span></label>
-                        <select name="proofOfAddress" value={manualData.proofOfAddress} onChange={handleManualChange} className="form-select-pro">
-                          <option value="CERTIFICATE OF REGISTRATION ISSUED BY REGISTRAR OF COMPANIES/FIRMS">CERTIFICATE OF REGISTRATION (ROC/FIRMS)</option>
-                          <option value="PARTNERSHIP DEED">PARTNERSHIP DEED</option>
-                          <option value="BANK STATEMENT IN NAME OF ENTITY">BANK STATEMENT IN NAME OF ENTITY</option>
-                          <option value="UTILITY BILL / ELECTRICITY BILL">UTILITY BILL / ELECTRICITY BILL</option>
-                        </select>
-                      </div>
-
-                      <div style={{ gridColumn: 'span 2' }}>
-                        <label className="form-label-pro">PROOF OF DATE OF INCORPORATION / AGREEMENT / DEED <span className="req-star">*</span></label>
-                        <select name="proofOfIncorporation" value={manualData.proofOfIncorporation || 'CERTIFICATE OF INCORPORATION / REGISTRATION'} onChange={handleManualChange} className="form-select-pro">
-                          <option value="CERTIFICATE OF INCORPORATION / REGISTRATION">CERTIFICATE OF INCORPORATION / REGISTRATION</option>
-                          <option value="PARTNERSHIP DEED">PARTNERSHIP DEED</option>
-                          <option value="TRUST DEED">TRUST DEED</option>
-                          <option value="AGREEMENT / FORMATION DOCUMENT">AGREEMENT / FORMATION DOCUMENT</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="form-label-pro">PROOF OF IDENTITY OF RA (IF APPLICABLE)</label>
-                        <select name="raProofOfIdentity" value={manualData.raProofOfIdentity || ''} onChange={handleManualChange} className="form-select-pro">
-                          <option value="">-- NOT APPLICABLE / SELECT --</option>
-                          {PROOF_OF_IDENTITY_OPTIONS.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="form-label-pro">PROOF OF ADDRESS OF RA (IF APPLICABLE)</label>
-                        <select name="raProofOfAddress" value={manualData.raProofOfAddress || ''} onChange={handleManualChange} className="form-select-pro">
-                          <option value="">-- NOT APPLICABLE / SELECT --</option>
-                          {PROOF_OF_ADDRESS_OPTIONS.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Verification & Declaration Text Box */}
-                    <div style={{ background: 'rgba(2, 132, 199, 0.05)', border: '1px dashed rgba(2, 132, 199, 0.3)', borderRadius: '10px', padding: '14px', marginTop: '16px' }}>
-                      <div style={{ fontWeight: '800', color: '#38bdf8', marginBottom: '8px', fontSize: '13px' }}>
-                        ✍️ Verification & Declaration
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '10px' }}>
-                        <div>
-                          <label className="form-label-pro">DECLARANT / AUTHORIZED REPRESENTATIVE NAME <span className="req-star">*</span></label>
-                          <input
-                            type="text"
-                            name="verifierName"
-                            value={manualData.verifierName || ''}
-                            onChange={handleManualChange}
-                            placeholder="FULL NAME OF DECLARANT"
-                            className="form-input-pro uppercase-text"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="form-label-pro">CAPACITY / DESIGNATION <span className="req-star">*</span></label>
-                          <select name="verifierCapacity" value={manualData.verifierCapacity || 'PARTNER'} onChange={handleManualChange} className="form-select-pro">
-                            <option value="PARTNER">PARTNER</option>
-                            <option value="DIRECTOR">DIRECTOR</option>
-                            <option value="MANAGING TRUSTEE">MANAGING TRUSTEE</option>
-                            <option value="AUTHORIZED SIGNATORY">AUTHORIZED SIGNATORY</option>
-                            <option value="PROPRIETOR">PROPRIETOR</option>
-                            <option value="SECRETARY">SECRETARY</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="form-label-pro">PLACE <span className="req-star">*</span></label>
-                          <input
-                            type="text"
-                            name="verifierPlace"
-                            value={manualData.verifierPlace || ''}
-                            onChange={handleManualChange}
-                            placeholder="PLACE OF DECLARATION"
-                            className="form-input-pro uppercase-text"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="form-label-pro">DATE <span className="req-star">*</span></label>
-                          <input
-                            type="date"
-                            name="verifierDate"
-                            value={manualData.verifierDate || new Date().toISOString().split('T')[0]}
-                            onChange={handleManualChange}
-                            className="form-input-pro"
-                            required
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              )}
+              {/* Dynamic Ordered Form Fields (Reflecting Admin Drag & Drop Order) */}
+              <div className="manual-pan-dynamic-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '16px 14px', marginBottom: '24px' }}>
+                {getOrderedFieldsForCurrentForm().map(field => renderSingleField(field))}
+              </div>
 
               {/* AO Code Selection Section (Common for both Individual & Non-Individual) */}
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '14px', marginTop: '12px', marginBottom: '20px' }}>
@@ -3726,8 +3478,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
               </div>
 
               {/* Photo, Signature & Proof Document Upload Section */}
-              <div style={{ background: 'rgba(15, 23, 42, 0.85)', border: '1px solid rgba(249, 115, 22, 0.3)', borderRadius: '16px', padding: '24px', marginBottom: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#fb923c', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="form-section-card pan-upload-card" style={{ marginBottom: '24px' }}>
+                <h4 className="form-section-title" style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#ea580c', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>📷</span> <span>{manualData.category === 'INDIVIDUAL' ? 'Photo & Signature Upload Form (Physical PAN Processing)' : 'Authorized Representative Signature & Stamp Upload'}</span>
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: manualData.category === 'INDIVIDUAL' ? '1fr 1fr' : '1fr', gap: '20px', marginBottom: '20px' }}>
@@ -3825,12 +3577,12 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '24px' }}>
-                <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
-                  {isSubmitting ? 'Submitting...' : `🚀 Submit Application (Fee: ₹${tabs.find(t => t.id === 'manual_new_pan')?.fee ?? 107})`}
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
                 <button type="button" onClick={handleDownloadPdf} className="pancard-submit-btn" style={{ background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)' }}>
                   📥 Download Pre-Filled PDF
+                </button>
+                <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
+                  {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
                 </button>
               </div>
 
@@ -3890,7 +3642,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose }) => {
 
                   <div style={{ marginTop: '20px' }}>
                     <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
-                      {isSubmitting ? 'Submitting...' : `🚀 Submit Application (Fee: ₹${currentTabObj?.fee ?? 107})`}
+                      {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
                     </button>
                   </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_URL } from '../../utils/apiClient';
+import { getCleanLastName, getIndividualCapacity } from './Form49APdfGenerator';
 
 export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveSuccess, handleDownloadPdf }) => {
   const [editPanData, setEditPanData] = useState(null);
@@ -10,16 +11,24 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
       const app = selectedPanAppDetails;
       const d = app.details || {};
       const nameParts = (app.applicantName || d.nameAsPerAadhaar || '').trim().split(' ');
+      const rawLName = d.lastName || (nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0] || '');
+      const fName = d.firstName || (nameParts.length > 1 ? nameParts[0] : '');
+      const isIndiv = (d.applicantStatus || app.applicantStatus || 'INDIVIDUAL') === 'INDIVIDUAL';
+      const cleanLName = isIndiv ? getCleanLastName(rawLName, fName, app.applicantName || d.nameAsPerAadhaar) : rawLName;
+      const genderVal = (app.gender || d.gender || (['SMT', 'KUMARI'].includes(String(d.title || '').toUpperCase()) ? 'FEMALE' : 'MALE')).toUpperCase();
+      const isMinor = Boolean(app.isMinor || d.isMinor);
+      const capVal = isIndiv ? getIndividualCapacity({ ...d, ...app, gender: genderVal }, isMinor) : (d.verifierCapacity || 'DIRECTOR');
+
       setEditPanData({
         ...d,
         _id: app._id,
-        title: d.title || 'SHRI',
-        lastName: d.lastName || (nameParts.length > 1 ? nameParts[nameParts.length - 1] : nameParts[0] || ''),
-        firstName: d.firstName || (nameParts.length > 1 ? nameParts[0] : ''),
+        title: d.title || (genderVal === 'FEMALE' ? 'SMT' : 'SHRI'),
+        lastName: cleanLName,
+        firstName: fName,
         middleName: d.middleName || (nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : ''),
         nameAsPerAadhaar: d.nameAsPerAadhaar || app.applicantName || '',
         otherName: d.otherName || 'NO',
-        gender: (app.gender || d.gender || 'MALE').toUpperCase(),
+        gender: genderVal,
         dob: app.dob || d.dob || '',
         isSingleMother: d.isSingleMother || 'NO',
         fatherLastName: d.fatherLastName || (app.fatherName || '').split(' ').pop() || '',
@@ -46,12 +55,12 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
         aadhaarNumber: app.aadhaarNumber || d.aadhaarNumber || '',
         panNumber: app.panNumber || d.panNumber || '',
         applicantStatus: d.applicantStatus || 'INDIVIDUAL',
-        incomeSource: d.incomeSource || 'NO INCOME',
+        incomeSource: d.incomeSource || d.sourceofincome || d.sourceOfIncome || 'NO INCOME',
         proofOfIdentity: d.proofOfIdentity || 'AADHAAR CARD',
         proofOfAddress: d.proofOfAddress || 'AADHAAR CARD',
         proofOfDob: d.proofOfDob || 'AADHAAR CARD',
         verifierName: d.verifierName || app.applicantName || '',
-        verifierCapacity: d.verifierCapacity || 'HIMSELF/HERSELF',
+        verifierCapacity: capVal,
         verifierPlace: d.verifierPlace || d.district || 'PUNE',
         verifierDate: d.verifierDate || new Date().toISOString().split('T')[0],
         photoUrl: app.photoUrl || d.photoUrl || '',
@@ -68,7 +77,13 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
   const handleSave = async () => {
     setSaving(true);
     try {
-      const fullApplicantName = `${editPanData.title || ''} ${editPanData.firstName || ''} ${editPanData.middleName || ''} ${editPanData.lastName || ''}`.trim() || editPanData.nameAsPerAadhaar;
+      const isIndiv = (editPanData.applicantStatus || 'INDIVIDUAL') === 'INDIVIDUAL';
+      const cleanLast = isIndiv ? getCleanLastName(editPanData.lastName, editPanData.firstName, editPanData.nameAsPerAadhaar) : editPanData.lastName;
+      const updatedDetails = {
+        ...editPanData,
+        lastName: cleanLast
+      };
+      const fullApplicantName = `${editPanData.title || ''} ${editPanData.firstName || ''} ${editPanData.middleName || ''} ${cleanLast}`.trim() || editPanData.nameAsPerAadhaar;
       const fullFatherName = `${editPanData.fatherFirstName || ''} ${editPanData.fatherMiddleName || ''} ${editPanData.fatherLastName || ''}`.trim();
 
       const payload = {
@@ -80,7 +95,7 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
         email: editPanData.email,
         aadhaarNumber: editPanData.aadhaarNumber,
         panNumber: editPanData.panNumber,
-        details: { ...editPanData }
+        details: updatedDetails
       };
 
       const res = await fetch(`${API_URL}/api/pancard/update-application/${editPanData._id}`, {
@@ -92,7 +107,8 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
       const data = await res.json();
       if (data.success) {
         alert('✅ Form 49A changes saved successfully to database!');
-        if (onSaveSuccess) onSaveSuccess(editPanData);
+        setEditPanData(updatedDetails);
+        if (onSaveSuccess) onSaveSuccess(updatedDetails);
       } else {
         alert('Error updating application: ' + data.message);
       }
@@ -283,16 +299,60 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
                 <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '4px', fontSize: '9.5px', fontWeight: 'bold' }}>
                   <span>Please select title, as applicable:</span>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
-                    <input type="radio" name="title" checked={editPanData.title === 'SHRI'} onChange={() => setEditPanData({...editPanData, title: 'SHRI'})} /> Shri
+                    <input
+                      type="radio"
+                      name="title"
+                      checked={editPanData.title === 'SHRI'}
+                      onChange={() => {
+                        const isIndiv = (editPanData.applicantStatus || 'INDIVIDUAL') === 'INDIVIDUAL';
+                        setEditPanData({
+                          ...editPanData,
+                          title: 'SHRI',
+                          gender: isIndiv ? 'MALE' : editPanData.gender,
+                          verifierCapacity: isIndiv ? 'HIMSELF' : editPanData.verifierCapacity
+                        });
+                      }}
+                    /> Shri
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
-                    <input type="radio" name="title" checked={editPanData.title === 'SMT'} onChange={() => setEditPanData({...editPanData, title: 'SMT'})} /> Smt.
+                    <input
+                      type="radio"
+                      name="title"
+                      checked={editPanData.title === 'SMT'}
+                      onChange={() => {
+                        const isIndiv = (editPanData.applicantStatus || 'INDIVIDUAL') === 'INDIVIDUAL';
+                        setEditPanData({
+                          ...editPanData,
+                          title: 'SMT',
+                          gender: isIndiv ? 'FEMALE' : editPanData.gender,
+                          verifierCapacity: isIndiv ? 'HERSELF' : editPanData.verifierCapacity
+                        });
+                      }}
+                    /> Smt.
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
-                    <input type="radio" name="title" checked={editPanData.title === 'KUMARI'} onChange={() => setEditPanData({...editPanData, title: 'KUMARI'})} /> Kumari
+                    <input
+                      type="radio"
+                      name="title"
+                      checked={editPanData.title === 'KUMARI'}
+                      onChange={() => {
+                        const isIndiv = (editPanData.applicantStatus || 'INDIVIDUAL') === 'INDIVIDUAL';
+                        setEditPanData({
+                          ...editPanData,
+                          title: 'KUMARI',
+                          gender: isIndiv ? 'FEMALE' : editPanData.gender,
+                          verifierCapacity: isIndiv ? 'HERSELF' : editPanData.verifierCapacity
+                        });
+                      }}
+                    /> Kumari
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}>
-                    <input type="radio" name="title" checked={editPanData.title === 'M/S'} onChange={() => setEditPanData({...editPanData, title: 'M/S'})} /> M/s
+                    <input
+                      type="radio"
+                      name="title"
+                      checked={editPanData.title === 'M/S'}
+                      onChange={() => setEditPanData({ ...editPanData, title: 'M/S' })}
+                    /> M/s
                   </label>
                 </div>
 
@@ -346,13 +406,44 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
                   <span style={{ fontWeight: 'bold', fontSize: '10px' }}>4 Gender (for Individual applicants only)</span>
                   <div style={{ display: 'flex', gap: '16px', fontSize: '9.5px', fontWeight: 'bold' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                      <input type="radio" name="gender" checked={editPanData.gender === 'MALE'} onChange={() => setEditPanData({...editPanData, gender: 'MALE'})} /> Male
+                      <input
+                        type="radio"
+                        name="gender"
+                        checked={editPanData.gender === 'MALE'}
+                        onChange={() => {
+                          const isIndiv = (editPanData.applicantStatus || 'INDIVIDUAL') === 'INDIVIDUAL';
+                          setEditPanData({
+                            ...editPanData,
+                            gender: 'MALE',
+                            title: isIndiv && ['SMT', 'KUMARI'].includes(editPanData.title) ? 'SHRI' : editPanData.title,
+                            verifierCapacity: isIndiv ? 'HIMSELF' : editPanData.verifierCapacity
+                          });
+                        }}
+                      /> Male
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                      <input type="radio" name="gender" checked={editPanData.gender === 'FEMALE'} onChange={() => setEditPanData({...editPanData, gender: 'FEMALE'})} /> Female
+                      <input
+                        type="radio"
+                        name="gender"
+                        checked={editPanData.gender === 'FEMALE'}
+                        onChange={() => {
+                          const isIndiv = (editPanData.applicantStatus || 'INDIVIDUAL') === 'INDIVIDUAL';
+                          setEditPanData({
+                            ...editPanData,
+                            gender: 'FEMALE',
+                            title: isIndiv && editPanData.title === 'SHRI' ? 'SMT' : editPanData.title,
+                            verifierCapacity: isIndiv ? 'HERSELF' : editPanData.verifierCapacity
+                          });
+                        }}
+                      /> Female
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                      <input type="radio" name="gender" checked={editPanData.gender === 'TRANSGENDER'} onChange={() => setEditPanData({...editPanData, gender: 'TRANSGENDER'})} /> Transgender
+                      <input
+                        type="radio"
+                        name="gender"
+                        checked={editPanData.gender === 'TRANSGENDER'}
+                        onChange={() => setEditPanData({ ...editPanData, gender: 'TRANSGENDER' })}
+                      /> Transgender
                     </label>
                   </div>
                 </div>
@@ -508,7 +599,20 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
               <div style={{ borderTop: '1.2px solid #000', paddingTop: '4px', marginBottom: '6px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                   <span style={{ fontWeight: 'bold', fontSize: '10px' }}>10 Status of Applicant:</span>
-                  <select value={editPanData.applicantStatus} onChange={e => setEditPanData({...editPanData, applicantStatus: e.target.value})} style={{ ...inputStyle, width: '200px' }}>
+                  <select
+                    value={editPanData.applicantStatus}
+                    onChange={e => {
+                      const newStatus = e.target.value;
+                      const isIndiv = newStatus === 'INDIVIDUAL';
+                      const isFem = editPanData.gender === 'FEMALE' || ['SMT', 'KUMARI'].includes(editPanData.title);
+                      setEditPanData({
+                        ...editPanData,
+                        applicantStatus: newStatus,
+                        verifierCapacity: isIndiv ? (isFem ? 'HERSELF' : 'HIMSELF') : (['HIMSELF', 'HERSELF', 'HIMSELF/HERSELF'].includes(editPanData.verifierCapacity) ? 'DIRECTOR' : editPanData.verifierCapacity)
+                      });
+                    }}
+                    style={{ ...inputStyle, width: '200px' }}
+                  >
                     <option value="INDIVIDUAL">Individual</option>
                     <option value="HUF">Hindu Undivided Family</option>
                     <option value="COMPANY">Company</option>
@@ -535,8 +639,9 @@ export const Form49ADirectEditModal = ({ selectedPanAppDetails, onClose, onSaveS
                     <option value="NO INCOME">No Income</option>
                     <option value="SALARY">Salary</option>
                     <option value="INCOME FROM BUSINESS/PROFESSION">Income from Business/Profession</option>
-                    <option value="INCOME FROM OTHER SOURCES">Income from Other Sources</option>
+                    <option value="INCOME FROM HOUSE PROPERTY">Income from House Property</option>
                     <option value="CAPITAL GAINS">Capital Gains</option>
+                    <option value="INCOME FROM OTHER SOURCES">Income from Other Sources</option>
                   </select>
                 </div>
               </div>

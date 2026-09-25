@@ -390,7 +390,7 @@ const Dashboard = () => {
                     <span className="active-chevron">{isPan ? (isPanSubmenuOpen ? '▼' : '›') : '›'}</span>
                   </div>
 
-                  {/* PAN Card Submenu Options - ONLY New Application & Already PAN */}
+                  {/* PAN Card Submenu Options - ONLY New Application & PAN Correction */}
                   {isPan && isPanSubmenuOpen && (
                     <div className="sidebar-pan-submenu">
                       <div
@@ -432,7 +432,7 @@ const Dashboard = () => {
                               <path d="M14 15l2 2 4-4" />
                             </svg>
                           </span>
-                          <span className="pan-submenu-text">Already PAN</span>
+                          <span className="pan-submenu-text">PAN Correction</span>
                         </div>
                         <span className="pan-submenu-chevron">›</span>
                       </div>
@@ -573,6 +573,7 @@ const Dashboard = () => {
               currentUser={localStorage.getItem('currentUser')}
               walletBalance={walletBalance}
               onClose={() => navigate('/dashboard')}
+              theme={theme}
             />
           ) : (
             bannersData.length > 0 && (
