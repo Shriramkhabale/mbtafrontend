@@ -424,7 +424,7 @@ export const generateForm93Pdf = async (
     const sigImg = await embedImageHelper(data.signatureUrl);
     if (sigImg) {
       // Signature box on Page 2: x=328.61, y=125.10, w=201.30, h=62.90
-      const dims = sigImg.scaleToFit(185, 55);
+      const dims = sigImg.scaleToFit(201.30, 62.90);
       page2.drawImage(sigImg, {
         x: 328.61 + (201.30 - dims.width) / 2,
         y: 125.10 + (62.90 - dims.height) / 2,
@@ -914,8 +914,31 @@ export const generateForm93Pdf = async (
       existingWin.location.href = blobUrl;
       try { existingWin.focus(); } catch (e) {}
     } else {
-      window.open(blobUrl, '_blank');
+      try {
+        const newWin = window.open(blobUrl, '_blank');
+        if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => { document.body.removeChild(link); }, 100);
+        }
+      } catch {
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => { document.body.removeChild(link); }, 100);
+      }
     }
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => { document.body.removeChild(link); }, 100);
     return true;
   } catch (err) {
     console.error('Error generating Form 93 PDF:', err);
@@ -1976,8 +1999,8 @@ const Form93PdfTemplate = ({ data = {} }) => {
                       src={data.signatureUrl}
                       alt="Signature"
                       style={{
-                        maxWidth: '76mm',
-                        maxHeight: '22mm',
+                        width: '100%',
+                        height: '100%',
                         objectFit: 'contain',
                       }}
                     />
@@ -2584,8 +2607,8 @@ const Form94PdfTemplate = ({ data = {} }) => {
                     src={data.signatureUrl}
                     alt="Signature"
                     style={{
-                      maxWidth: '70mm',
-                      maxHeight: '27mm',
+                      width: '100%',
+                      height: '100%',
                       objectFit: 'contain',
                     }}
                   />
@@ -2675,8 +2698,17 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
     const page2 = pages[1];
     const H = page1.getHeight();
 
+    const cleanDist = (val) => {
+      const s = String(val || '').trim();
+      return (s.toUpperCase() === 'SELECT' || s.toUpperCase().startsWith('SELECT') || s.toUpperCase() === 'PLEASE SELECT' || s.toUpperCase().startsWith('PLEASE')) ? '' : s;
+    };
+
     const drawCells = (page, text, startX, yBase, stepX = 15.34, maxLen = 25, fontSize = 7.5) => {
-      const clean = String(text || '').toUpperCase().slice(0, maxLen);
+      const str = String(text || '').trim();
+      if (!str || str.toUpperCase() === 'SELECT' || str.toUpperCase().startsWith('SELECT') || str.toUpperCase() === 'PLEASE SELECT' || str.toUpperCase().startsWith('PLEASE')) {
+        return;
+      }
+      const clean = str.toUpperCase().slice(0, maxLen);
       for (let i = 0; i < clean.length; i++) {
         const ch = clean[i];
         if (ch !== ' ') {
@@ -2704,6 +2736,48 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
         thickness: 1.3,
         color: rgb(0, 0, 0),
       });
+    };
+
+    const embedImageHelper = async (url) => {
+      if (!url || typeof url !== 'string' || url.length < 15) return null;
+      try {
+        let bytes = null;
+        if (url.startsWith('data:')) {
+          bytes = base64ToUint8Array(url);
+        } else if (url.startsWith('http')) {
+          const res = await fetch(url);
+          const buf = await res.arrayBuffer();
+          bytes = new Uint8Array(buf);
+        }
+        if (bytes) {
+          try { return await pdfDoc.embedPng(bytes); } catch (_) {}
+          try { return await pdfDoc.embedJpg(bytes); } catch (_) {}
+        }
+        if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+          const convertedBytes = await new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = img.naturalWidth || img.width;
+              canvas.height = img.naturalHeight || img.height;
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0);
+              resolve(base64ToUint8Array(canvas.toDataURL('image/jpeg', 0.95)));
+            };
+            img.onerror = () => resolve(null);
+            img.src = url;
+          });
+          if (convertedBytes) {
+            return await pdfDoc.embedJpg(convertedBytes);
+          }
+        }
+      } catch (e) {
+        console.warn('Form 94 image embed failed:', e);
+      }
+      return null;
     };
 
     // 1. Name on Page 1 (3 rows of 25 boxes)
@@ -2756,39 +2830,39 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
 
     // 3. Office Address
     const off = data.officeAddress || data;
-    drawCells(page1, off.flatNo || off.officeFlatNo || '', 180.6, H - 257.1 + 2.5);
-    drawCells(page1, off.roadStreet || off.officeRoadStreet || '', 180.7, H - 270.5 + 2.5);
-    drawCells(page1, off.premises || off.officePremises || '', 180.8, H - 283.9 + 2.5);
-    drawCells(page1, off.areaTaluka || off.officeAreaTaluka || '', 181.0, H - 297.3 + 2.5);
-    drawCells(page1, off.district || off.officeDistrict || '', 181.0, H - 310.7 + 2.5);
-    const offState = off.state || off.officeState;
-    if (offState && offState !== 'PLEASE SELECT') {
+    drawCells(page1, cleanDist(off.flatNo || off.officeFlatNo), 180.6, H - 257.1 + 2.5);
+    drawCells(page1, cleanDist(off.roadStreet || off.officeRoadStreet), 180.7, H - 270.5 + 2.5);
+    drawCells(page1, cleanDist(off.premises || off.officePremises), 180.8, H - 283.9 + 2.5);
+    drawCells(page1, cleanDist(off.areaTaluka || off.officeAreaTaluka), 181.0, H - 297.3 + 2.5);
+    drawCells(page1, cleanDist(off.district || off.officeDistrict), 181.0, H - 310.7 + 2.5);
+    const offState = cleanDist(off.state || off.officeState);
+    if (offState) {
       page1.drawText(String(offState).toUpperCase().slice(0, 18), {
         x: 136, y: H - 324.1 + 2.5, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
       });
     }
-    page1.drawText(String(off.country || off.officeCountry || 'INDIA').toUpperCase().slice(0, 16), {
+    page1.drawText(String(cleanDist(off.country || off.officeCountry) || 'INDIA').toUpperCase().slice(0, 16), {
       x: 292, y: H - 324.1 + 2.5, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
     });
-    drawCells(page1, off.pincode || off.officePincode || '', 457.52, H - 324.1 + 2.5, 15.35, 6);
+    drawCells(page1, cleanDist(off.pincode || off.officePincode), 457.52, H - 324.1 + 2.5, 15.35, 6);
 
     // 4. Communication Address
     const comm = (data.commFlatNo || data.commDistrict) ? data : off;
-    drawCells(page1, comm.commFlatNo || off.flatNo || '', 180.8, H - 354.6 + 2.5);
-    drawCells(page1, comm.commRoadStreet || off.roadStreet || '', 180.9, H - 368.0 + 2.5);
-    drawCells(page1, comm.commPremises || off.premises || '', 180.9, H - 381.5 + 2.5);
-    drawCells(page1, comm.commAreaTaluka || off.areaTaluka || '', 180.7, H - 394.9 + 2.5);
-    drawCells(page1, comm.commDistrict || off.district || '', 180.6, H - 408.3 + 2.5);
-    const commStateVal = comm.commState || off.state || off.officeState || '';
-    if (commStateVal && commStateVal !== 'PLEASE SELECT') {
+    drawCells(page1, cleanDist(comm.commFlatNo || off.flatNo), 180.8, H - 354.6 + 2.5);
+    drawCells(page1, cleanDist(comm.commRoadStreet || off.roadStreet), 180.9, H - 368.0 + 2.5);
+    drawCells(page1, cleanDist(comm.commPremises || off.premises), 180.9, H - 381.5 + 2.5);
+    drawCells(page1, cleanDist(comm.commAreaTaluka || off.areaTaluka), 180.7, H - 394.9 + 2.5);
+    drawCells(page1, cleanDist(comm.commDistrict || off.district), 180.6, H - 408.3 + 2.5);
+    const commStateVal = cleanDist(comm.commState || off.state || off.officeState);
+    if (commStateVal) {
       page1.drawText(String(commStateVal).toUpperCase().slice(0, 18), {
         x: 136, y: H - 421.7 + 2.5, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
       });
     }
-    page1.drawText(String(comm.commCountry || off.country || 'INDIA').toUpperCase().slice(0, 16), {
+    page1.drawText(String(cleanDist(comm.commCountry || off.country) || 'INDIA').toUpperCase().slice(0, 16), {
       x: 292, y: H - 421.7 + 2.5, size: 7.2, font: fontBold, color: rgb(0, 0, 0),
     });
-    drawCells(page1, comm.commPincode || off.pincode || off.officePincode || '', 457.52, H - 421.7 + 2.5, 15.35, 6);
+    drawCells(page1, cleanDist(comm.commPincode || off.pincode || off.officePincode), 457.52, H - 421.7 + 2.5, 15.35, 6);
 
     // 5. Status Checkbox (Item 5)
     const st = String(data.category || data.applicantStatus || 'COMPANY').toUpperCase();
@@ -2989,26 +3063,9 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
     // Embed signature image if provided
     if (data.signatureUrl) {
       try {
-        let sigImage;
-        if (data.signatureUrl.startsWith('data:image')) {
-          const sigBytes = base64ToUint8Array(data.signatureUrl);
-          try {
-            sigImage = await pdfDoc.embedPng(sigBytes);
-          } catch {
-            sigImage = await pdfDoc.embedJpg(sigBytes);
-          }
-        } else if (data.signatureUrl.startsWith('http')) {
-          const res = await fetch(data.signatureUrl);
-          const buf = await res.arrayBuffer();
-          const sigBytes = new Uint8Array(buf);
-          try {
-            sigImage = await pdfDoc.embedPng(sigBytes);
-          } catch {
-            sigImage = await pdfDoc.embedJpg(sigBytes);
-          }
-        }
+        const sigImage = await embedImageHelper(data.signatureUrl);
         if (sigImage) {
-          const dims = sigImage.scaleToFit(185, 55);
+          const dims = sigImage.scaleToFit(201.31, 66.05);
           page2.drawImage(sigImage, {
             x: 327.68 + (201.31 - dims.width) / 2,
             y: 224.99 + (66.05 - dims.height) / 2,
@@ -3081,47 +3138,7 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
             const copiedPages = await pdfDoc.copyPages(donorDoc, donorIndices);
             copiedPages.forEach(p => pdfDoc.addPage(p));
           } else {
-            let imgBytes;
-            if (docUrl.startsWith('data:')) {
-              imgBytes = base64ToUint8Array(docUrl);
-            } else {
-              const res = await fetch(docUrl);
-              const buf = await res.arrayBuffer();
-              imgBytes = new Uint8Array(buf);
-            }
-
-            let embeddedImg = null;
-            try {
-              embeddedImg = await pdfDoc.embedPng(imgBytes);
-            } catch {
-              try {
-                embeddedImg = await pdfDoc.embedJpg(imgBytes);
-              } catch {
-                if (typeof window !== 'undefined' && typeof document !== 'undefined') {
-                  const convertedBytes = await new Promise((resolve) => {
-                    const img = new Image();
-                    img.crossOrigin = 'anonymous';
-                    img.onload = () => {
-                      const canvas = document.createElement('canvas');
-                      canvas.width = img.naturalWidth || img.width;
-                      canvas.height = img.naturalHeight || img.height;
-                      const ctx = canvas.getContext('2d');
-                      ctx.fillStyle = '#ffffff';
-                      ctx.fillRect(0, 0, canvas.width, canvas.height);
-                      ctx.drawImage(img, 0, 0);
-                      const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-                      resolve(base64ToUint8Array(jpegDataUrl));
-                    };
-                    img.onerror = () => resolve(null);
-                    img.src = docUrl;
-                  });
-                  if (convertedBytes) {
-                    embeddedImg = await pdfDoc.embedJpg(convertedBytes);
-                  }
-                }
-              }
-            }
-
+            const embeddedImg = await embedImageHelper(docUrl);
             if (embeddedImg) {
               const newPage = pdfDoc.addPage([595.28, 841.89]);
               const margin = 24.0;
@@ -3155,8 +3172,31 @@ export const generateForm94Pdf = async (rawData = {}, existingWin = null) => {
       existingWin.location.href = blobUrl;
       try { existingWin.focus(); } catch (e) {}
     } else {
-      window.open(blobUrl, '_blank');
+      try {
+        const newWin = window.open(blobUrl, '_blank');
+        if (!newWin || newWin.closed || typeof newWin.closed === 'undefined') {
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => { document.body.removeChild(link); }, 100);
+        }
+      } catch {
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => { document.body.removeChild(link); }, 100);
+      }
     }
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => { document.body.removeChild(link); }, 100);
     return true;
   } catch (err) {
     console.error('Error generating Form 94 PDF:', err);
@@ -3177,11 +3217,39 @@ export const generateForm49APdf = async (
     targetWin = existingWin;
   }
 
-  const isIndividual = !data.category || data.category === 'INDIVIDUAL';
-  if (!isIndividual) {
-    return generateForm94Pdf(data, targetWin);
+  const details = data.details || {};
+  const flatData = {
+    ...details,
+    ...data,
+    category: data.category || details.category || data.applicantStatus || details.applicantStatus || '',
+    applicantStatus: data.applicantStatus || details.applicantStatus || data.category || details.category || '',
+    signatureUrl: data.signatureUrl || details.signatureUrl || '',
+    photoUrl: data.photoUrl || details.photoUrl || '',
+  };
+
+  const cat = String(flatData.category || '').toUpperCase();
+  const nonIndTypes = [
+    'COMPANY',
+    'FIRM',
+    'TRUST',
+    'HUF',
+    'HINDU',
+    'ASSOCIATION',
+    'AOP',
+    'BODY',
+    'BOI',
+    'LOCAL',
+    'ARTIFICIAL',
+    'AJP',
+    'GOVERNMENT',
+    'LIMITED',
+    'LLP'
+  ];
+  const isNonInd = nonIndTypes.some(t => cat.includes(t)) || (cat !== '' && cat !== 'INDIVIDUAL');
+  if (isNonInd) {
+    return generateForm94Pdf(flatData, targetWin);
   }
-  return generateForm93Pdf(data, targetWin);
+  return generateForm93Pdf(flatData, targetWin);
 };
 
 export default MainPanPdfTemplate;

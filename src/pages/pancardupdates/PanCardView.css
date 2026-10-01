@@ -2439,8 +2439,10 @@
 /* AO Code Table in Light Theme */
 .dashboard-container-new.theme-light .ao-table-wrapper,
 .pancard-inline-container.theme-light .ao-table-wrapper {
-  border: 1.5px solid #e2e8f0;
+  border: 1.5px solid #cbd5e1;
   border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
 .dashboard-container-new.theme-light .ao-table-container,
@@ -2456,14 +2458,17 @@
 .dashboard-container-new.theme-light .ao-table th,
 .pancard-inline-container.theme-light .ao-table th {
   background: #f1f5f9;
-  color: #0f172a;
+  color: #0f172a !important;
+  font-weight: 800;
   border-bottom: 1.5px solid #cbd5e1;
+  border-right: 1px solid #e2e8f0;
 }
 
 .dashboard-container-new.theme-light .ao-table td,
 .pancard-inline-container.theme-light .ao-table td {
-  color: #334155;
-  border-bottom: 1px solid #f1f5f9;
+  color: #0f172a;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #f1f5f9;
 }
 
 .dashboard-container-new.theme-light .ao-table tr:hover td,
@@ -2474,12 +2479,14 @@
 .dashboard-container-new.theme-light .ao-row-selected td,
 .pancard-inline-container.theme-light .ao-row-selected td {
   background: #ffedd5 !important;
+  color: #0f172a !important;
+  border-bottom-color: #fed7aa;
 }
 
 .dashboard-container-new.theme-light .ao-summary-bar,
 .pancard-inline-container.theme-light .ao-summary-bar {
   background: #f8fafc;
-  border: 1.5px solid #e2e8f0;
+  border-top: 1.5px solid #cbd5e1;
   color: #0f172a;
 }
 

@@ -6,6 +6,7 @@ import {
   PROOF_OF_ADDRESS_OPTIONS,
   PROOF_OF_DOB_OPTIONS
 } from '../../utils/indiaData';
+import StampSignatureMerger from './StampSignatureMerger';
 
 const TextField = ({ label, name, value, onChange, required = false, type = 'text', placeholder, uppercase = false }) => (
 
@@ -484,7 +485,15 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
                 <option value="NO">NO PAN COPY ATTACHED</option>
               </SelectField>
               <TextField label="AUTHORIZED SIGNATORY / VERIFIER NAME" name="verifierName" value={data.verifierName || data.raName} onChange={onChange} required uppercase />
-              <TextField label="DESIGNATION OF SIGNATORY" name="designation" value={data.designation} onChange={onChange} required placeholder="e.g. DIRECTOR / PARTNER / TRUSTEE" uppercase />
+              <SelectField label="DESIGNATION OF SIGNATORY" name="designation" value={data.designation || ''} onChange={onChange} required>
+                <option value="">-- Select DESIGNATION OF SIGNATORY --</option>
+                <option value="PARTNER">PARTNER</option>
+                <option value="DIRECTOR">DIRECTOR</option>
+                <option value="TRUSTEE">TRUSTEE</option>
+                <option value="AUTHORISED SIGNATORY">AUTHORISED SIGNATORY</option>
+                <option value="PROPRIETOR">PROPRIETOR</option>
+                <option value="KARTA">KARTA</option>
+              </SelectField>
             </div>
           </div>
         </div>
@@ -565,21 +574,31 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
               </label>
             </div>
           )}
-          <div className="file-upload-label" style={{ padding: '10px 14px', gridColumn: isIndividual ? 'span 1' : 'span 2' }}>
-            <div className="file-upload-info-group">
-              <span className="file-upload-icon">✍️</span>
-              <div>
-                <div className="file-upload-title" style={{ fontSize: '12.5px' }}>
-                  {isIndividual ? 'Upload Applicant Signature *' : 'Upload Authorized Signatory Signature / Stamp *'}
+          {isIndividual ? (
+            <div className="file-upload-label" style={{ padding: '10px 14px', gridColumn: 'span 1' }}>
+              <div className="file-upload-info-group">
+                <span className="file-upload-icon">✍️</span>
+                <div>
+                  <div className="file-upload-title" style={{ fontSize: '12.5px' }}>
+                    Upload Applicant Signature *
+                  </div>
+                  <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>JPG, PNG signature image</div>
                 </div>
-                <div className="file-upload-subtitle" style={{ fontSize: '10.5px' }}>JPG, PNG signature image</div>
               </div>
+              <input type="file" accept="image/*" onChange={e => onFileChange(e, 'signatureUrl')} style={{ display: 'none' }} id="corrSigInput" />
+              <label htmlFor="corrSigInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
+                {data.signatureUrl ? '✅ Attached' : 'Browse'}
+              </label>
             </div>
-            <input type="file" accept="image/*" onChange={e => onFileChange(e, 'signatureUrl')} style={{ display: 'none' }} id="corrSigInput" />
-            <label htmlFor="corrSigInput" className="file-upload-btn-badge" style={{ padding: '4px 10px', fontSize: '11px', cursor: 'pointer' }}>
-              {data.signatureUrl ? '✅ Attached' : 'Browse'}
-            </label>
-          </div>
+          ) : (
+            <div style={{ gridColumn: 'span 1' }}>
+              <StampSignatureMerger
+                value={data.signatureUrl}
+                isRequired={true}
+                onMerge={(dataUrl) => onFileChange(dataUrl, 'signatureUrl')}
+              />
+            </div>
+          )}
         </div>
       </div>
 

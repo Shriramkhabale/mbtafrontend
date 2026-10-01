@@ -1154,8 +1154,8 @@ const Form49APdfTemplate = ({ data = {} }) => {
                       src={data.signatureUrl}
                       alt="Signature"
                       style={{
-                        maxWidth: '215px',
-                        maxHeight: '68px',
+                        width: '100%',
+                        height: '100%',
                         objectFit: 'contain'
                       }}
                     />
@@ -1619,8 +1619,8 @@ const FormPanCrNonIndividualPdfTemplate = ({ data = {} }) => {
                       src={data.signatureUrl}
                       alt="Signature"
                       style={{
-                        maxWidth: '215px',
-                        maxHeight: '65px',
+                        width: '100%',
+                        height: '100%',
                         objectFit: 'contain'
                       }}
                     />
@@ -1785,7 +1785,7 @@ export const generatePanCrIndividualPdf = async (rawData = {}, existingWin = nul
     // Embed applicant signature (Page 2 signature box only)
     const sigImg = await embedImageHelper(data.signatureUrl);
     if (sigImg) {
-      const dims = sigImg.scaleToFit(185, 52);
+      const dims = sigImg.scaleToFit(201.30, 61.50);
       page2.drawImage(sigImg, {
         x: 328.61 + (201.30 - dims.width) / 2,
         y: 638.52 + (61.50 - dims.height) / 2,
@@ -2264,9 +2264,18 @@ export const generatePanCrNonIndividualPdf = async (rawData = {}, existingWin = 
     const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+    const cleanDist = (val) => {
+      const s = String(val || '').trim();
+      return (s.toUpperCase() === 'SELECT' || s.toUpperCase().startsWith('SELECT') || s.toUpperCase() === 'PLEASE SELECT' || s.toUpperCase().startsWith('PLEASE')) ? '' : s;
+    };
+
     // Helper for mathematically centered letter boxes
     const drawCenteredCells = (text, startX, yBase, cellWidth = 15.345, maxLen = 25, fontSize = 7.5) => {
-      const clean = String(text || '').toUpperCase().slice(0, maxLen);
+      const str = String(text || '').trim();
+      if (!str || str.toUpperCase() === 'SELECT' || str.toUpperCase().startsWith('SELECT') || str.toUpperCase() === 'PLEASE SELECT' || str.toUpperCase().startsWith('PLEASE')) {
+        return;
+      }
+      const clean = str.toUpperCase().slice(0, maxLen);
       for (let i = 0; i < clean.length; i++) {
         const ch = clean[i];
         if (ch && ch !== ' ') {
@@ -2367,14 +2376,14 @@ export const generatePanCrNonIndividualPdf = async (rawData = {}, existingWin = 
 
     // Item 3: Office Address
     const off = data.officeAddress || data;
-    drawCenteredCells(off.flatNo || off.flatDoorBuilding || data.flatNo || '', 176.03, 841.89 - 297.5, 15.34, 25);
-    drawCenteredCells(off.roadStreet || off.roadStreetBlock || data.roadStreet || '', 176.03, 841.89 - 311.0, 15.34, 25);
-    drawCenteredCells(off.premises || off.postOffice || data.premises || data.postOffice || '', 175.97, 841.89 - 324.5, 15.34, 25);
-    drawCenteredCells(off.areaTaluka || off.areaLocality || data.areaTaluka || '', 176.03, 841.89 - 338.0, 15.34, 25);
-    drawCenteredCells(off.district || data.district || '', 176.03, 841.89 - 351.5, 15.34, 25);
+    drawCenteredCells(cleanDist(off.flatNo || off.flatDoorBuilding || data.flatNo), 176.03, 841.89 - 297.5, 15.34, 25);
+    drawCenteredCells(cleanDist(off.roadStreet || off.roadStreetBlock || data.roadStreet), 176.03, 841.89 - 311.0, 15.34, 25);
+    drawCenteredCells(cleanDist(off.premises || off.postOffice || data.premises || data.postOffice), 175.97, 841.89 - 324.5, 15.34, 25);
+    drawCenteredCells(cleanDist(off.areaTaluka || off.areaLocality || data.areaTaluka), 176.03, 841.89 - 338.0, 15.34, 25);
+    drawCenteredCells(cleanDist(off.district || data.district), 176.03, 841.89 - 351.5, 15.34, 25);
 
-    const offState = off.state || data.state;
-    if (offState && offState !== 'PLEASE SELECT') {
+    const offState = cleanDist(off.state || data.state);
+    if (offState) {
       page.drawText(String(offState).toUpperCase().slice(0, 15), {
         x: 136.44,
         y: 841.89 - 364.5,
@@ -2383,14 +2392,14 @@ export const generatePanCrNonIndividualPdf = async (rawData = {}, existingWin = 
         color: rgb(0, 0, 0),
       });
     }
-    page.drawText('INDIA', {
+    page.drawText(String(cleanDist(off.country || data.country) || 'INDIA').toUpperCase(), {
       x: 286.63,
       y: 841.89 - 364.5,
       size: 6.5,
       font: fontBold,
       color: rgb(0, 0, 0),
     });
-    drawCenteredCells(off.pincode || data.pincode || '', 452.13, 841.89 - 364.5, 15.355, 7);
+    drawCenteredCells(cleanDist(off.pincode || data.pincode), 452.13, 841.89 - 364.5, 15.355, 7);
 
     // Item 4: Taxpayer Identification Number (TIN)
     drawCenteredCells(data.tin || data.taxpayerId || '', 265.04, 841.89 - 391.5, 14.74, 20);
@@ -2542,7 +2551,7 @@ export const generatePanCrNonIndividualPdf = async (rawData = {}, existingWin = 
         }
 
         if (sigImage) {
-          const dims = sigImage.scaleToFit(185, 52);
+          const dims = sigImage.scaleToFit(201.31, 57.91);
           page.drawImage(sigImage, {
             x: 330.88 + (201.31 - dims.width) / 2,
             y: 75.23 + (57.91 - dims.height) / 2,
@@ -2713,7 +2722,14 @@ const MainPanCrPdfTemplate = ({ data = {} }) => {
 
 export default MainPanCrPdfTemplate;
 
-export const generatePanCrPdf = async (data = {}, elementId = 'form49a-pdf-container', existingWin = null) => {
+export const generatePanCrPdf = async (data = {}, elementIdOrWin = 'form49a-pdf-container', existingWin = null) => {
+  let targetWin = null;
+  if (elementIdOrWin && typeof elementIdOrWin === 'object' && ('location' in elementIdOrWin || 'document' in elementIdOrWin)) {
+    targetWin = elementIdOrWin;
+  } else if (existingWin && typeof existingWin === 'object' && ('location' in existingWin || 'document' in existingWin)) {
+    targetWin = existingWin;
+  }
+
   const details = data.details || {};
   const flatData = {
     ...details,
@@ -2724,9 +2740,9 @@ export const generatePanCrPdf = async (data = {}, elementId = 'form49a-pdf-conta
     photoUrl: data.photoUrl || details.photoUrl || '',
   };
   if (isNonIndividualApplicant(flatData)) {
-    return generatePanCrNonIndividualPdf(flatData, existingWin);
+    return generatePanCrNonIndividualPdf(flatData, targetWin);
   }
-  return generatePanCrIndividualPdf(flatData, existingWin);
+  return generatePanCrIndividualPdf(flatData, targetWin);
 };
 
 export const generatePANCR01Pdf = generatePanCrPdf;

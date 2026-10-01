@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './AdminPanel.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_URL = process.env.REACT_APP_API_URL || 'http:REACT_APP_API_URL';
 
 const Toast = Swal.mixin({
   toast: true,
@@ -36,7 +36,7 @@ const AdminPanel = () => {
   // Form States
   const [cardForm, setCardForm] = useState({ title: '', imgFile: null, icon: '', isAeps: false, url: '' });
   const [tabForm, setTabForm] = useState({ label: '', order: 0, url: '' });
-  
+
   const [editingCardId, setEditingCardId] = useState(null);
   const [editingTabId, setEditingTabId] = useState(null);
   const [menuForm, setMenuForm] = useState({ label: '', isActive: false, order: 0 });
@@ -50,7 +50,7 @@ const AdminPanel = () => {
   const [reqSearch, setReqSearch] = useState('');
   const [reqStatusFilter, setReqStatusFilter] = useState('All');
   const [showNotifications, setShowNotifications] = useState(false);
-  
+
   const [draggedIndex, setDraggedIndex] = useState(null);
 
   const handleDragStart = (index) => setDraggedIndex(index);
@@ -89,7 +89,7 @@ const AdminPanel = () => {
     fetch(`${API_URL}/api/payment-requisitions`).then(r => r.json()).then(setPaymentRequisitions);
     fetch(`${API_URL}/api/upi-config`).then(r => r.json()).then(data => {
       setUpiConfig(data);
-      if(data) setUpiForm({ upiId: data.upiId || '', qrCodeImgFile: null });
+      if (data) setUpiForm({ upiId: data.upiId || '', qrCodeImgFile: null });
     });
   };
 
@@ -100,14 +100,14 @@ const AdminPanel = () => {
     formData.append('isAeps', cardForm.isAeps);
     formData.append('url', cardForm.url);
     if (cardForm.imgFile) formData.append('image', cardForm.imgFile);
-    
+
     if (editingCardId) {
       await fetch(`${API_URL}/api/action-cards/${editingCardId}`, { method: 'PUT', body: formData });
       setEditingCardId(null);
     } else {
       await fetch(`${API_URL}/api/action-cards`, { method: 'POST', body: formData });
     }
-    
+
     setCardForm({ title: '', imgFile: null, icon: '', isAeps: false, url: '' });
     fetchAll();
   };
@@ -153,13 +153,13 @@ const AdminPanel = () => {
 
   const addUser = async () => {
     if (!userForm.userId) return Toast.fire({ icon: 'warning', title: 'User ID is required' });
-    const response = await fetch(`${API_URL}/api/users`, { 
-      method: 'POST', 
+    const response = await fetch(`${API_URL}/api/users`, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userForm) 
+      body: JSON.stringify(userForm)
     });
-    
-    if(response.ok) {
+
+    if (response.ok) {
       Toast.fire({ icon: 'success', title: 'User Created Successfully!' });
       setUserForm({ userId: '', email: '', mobile: '', role: 'customer' });
       fetchAll();
@@ -189,17 +189,17 @@ const AdminPanel = () => {
         }
       });
       if (!amountStr) return; // cancelled
-      
+
       approvedAmount = Number(amountStr);
       if (approvedAmount < reqAmount && approvedAmount > 0) {
         finalStatus = 'Partially Approved';
       }
     }
-    
-    await fetch(`${API_URL}/api/payment-requisitions/${id}`, { 
-      method: 'PUT', 
+
+    await fetch(`${API_URL}/api/payment-requisitions/${id}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: finalStatus, approvedAmount }) 
+      body: JSON.stringify({ status: finalStatus, approvedAmount })
     });
     fetchAll();
   };
@@ -248,9 +248,9 @@ const AdminPanel = () => {
         </div>
         <nav className="admin-nav-vertical">
           {menuItems.map(item => (
-            <button 
-              key={item.id} 
-              className={`admin-nav-btn ${activeTab === item.id ? 'active' : ''}`} 
+            <button
+              key={item.id}
+              className={`admin-nav-btn ${activeTab === item.id ? 'active' : ''}`}
               onClick={() => setActiveTab(item.id)}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -277,7 +277,7 @@ const AdminPanel = () => {
                   </span>
                 )}
               </div>
-              
+
               {/* Notification Dropdown */}
               {showNotifications && (
                 <div style={{ position: 'absolute', top: '40px', right: '-10px', width: '320px', background: 'white', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0', zIndex: 1000, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -304,30 +304,30 @@ const AdminPanel = () => {
               <span style={{ fontSize: '18px' }}>👨‍💼</span>
               <span>Admin Profile</span>
             </div>
-            <button 
-              onClick={() => navigate('/')} 
+            <button
+              onClick={() => navigate('/')}
               style={{ padding: '8px 15px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}
             >
               <span>🚪</span> Logout
             </button>
           </div>
         </header>
-        
+
         <div className="admin-content-wrapper">
-          
+
           {/* Action Cards Tab */}
           {activeTab === 'actionCards' && (
             <div className="admin-panel-grid">
               <div className="admin-card form-card">
                 <h3>Add New Card</h3>
                 <div className="modern-form">
-                  <input type="text" placeholder="Title" value={cardForm.title} onChange={e => setCardForm({...cardForm, title: e.target.value})} />
+                  <input type="text" placeholder="Title" value={cardForm.title} onChange={e => setCardForm({ ...cardForm, title: e.target.value })} />
                   <div className="file-upload-wrapper">
-                    <input type="file" accept="image/*" onChange={e => setCardForm({...cardForm, imgFile: e.target.files[0]})} />
+                    <input type="file" accept="image/*" onChange={e => setCardForm({ ...cardForm, imgFile: e.target.files[0] })} />
                   </div>
-                  <input type="text" placeholder="Redirect URL (e.g. https://google.com)" value={cardForm.url} onChange={e => setCardForm({...cardForm, url: e.target.value})} />
+                  <input type="text" placeholder="Redirect URL (e.g. https://google.com)" value={cardForm.url} onChange={e => setCardForm({ ...cardForm, url: e.target.value })} />
                   <label className="modern-checkbox">
-                    <input type="checkbox" checked={cardForm.isAeps} onChange={e => setCardForm({...cardForm, isAeps: e.target.checked})} /> 
+                    <input type="checkbox" checked={cardForm.isAeps} onChange={e => setCardForm({ ...cardForm, isAeps: e.target.checked })} />
                     <span>Is AEPS?</span>
                   </label>
                   <button className="modern-submit-btn" onClick={addActionCard}>
@@ -342,8 +342,8 @@ const AdminPanel = () => {
                 <h3>Existing Cards</h3>
                 <div className="modern-list">
                   {cards.map((c, index) => (
-                    <div 
-                      className="list-item" 
+                    <div
+                      className="list-item"
                       key={c._id}
                       draggable
                       onDragStart={() => handleDragStart(index)}
@@ -353,11 +353,11 @@ const AdminPanel = () => {
                       style={{ cursor: 'grab' }}
                     >
                       <div style={{ marginRight: '10px', color: '#9ca3af', fontSize: '20px' }}>☰</div>
-                      <img src={c.img} alt="" className="item-thumb"/>
+                      <img src={c.img} alt="" className="item-thumb" />
                       <span className="item-name">{c.title}</span>
                       <div className="item-actions">
                         <button className="modern-edit-btn" onClick={() => startEditCard(c)} style={{ marginRight: '8px', background: '#3b82f6', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Edit</button>
-                        <button className="modern-delete-btn" onClick={() => deleteItem('http://localhost:5000/api/action-cards', c._id)}>Delete</button>
+                        <button className="modern-delete-btn" onClick={() => deleteItem('http:REACT_APP_API_URL/api/action-cards', c._id)}>Delete</button>
                       </div>
                     </div>
                   ))}
@@ -372,10 +372,10 @@ const AdminPanel = () => {
               <div className="admin-card form-card">
                 <h3>Add Top Tab</h3>
                 <div className="modern-form">
-                  <input type="text" placeholder="Label" value={tabForm.label} onChange={e => setTabForm({...tabForm, label: e.target.value})} />
-                  <input type="text" placeholder="Redirect URL (e.g. https://google.com)" value={tabForm.url} onChange={e => setTabForm({...tabForm, url: e.target.value})} />
-                  <input type="number" placeholder="Order" value={tabForm.order} onChange={e => setTabForm({...tabForm, order: e.target.value})} />
-                  <button className="modern-submit-btn" onClick={() => addItem('http://localhost:5000/api/top-tabs', tabForm, setTabForm, { label: '', order: 0, url: '' }, editingTabId, setEditingTabId)}>
+                  <input type="text" placeholder="Label" value={tabForm.label} onChange={e => setTabForm({ ...tabForm, label: e.target.value })} />
+                  <input type="text" placeholder="Redirect URL (e.g. https://google.com)" value={tabForm.url} onChange={e => setTabForm({ ...tabForm, url: e.target.value })} />
+                  <input type="number" placeholder="Order" value={tabForm.order} onChange={e => setTabForm({ ...tabForm, order: e.target.value })} />
+                  <button className="modern-submit-btn" onClick={() => addItem('http:REACT_APP_API_URL/api/top-tabs', tabForm, setTabForm, { label: '', order: 0, url: '' }, editingTabId, setEditingTabId)}>
                     {editingTabId ? 'Update Tab' : 'Add Tab'}
                   </button>
                   {editingTabId && (
@@ -387,8 +387,8 @@ const AdminPanel = () => {
                 <h3>Existing Tabs</h3>
                 <div className="modern-list">
                   {topTabs.map((t, index) => (
-                    <div 
-                      className="list-item" 
+                    <div
+                      className="list-item"
                       key={t._id}
                       draggable
                       onDragStart={() => handleDragStart(index)}
@@ -401,7 +401,7 @@ const AdminPanel = () => {
                       <span className="item-name">{t.label}</span>
                       <div className="item-actions">
                         <button className="modern-edit-btn" onClick={() => startEditTab(t)} style={{ marginRight: '8px', background: '#3b82f6', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Edit</button>
-                        <button className="modern-delete-btn" onClick={() => deleteItem('http://localhost:5000/api/top-tabs', t._id)}>Delete</button>
+                        <button className="modern-delete-btn" onClick={() => deleteItem('http:REACT_APP_API_URL/api/top-tabs', t._id)}>Delete</button>
                       </div>
                     </div>
                   ))}
@@ -416,21 +416,21 @@ const AdminPanel = () => {
               <div className="admin-card form-card">
                 <h3>Add Sidebar Menu</h3>
                 <div className="modern-form">
-                  <input type="text" placeholder="Label (Leave empty for blank)" value={menuForm.label} onChange={e => setMenuForm({...menuForm, label: e.target.value})} />
-                  <input type="number" placeholder="Order" value={menuForm.order} onChange={e => setMenuForm({...menuForm, order: e.target.value})} />
+                  <input type="text" placeholder="Label (Leave empty for blank)" value={menuForm.label} onChange={e => setMenuForm({ ...menuForm, label: e.target.value })} />
+                  <input type="number" placeholder="Order" value={menuForm.order} onChange={e => setMenuForm({ ...menuForm, order: e.target.value })} />
                   <label className="modern-checkbox">
-                    <input type="checkbox" checked={menuForm.isActive} onChange={e => setMenuForm({...menuForm, isActive: e.target.checked})} /> 
+                    <input type="checkbox" checked={menuForm.isActive} onChange={e => setMenuForm({ ...menuForm, isActive: e.target.checked })} />
                     <span>Is Active?</span>
                   </label>
-                  <button className="modern-submit-btn" onClick={() => addItem('http://localhost:5000/api/sidebar-menus', menuForm, setMenuForm, { label: '', isActive: false, order: 0 })}>Add Menu</button>
+                  <button className="modern-submit-btn" onClick={() => addItem('http:REACT_APP_API_URL/api/sidebar-menus', menuForm, setMenuForm, { label: '', isActive: false, order: 0 })}>Add Menu</button>
                 </div>
               </div>
               <div className="admin-card list-card">
                 <h3>Existing Menus</h3>
                 <div className="modern-list">
                   {sidebarMenus.map((m, index) => (
-                    <div 
-                      className="list-item" 
+                    <div
+                      className="list-item"
                       key={m._id}
                       draggable
                       onDragStart={() => handleDragStart(index)}
@@ -441,7 +441,7 @@ const AdminPanel = () => {
                     >
                       <div style={{ marginRight: '10px', color: '#9ca3af', fontSize: '20px' }}>☰</div>
                       <span className="item-name">{m.label || '(Empty Block)'} {m.isActive && '★'}</span>
-                      <button className="modern-delete-btn" onClick={() => deleteItem('http://localhost:5000/api/sidebar-menus', m._id)}>Delete</button>
+                      <button className="modern-delete-btn" onClick={() => deleteItem('http:REACT_APP_API_URL/api/sidebar-menus', m._id)}>Delete</button>
                     </div>
                   ))}
                 </div>
@@ -456,10 +456,10 @@ const AdminPanel = () => {
                 <h3>Add Banner</h3>
                 <div className="modern-form">
                   <div className="file-upload-wrapper">
-                    <input type="file" accept="image/*" onChange={e => setBannerForm({...bannerForm, imgFile: e.target.files[0]})} />
+                    <input type="file" accept="image/*" onChange={e => setBannerForm({ ...bannerForm, imgFile: e.target.files[0] })} />
                   </div>
-                  <input type="text" placeholder="Fallback Icon (e.g. ✈️)" value={bannerForm.fallbackIcon} onChange={e => setBannerForm({...bannerForm, fallbackIcon: e.target.value})} />
-                  <input type="text" placeholder="Fallback Person (e.g. 🧍)" value={bannerForm.fallbackPerson} onChange={e => setBannerForm({...bannerForm, fallbackPerson: e.target.value})} />
+                  <input type="text" placeholder="Fallback Icon (e.g. ✈️)" value={bannerForm.fallbackIcon} onChange={e => setBannerForm({ ...bannerForm, fallbackIcon: e.target.value })} />
+                  <input type="text" placeholder="Fallback Person (e.g. 🧍)" value={bannerForm.fallbackPerson} onChange={e => setBannerForm({ ...bannerForm, fallbackPerson: e.target.value })} />
                   <button className="modern-submit-btn" onClick={addBanner}>Add Banner</button>
                 </div>
               </div>
@@ -468,8 +468,8 @@ const AdminPanel = () => {
                 <div className="modern-list">
                   {banners.map(b => (
                     <div className="list-item" key={b._id}>
-                      <img src={b.img} alt="" className="item-thumb large"/>
-                      <button className="modern-delete-btn" onClick={() => deleteItem('http://localhost:5000/api/banners', b._id)}>Delete</button>
+                      <img src={b.img} alt="" className="item-thumb large" />
+                      <button className="modern-delete-btn" onClick={() => deleteItem('http:REACT_APP_API_URL/api/banners', b._id)}>Delete</button>
                     </div>
                   ))}
                 </div>
@@ -494,8 +494,8 @@ const AdminPanel = () => {
                 <div className="modern-list">
                   {newsImages.map(n => (
                     <div className="list-item" key={n._id}>
-                      <img src={n.img} alt="" className="item-thumb portrait"/>
-                      <button className="modern-delete-btn" onClick={() => deleteItem('http://localhost:5000/api/news-images', n._id)}>Delete</button>
+                      <img src={n.img} alt="" className="item-thumb portrait" />
+                      <button className="modern-delete-btn" onClick={() => deleteItem('http:REACT_APP_API_URL/api/news-images', n._id)}>Delete</button>
                     </div>
                   ))}
                 </div>
@@ -509,9 +509,9 @@ const AdminPanel = () => {
               <div className="admin-card form-card">
                 <h3>UPI Scanner Config</h3>
                 <div className="modern-form">
-                  <input type="text" placeholder="UPI ID (e.g. mbmitra@upi)" value={upiForm.upiId} onChange={e => setUpiForm({...upiForm, upiId: e.target.value})} />
+                  <input type="text" placeholder="UPI ID (e.g. mbmitra@upi)" value={upiForm.upiId} onChange={e => setUpiForm({ ...upiForm, upiId: e.target.value })} />
                   <div className="file-upload-wrapper">
-                    <input type="file" accept="image/*" onChange={e => setUpiForm({...upiForm, qrCodeImgFile: e.target.files[0]})} />
+                    <input type="file" accept="image/*" onChange={e => setUpiForm({ ...upiForm, qrCodeImgFile: e.target.files[0] })} />
                   </div>
                   {upiConfig?.qrCodeImg && <img src={upiConfig.qrCodeImg} alt="Current QR" style={{ width: '100px', borderRadius: '8px', border: '2px solid #ccc' }} />}
                   <button className="modern-submit-btn" onClick={updateUpiConfig}>Update UPI Config</button>
@@ -521,8 +521,8 @@ const AdminPanel = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '2px solid #f3f4f6', paddingBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                   <h3 style={{ margin: 0, border: 'none', padding: 0 }}>Payment Requisitions</h3>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <select 
-                      value={reqStatusFilter} 
+                    <select
+                      value={reqStatusFilter}
                       onChange={e => setReqStatusFilter(e.target.value)}
                       style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', outline: 'none' }}
                     >
@@ -531,11 +531,11 @@ const AdminPanel = () => {
                       <option value="Approved">Approved</option>
                       <option value="Rejected">Rejected</option>
                     </select>
-                    <input 
-                      type="text" 
-                      placeholder="Search User ID or Ref No..." 
-                      value={reqSearch} 
-                      onChange={(e) => setReqSearch(e.target.value)} 
+                    <input
+                      type="text"
+                      placeholder="Search User ID or Ref No..."
+                      value={reqSearch}
+                      onChange={(e) => setReqSearch(e.target.value)}
                       style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '200px' }}
                     />
                   </div>
@@ -561,7 +561,7 @@ const AdminPanel = () => {
                         return (
                           <tr key={req._id}>
                             <td>
-                              <strong>{req.userId}</strong><br/>
+                              <strong>{req.userId}</strong><br />
                               <span style={{ color: '#6b7280', fontSize: '12px' }}>{req.referenceNumber}</span>
                             </td>
                             <td>
@@ -602,20 +602,20 @@ const AdminPanel = () => {
               <div className="admin-card form-card">
                 <h3>Create New User</h3>
                 <form className="modern-form" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-                  <input type="text" placeholder="User ID (e.g. MBM000012)" value={userForm.userId} onChange={e => setUserForm({...userForm, userId: e.target.value})} autoComplete="off" />
-                  <input type="email" placeholder="Email Address" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} autoComplete="off" />
-                  <input type="text" placeholder="Mobile Number (10 digits)" value={userForm.mobile} onChange={e => setUserForm({...userForm, mobile: e.target.value})} autoComplete="off" />
+                  <input type="text" placeholder="User ID (e.g. MBM000012)" value={userForm.userId} onChange={e => setUserForm({ ...userForm, userId: e.target.value })} autoComplete="off" />
+                  <input type="email" placeholder="Email Address" value={userForm.email} onChange={e => setUserForm({ ...userForm, email: e.target.value })} autoComplete="off" />
+                  <input type="text" placeholder="Mobile Number (10 digits)" value={userForm.mobile} onChange={e => setUserForm({ ...userForm, mobile: e.target.value })} autoComplete="off" />
                   <button type="button" className="modern-submit-btn" onClick={addUser}>Create User</button>
                 </form>
               </div>
               <div className="admin-card list-card" style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f3f4f6', paddingBottom: '10px' }}>
                   <h3 style={{ margin: 0, border: 'none', padding: 0 }}>Existing Users</h3>
-                  <input 
-                    type="text" 
-                    placeholder="Search by ID or Mobile..." 
-                    value={userSearch} 
-                    onChange={(e) => setUserSearch(e.target.value)} 
+                  <input
+                    type="text"
+                    placeholder="Search by ID or Mobile..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
                     style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '200px' }}
                   />
                 </div>
@@ -626,7 +626,7 @@ const AdminPanel = () => {
                         <strong style={{ fontSize: '16px', color: '#1e293b' }}>👤 {u.userId}</strong>
                         <span style={{ fontSize: '13px', color: '#64748b' }}>📱 {u.mobile || 'No Mobile'}</span>
                       </div>
-                      <button className="modern-delete-btn" onClick={() => deleteItem('http://localhost:5000/api/users', u._id)} style={{ padding: '8px 12px', borderRadius: '8px' }}>Remove</button>
+                      <button className="modern-delete-btn" onClick={() => deleteItem('http:REACT_APP_API_URL/api/users', u._id)} style={{ padding: '8px 12px', borderRadius: '8px' }}>Remove</button>
                     </div>
                   ))}
                   {users.length === 0 && <p style={{ color: '#888', padding: '20px' }}>No users found.</p>}

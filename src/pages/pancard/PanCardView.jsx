@@ -6,6 +6,7 @@ import './PanCardView.css';
 import Form93PdfTemplate, { generateForm49APdf } from './Form49APdfGenerator';
 import FormPanCrPdfTemplate, { generatePanCrPdf } from './PanCrPdfGenerator';
 import PanCorrectionForm from './PanCorrectionForm';
+import StampSignatureMerger from './StampSignatureMerger';
 import { Form49ADirectEditModal } from './Form49ADirectEditModal'; // eslint-disable-line no-unused-vars
 import { ALL_INDIAN_STATES, INDIAN_STATES_DISTRICTS, ALL_INDIAN_DISTRICTS, PROOF_OF_IDENTITY_OPTIONS, PROOF_OF_ADDRESS_OPTIONS, PROOF_OF_DOB_OPTIONS } from '../../utils/indiaData';
 
@@ -99,48 +100,101 @@ const downloadReceiptToPc = (url) => {
 const copyApplicationDetailsToClipboard = (app) => {
   if (!app) return;
   const d = app.details || {};
-  const fullName = [d.firstName, d.middleName, d.lastName || app.applicantName].filter(Boolean).join(' ') || app.applicantName || '—';
-  const fatherName = app.fatherName || `${d.fatherFirstName || ''} ${d.fatherMiddleName || ''} ${d.fatherLastName || ''}`.trim() || '—';
-  const motherName = `${d.motherFirstName || ''} ${d.motherMiddleName || ''} ${d.motherLastName || ''}`.trim() || '—';
+  const catStr = String(d.category || app.category || d.applicantStatus || app.applicantStatus || '').toUpperCase();
+  const nonIndTypes = ['COMPANY', 'FIRM', 'TRUST', 'HUF', 'HINDU', 'ASSOCIATION', 'AOP', 'BODY', 'BOI', 'LOCAL', 'ARTIFICIAL', 'AJP', 'GOVERNMENT', 'LIMITED', 'LLP'];
+  const isNonIndiv = nonIndTypes.some(t => catStr.includes(t)) || (catStr !== '' && catStr !== 'INDIVIDUAL');
+
   const district = (d.district && d.district !== 'SELECT') ? d.district : (app.district || '—');
   const state = (d.state && d.state !== 'PLEASE SELECT') ? d.state : (app.state || 'MAHARASHTRA');
 
-  const text = [
-    `=== PAN APPLICATION DETAILS ===`,
-    `Ack Number: ${app.ackNumber || 'N/A'}`,
-    `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
-    `Status: ${(app.status || 'Submitted').toUpperCase()}`,
-    `Service Type: ${app.applicationType || 'Manual New PAN'}`,
-    `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
-    app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
-    app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
-    ``,
-    `--- PERSONAL PARTICULARS ---`,
-    `Title: ${d.title || app.title || 'SHRI'}`,
-    `Applicant Name: ${fullName}`,
-    `Gender: ${app.gender || d.gender || 'Male'}`,
-    `Date of Birth: ${app.dob || d.dob || '—'}`,
-    `Aadhaar Number: ${app.aadhaarNumber || d.aadhaarNumber || '—'}`,
-    `Mobile Number: ${app.mobileNumber || '—'}`,
-    `Email Address: ${app.email || '—'}`,
-    ``,
-    `--- PARENTS DETAILS ---`,
-    `Father's Name: ${fatherName}`,
-    `Mother's Name: ${motherName}`,
-    ``,
-    `--- RESIDENCE ADDRESS ---`,
-    `Flat/Door/Block: ${d.flatNo || '—'}`,
-    `Building/Premises: ${d.premises || '—'}`,
-    `Road/Street: ${d.roadStreet || '—'}`,
-    `Area/Taluka: ${d.areaTaluka || '—'}`,
-    `District: ${district}`,
-    `State: ${state}`,
-    `Pincode: ${d.pincode || '—'}`,
-    ``,
-    `--- AO CODE DETAILS ---`,
-    `Area Code: ${d.aoAreaCode || 'MUM'} | AO Type: ${d.aoType || 'C'} | Range Code: ${d.aoRangeCode || '11'} | AO No: ${d.aoNo || '1'} | City: ${d.aoCity || district || 'MUMBAI'}`,
-    `===============================`
-  ].filter(line => line !== false && line !== undefined).join('\n');
+  let text;
+  if (isNonIndiv) {
+    const entityName = d.entityName || app.applicantName || d.lastName || '—';
+    const incDate = d.dateOfIncorporation || app.dob || d.dob || '—';
+    const regNum = d.registrationNumber || d.cin || d.llpin || '—';
+    const verName = d.verifierName || d.raName || app.fatherName || '—';
+    const verCap = d.verifierCapacity || d.designation || 'DIRECTOR';
+    const verPlace = d.verifierPlace || d.place || district || '—';
+    const verDate = d.verifierDate || d.date || (app.createdAt ? new Date(app.createdAt).toLocaleDateString() : '—');
+
+    text = [
+      `=== PAN APPLICATION DETAILS (NON-INDIVIDUAL) ===`,
+      `Ack Number: ${app.ackNumber || 'N/A'}`,
+      `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
+      `Status: ${(app.status || 'Submitted').toUpperCase()}`,
+      `Service Type: ${app.applicationType || 'Manual New PAN'}`,
+      `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
+      app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
+      app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
+      ``,
+      `--- ENTITY PARTICULARS ---`,
+      `Category of Applicant: ${catStr || 'COMPANY'}`,
+      `Name of Entity / Company / Firm: ${entityName}`,
+      `Date of Incorporation: ${incDate}`,
+      `Registration / CIN / LLPIN Number: ${regNum}`,
+      (app.panNumber || d.panNumber) ? `Existing PAN Number: ${app.panNumber || d.panNumber}` : '',
+      `Mobile Number: ${app.mobileNumber || d.mobileNumber || '—'}`,
+      `Email Address: ${app.email || d.email || '—'}`,
+      `Source of Income: ${d.incomeSource || d.sourceOfIncome || d.sourceofincome || 'BUSINESS / PROFESSION'}`,
+      ``,
+      `--- AUTHORIZED REPRESENTATIVE / SIGNATORY ---`,
+      `Authorized Signatory Name: ${verName}`,
+      `Capacity / Designation: ${verCap}`,
+      `Place: ${verPlace}`,
+      `Date: ${verDate}`,
+      ``,
+      `--- REGISTERED / OFFICE ADDRESS ---`,
+      `Flat/Door/Block: ${(d.officeAddress && d.officeAddress.flatNo) || d.flatNo || '—'}`,
+      `Building/Premises: ${(d.officeAddress && d.officeAddress.premises) || d.premises || '—'}`,
+      `Road/Street: ${(d.officeAddress && d.officeAddress.roadStreet) || d.roadStreet || '—'}`,
+      `Area/Taluka: ${(d.officeAddress && d.officeAddress.areaTaluka) || d.areaTaluka || '—'}`,
+      `District: ${(d.officeAddress && d.officeAddress.district) || district}`,
+      `State: ${(d.officeAddress && d.officeAddress.state) || state}`,
+      `Pincode: ${(d.officeAddress && d.officeAddress.pincode) || d.pincode || '—'}`,
+      `===============================================`
+    ].filter(line => line !== false && line !== undefined && line !== '').join('\n');
+  } else {
+    const fullName = [d.firstName, d.middleName, d.lastName || app.applicantName].filter(Boolean).join(' ') || app.applicantName || '—';
+    const fatherName = app.fatherName || `${d.fatherFirstName || ''} ${d.fatherMiddleName || ''} ${d.fatherLastName || ''}`.trim() || '—';
+    const motherName = `${d.motherFirstName || ''} ${d.motherMiddleName || ''} ${d.motherLastName || ''}`.trim() || '—';
+
+    text = [
+      `=== PAN APPLICATION DETAILS ===`,
+      `Ack Number: ${app.ackNumber || 'N/A'}`,
+      `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
+      `Status: ${(app.status || 'Submitted').toUpperCase()}`,
+      `Service Type: ${app.applicationType || 'Manual New PAN'}`,
+      `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
+      app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
+      app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
+      ``,
+      `--- PERSONAL PARTICULARS ---`,
+      `Title: ${d.title || app.title || 'SHRI'}`,
+      `Applicant Name: ${fullName}`,
+      `Gender: ${app.gender || d.gender || 'Male'}`,
+      `Date of Birth: ${app.dob || d.dob || '—'}`,
+      `Aadhaar Number: ${app.aadhaarNumber || d.aadhaarNumber || '—'}`,
+      `Mobile Number: ${app.mobileNumber || '—'}`,
+      `Email Address: ${app.email || '—'}`,
+      ``,
+      `--- PARENTS DETAILS ---`,
+      `Father's Name: ${fatherName}`,
+      `Mother's Name: ${motherName}`,
+      ``,
+      `--- RESIDENCE ADDRESS ---`,
+      `Flat/Door/Block: ${d.flatNo || '—'}`,
+      `Building/Premises: ${d.premises || '—'}`,
+      `Road/Street: ${d.roadStreet || '—'}`,
+      `Area/Taluka: ${d.areaTaluka || '—'}`,
+      `District: ${district}`,
+      `State: ${state}`,
+      `Pincode: ${d.pincode || '—'}`,
+      ``,
+      `--- AO CODE DETAILS ---`,
+      `Area Code: ${d.aoAreaCode || 'MUM'} | AO Type: ${d.aoType || 'C'} | Range Code: ${d.aoRangeCode || '11'} | AO No: ${d.aoNo || '1'} | City: ${d.aoCity || district || 'MUMBAI'}`,
+      `===============================`
+    ].filter(line => line !== false && line !== undefined && line !== '').join('\n');
+  }
 
   const showToast = () => {
     showCustomToast('Details Copied!', 'All application details copied to clipboard.', 'success');
@@ -414,6 +468,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   const [tabs, setTabs] = useState([]);
 
   const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'dark');
+  const isLightTheme = currentTheme === 'light';
 
   useEffect(() => {
     if (propTheme) {
@@ -427,7 +482,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
       setCurrentTheme(saved);
     };
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    const interval = setInterval(handleStorage, 500);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
   }, []);
 
   // Read initial active tab from URL search parameters if available
@@ -965,7 +1024,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   };
 
   const handleCorrectionFileUpload = (e, fieldName) => {
-    const file = e.target.files?.[0];
+    if (typeof e === 'string') {
+      setCorrectionData(prev => ({ ...prev, [fieldName]: e }));
+      return;
+    }
+    const file = e?.target?.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onloadend = () => setCorrectionData(prev => ({ ...prev, [fieldName]: reader.result }));
@@ -973,8 +1036,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   };
 
   const handleCorrectionDownload = async () => {
+    const isIndiv = !correctionData.category || correctionData.category === 'INDIVIDUAL';
     if (!correctionData.panNumber) {
       Toast.fire({ icon: 'warning', title: 'Please enter Existing PAN number before downloading.' });
+      return;
+    }
+    if (!isIndiv && !correctionData.entityName && !correctionData.lastName) {
+      Toast.fire({ icon: 'warning', title: 'Please enter Entity / Company / Firm Name before downloading.' });
       return;
     }
     Toast.fire({ icon: 'info', title: 'Generating PAN Correction PDF...' });
@@ -1694,7 +1762,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
           </div>
         );
       }
-      
+
       return (
         <div key={fieldName} style={{ gridColumn: gridSpan, marginBottom: '8px' }}>
           <label className="form-label-pro">
@@ -1791,13 +1859,21 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   const applicantAge = getAgeFromDob(manualData.dob);
   const isMinor = applicantAge !== null && applicantAge >= 0 && applicantAge < 18;
 
-  // Download Pre-Filled Form 49A PDF
+  // Download Pre-Filled Form 49A / Form 94 PDF
   const handleDownloadPdf = async () => {
-    if (!manualData.lastName && !manualData.nameAsPerAadhaar && !manualData.aadhaarNumber) {
-      Toast.fire({ icon: 'warning', title: 'Please fill in basic application form details first' });
-      return;
+    const isIndiv = !manualData.category || manualData.category === 'INDIVIDUAL';
+    if (isIndiv) {
+      if (!manualData.lastName && !manualData.nameAsPerAadhaar && !manualData.aadhaarNumber) {
+        Toast.fire({ icon: 'warning', title: 'Please fill in basic application form details first' });
+        return;
+      }
+    } else {
+      if (!manualData.entityName && !manualData.lastName) {
+        Toast.fire({ icon: 'warning', title: 'Please enter Entity / Company / Firm Name first' });
+        return;
+      }
     }
-    Toast.fire({ icon: 'info', title: 'Generating Form 49A PDF with Photo & Signature...' });
+    Toast.fire({ icon: 'info', title: 'Generating Pre-Filled PDF...' });
     const payload = {
       ...manualData,
       isMinor,
@@ -1805,7 +1881,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
     };
     const success = await generateForm49APdf(payload);
     if (success) {
-      Toast.fire({ icon: 'success', title: 'Form 49A PDF generated and downloaded!' });
+      Toast.fire({ icon: 'success', title: 'Pre-Filled PDF generated and downloaded!' });
     } else {
       Toast.fire({ icon: 'error', title: 'Could not generate PDF. Please check your data.' });
     }
@@ -1977,7 +2053,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               const url = new URL(window.location);
               url.searchParams.set('tab', 'history');
               window.history.replaceState({}, '', url);
-            } catch (e) {}
+            } catch (e) { }
           });
           setFormData(INITIAL_FORM_DATA);
           setHistoryViewMode('user');
@@ -1987,7 +2063,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             const url = new URL(window.location);
             url.searchParams.set('tab', 'history');
             window.history.replaceState({}, '', url);
-          } catch (e) {}
+          } catch (e) { }
         } else {
           Toast.fire({ icon: 'error', title: data.message || 'Submission failed.' });
         }
@@ -2152,6 +2228,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
     if (activeTab === 'manual_new_pan') return 'Manual New PAN';
     if (activeTab === 'epan_kyc') return 'Aadhaar OTP New PAN';
     if (activeTab === 'epan_correction') return tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction';
+    const found = tabs.find(t => t.id === activeTab);
+    if (found) return found.label;
     return 'Manual New PAN';
   };
 
@@ -2218,12 +2296,12 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         <div className="pancard-tabs-bar">
           <button
             type="button"
-            className={`pancard-tab-btn ${(activeTab === 'new_app_landing' || activeTab === 'manual_new_pan' || activeTab === 'epan_kyc') ? 'active' : ''}`}
+            className={`pancard-tab-btn ${(activeTab === 'new_app_landing' || activeTab === 'manual_new_pan' || activeTab === 'epan_kyc' || (!['epan_correction', 'history'].includes(activeTab) && tabs.some(t => t.id === activeTab))) ? 'active' : ''}`}
             onClick={() => switchTab('new_app_landing')}
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
               </svg>
             </span>
             <span>New Application</span>
@@ -2235,8 +2313,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
             </span>
             <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
@@ -2248,10 +2326,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
           >
             <span className="tab-btn-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
               </svg>
             </span>
             <span>Applications History</span>
@@ -2268,7 +2346,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               <div className="pan-portal-subhead-title">
                 <div className="pan-portal-icon-glow">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2l10 8H2l10-8z"/>
+                    <path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2l10 8H2l10-8z" />
                   </svg>
                 </div>
                 <div>
@@ -2282,7 +2360,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               </div>
               <div className="pan-breadcrumb">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 </svg>
                 <span>Home</span>
                 <span className="breadcrumb-separator">›</span>
@@ -2290,104 +2368,164 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               </div>
             </div>
 
-            {/* Service Options Cards Grid */}
-            {/* Service Options Cards Grid (Redesigned Small Cards) */}
+            {/* Service Options Cards Grid (Dynamically rendered from tabs config) */}
             <div className="pan-services-grid">
+              {tabs
+                .filter(t => t.id !== 'epan_correction' && t.id !== 'manual_pan_correction')
+                .map((tab) => {
+                  const isManual = tab.id === 'manual_new_pan';
+                  const isKyc = tab.id === 'epan_kyc';
+                  const tabFee = tab.fee ?? 107;
 
-              {/* Card 1: Manual New PAN */}
-              <div className="pan-service-card manual-card small-card">
-                <div className="pan-card-header-compact">
-                  <div className="pan-card-title-row">
-                    <div className="pan-card-icon-wrapper manual-icon-bg small-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                      </svg>
+                  if (isManual) {
+                    return (
+                      <div key={tab.id} className="pan-service-card manual-card small-card">
+                        <div className="pan-card-header-compact">
+                          <div className="pan-card-title-row">
+                            <div className="pan-card-icon-wrapper manual-icon-bg small-icon">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                                <line x1="16" y1="13" x2="8" y2="13" />
+                                <line x1="16" y1="17" x2="8" y2="17" />
+                              </svg>
+                            </div>
+                            <div>
+                              <h4 className="pan-card-title small-title">{(tab.label || 'MANUAL NEW PAN').toUpperCase()}</h4>
+                              {tab.badge && <span className="pan-card-badge-sm">{tab.badge}</span>}
+                            </div>
+                          </div>
+                          <span className="pan-card-fee-pill">₹{tabFee}</span>
+                        </div>
+
+                        <div className="pan-features-list compact-features">
+                          <div className="pan-feature-compact">
+                            <span className="pan-check-sm manual-check">✓</span>
+                            <span>Custom Photo & Signature Upload support</span>
+                          </div>
+                          <div className="pan-feature-compact">
+                            <span className="pan-check-sm manual-check">✓</span>
+                            <span>ABHA Card supported as DOB Proof</span>
+                          </div>
+                          <div className="pan-feature-compact">
+                            <span className="pan-check-sm manual-check">✓</span>
+                            <span>Physical PVC Card by post + Instant PDF</span>
+                          </div>
+                        </div>
+
+                        <div className="pan-card-footer compact-footer">
+                          <button
+                            type="button"
+                            className="pan-btn-manual small-btn"
+                            onClick={() => switchTab('manual_new_pan')}
+                          >
+                            <span>Apply {tab.label || 'Manual New PAN'}</span>
+                            <span className="btn-arrow">➔</span>
+                          </button>
+                          <div className="pan-card-footnote small-footnote">
+                            <span>{tab.description || 'Includes India Post speed post delivery'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (isKyc) {
+                    return (
+                      <div key={tab.id} className="pan-service-card kyc-card small-card">
+                        <div className="pan-card-header-compact">
+                          <div className="pan-card-title-row">
+                            <div className="pan-card-icon-wrapper kyc-icon-bg small-icon">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                              </svg>
+                            </div>
+                            <div>
+                              <h4 className="pan-card-title small-title">{(tab.label || 'AADHAAR OTP NEW PAN').toUpperCase()}</h4>
+                              {tab.badge && <span className="pan-card-badge-sm">{tab.badge}</span>}
+                            </div>
+                          </div>
+                          <span className="pan-card-fee-pill">₹{tabFee}</span>
+                        </div>
+
+                        <div className="pan-features-list compact-features">
+                          <div className="pan-feature-compact">
+                            <span className="pan-check-sm kyc-check">✓</span>
+                            <span>100% Paperless UIDAI e-KYC process</span>
+                          </div>
+                          <div className="pan-feature-compact">
+                            <span className="pan-check-sm kyc-check">✓</span>
+                            <span>Instant Mobile OTP Verification</span>
+                          </div>
+                          <div className="pan-feature-compact">
+                            <span className="pan-check-sm kyc-check">✓</span>
+                            <span>Fast e-PAN Allocation within 2 Hours</span>
+                          </div>
+                        </div>
+
+                        <div className="pan-card-footer compact-footer">
+                          <button
+                            type="button"
+                            className="pan-btn-kyc small-btn"
+                            onClick={() => switchTab('epan_kyc')}
+                          >
+                            <span>Apply {tab.label || 'Aadhaar OTP PAN'}</span>
+                            <span className="btn-arrow">➔</span>
+                          </button>
+                          <div className="pan-card-footnote small-footnote">
+                            <span>{tab.description || 'Aadhaar linked mobile number required'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={tab.id} className="pan-service-card custom-tab-card small-card">
+                      <div className="pan-card-header-compact">
+                        <div className="pan-card-title-row">
+                          <div className="pan-card-icon-wrapper custom-icon-bg small-icon">
+                            <span style={{ fontSize: '18px' }}>{tab.icon || '📄'}</span>
+                          </div>
+                          <div>
+                            <h4 className="pan-card-title small-title">{(tab.label || 'PAN SERVICE').toUpperCase()}</h4>
+                            {tab.badge && <span className="pan-card-badge-sm">{tab.badge}</span>}
+                          </div>
+                        </div>
+                        <span className="pan-card-fee-pill">₹{tabFee}</span>
+                      </div>
+
+                      <div className="pan-features-list compact-features">
+                        <div className="pan-feature-compact">
+                          <span className="pan-check-sm custom-check">✓</span>
+                          <span>{tab.description || `${tab.label} service with online verification`}</span>
+                        </div>
+                        <div className="pan-feature-compact">
+                          <span className="pan-check-sm custom-check">✓</span>
+                          <span>{tab.fields && tab.fields.length > 0 ? `${tab.fields.length} Configured Form Fields` : 'Fast online processing'}</span>
+                        </div>
+                        <div className="pan-feature-compact">
+                          <span className="pan-check-sm custom-check">✓</span>
+                          <span>Instant balance deduction & Admin review</span>
+                        </div>
+                      </div>
+
+                      <div className="pan-card-footer compact-footer">
+                        <button
+                          type="button"
+                          className="pan-btn-custom small-btn"
+                          onClick={() => switchTab(tab.id)}
+                        >
+                          <span>Apply {tab.label}</span>
+                          <span className="btn-arrow">➔</span>
+                        </button>
+                        <div className="pan-card-footnote small-footnote">
+                          <span>Dedicated secure online portal processing</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="pan-card-title small-title">MANUAL NEW PAN</h4>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pan-features-list compact-features">
-                  <div className="pan-feature-compact">
-                    <span className="pan-check-sm manual-check">✓</span>
-                    <span>Custom Photo & Signature Upload support</span>
-                  </div>
-                  <div className="pan-feature-compact">
-                    <span className="pan-check-sm manual-check">✓</span>
-                    <span>ABHA Card supported as DOB Proof</span>
-                  </div>
-                  <div className="pan-feature-compact">
-                    <span className="pan-check-sm manual-check">✓</span>
-                    <span>Physical PVC Card by post + Instant PDF</span>
-                  </div>
-                </div>
-
-                <div className="pan-card-footer compact-footer">
-                  <button
-                    type="button"
-                    className="pan-btn-manual small-btn"
-                    onClick={() => switchTab('manual_new_pan')}
-                  >
-                    <span>Apply Manual New PAN</span>
-                    <span className="btn-arrow">➔</span>
-                  </button>
-                  <div className="pan-card-footnote small-footnote">
-                    <span>Includes India Post speed post delivery</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Aadhaar OTP New PAN */}
-              <div className="pan-service-card kyc-card small-card">
-
-                <div className="pan-card-header-compact">
-                  <div className="pan-card-title-row">
-                    <div className="pan-card-icon-wrapper kyc-icon-bg small-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="pan-card-title small-title">AADHAAR OTP NEW PAN</h4>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pan-features-list compact-features">
-                  <div className="pan-feature-compact">
-                    <span className="pan-check-sm kyc-check">✓</span>
-                    <span>100% Paperless UIDAI e-KYC process</span>
-                  </div>
-                  <div className="pan-feature-compact">
-                    <span className="pan-check-sm kyc-check">✓</span>
-                    <span>Instant Mobile OTP Verification</span>
-                  </div>
-                  <div className="pan-feature-compact">
-                    <span className="pan-check-sm kyc-check">✓</span>
-                    <span>Fast e-PAN Allocation within 2 Hours</span>
-                  </div>
-                </div>
-
-                <div className="pan-card-footer compact-footer">
-                  <button
-                    type="button"
-                    className="pan-btn-kyc small-btn"
-                    onClick={() => switchTab('epan_kyc')}
-                  >
-                    <span>Apply Aadhaar OTP PAN</span>
-                    <span className="btn-arrow">➔</span>
-                  </button>
-                  <div className="pan-card-footnote small-footnote">
-                    <span>Aadhaar linked mobile number required</span>
-                  </div>
-                </div>
-              </div>
-
+                  );
+                })}
             </div>
 
             {/* Official Note Banner */}
@@ -2410,527 +2548,575 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
           </div>
         ) : activeTab === 'history' ? (
           <div className="pancard-history-section" style={{ padding: '4px' }}>
-                {/* Header & Controls Bar */}
-                <div style={{ background: '#ffffff', border: '1px solid #fed7aa', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.06)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '14px' }}>
-                    <div>
-                      <h4 style={{ margin: 0, color: '#ea580c', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span>📑</span> <span>Submitted PAN Application Requests</span>
-                      </h4>
-                      <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '12px' }}>
-                        View all submitted Form 49A applications, inspect full form data, download PDFs, and update processing status.
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button
-                        type="button"
-                        onClick={() => fetchHistory()}
-                        style={{
-                          background: '#fff7ed',
-                          color: '#ea580c',
-                          border: '1px solid #fdba74',
-                          padding: '7px 14px',
-                          borderRadius: '10px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          boxShadow: '0 2px 6px rgba(234, 88, 12, 0.08)'
-                        }}
-                      >
-                        <span>🔄</span> <span>Refresh</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Summary Statistics Cards Bar (Accurate matching counts per retailer / search query) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
-                    {/* Total Applications Sent */}
-                    <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                        🪪
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>TOTAL SENT TO ADMIN</div>
-                        <div style={{ fontSize: '19px', color: '#0f172a', fontWeight: '800' }}>{searchedList.length}</div>
-                      </div>
-                    </div>
-
-                    {/* Approved Applications */}
-                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                        ✅
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '10.5px', color: '#15803d', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>APPROVED APPLICATIONS</div>
-                        <div style={{ fontSize: '19px', color: '#166534', fontWeight: '800' }}>
-                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'approved').length}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Completed Applications */}
-                    <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                        🎯
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '10.5px', color: '#0369a1', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>COMPLETED APPLICATIONS</div>
-                        <div style={{ fontSize: '19px', color: '#075985', fontWeight: '800' }}>
-                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'completed').length}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* In Progress / Pending */}
-                    <div style={{ background: '#fffbe6', border: '1px solid #fde68a', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                        ⌛
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '10.5px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>PENDING / IN PROGRESS</div>
-                        <div style={{ fontSize: '19px', color: '#92400e', fontWeight: '800' }}>
-                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'submitted' || (a.status || '').toLowerCase() === 'in progress').length}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Rejected / Correction */}
-                    <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                      <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
-                        ❌
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '10.5px', color: '#b91c1c', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>REJECTED / CORRECTION</div>
-                        <div style={{ fontSize: '19px', color: '#991b1b', fontWeight: '800' }}>
-                          {searchedList.filter(a => (a.status || '').toLowerCase() === 'rejected').length}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Filters Bar */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px 170px', gap: '12px', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      placeholder="🔍 Search by Ack No, Applicant Name, Mobile or User ID..."
-                      value={searchQuery}
-                      onChange={e => { setSearchQuery(e.target.value); setHistoryPage(1); }}
-                      style={{
-                        background: '#ffffff',
-                        border: '1px solid #fdba74',
-                        borderRadius: '10px',
-                        padding: '9px 14px',
-                        color: '#1e293b',
-                        fontSize: '13px',
-                        outline: 'none'
-                      }}
-                    />
-
-                    <select
-                      value={statusFilter}
-                      onChange={e => { setStatusFilter(e.target.value); setHistoryPage(1); }}
-                      style={{
-                        background: '#ffffff',
-                        border: '1px solid #fdba74',
-                        borderRadius: '10px',
-                        padding: '9px 12px',
-                        color: '#1e293b',
-                        fontSize: '13px',
-                        outline: 'none',
-                        fontWeight: '600'
-                      }}
-                    >
-                      <option value="ALL">All Statuses</option>
-                      <option value="Submitted">Submitted</option>
-                      <option value="In Progress">In Progress</option>
-                      <option value="Approved">Approved</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Rejected">Rejected</option>
-                    </select>
-
-                    <select
-                      value={historyPageSize}
-                      onChange={e => { setHistoryPageSize(Number(e.target.value)); setHistoryPage(1); }}
-                      style={{
-                        background: '#ffffff',
-                        border: '1px solid #fdba74',
-                        borderRadius: '10px',
-                        padding: '9px 12px',
-                        color: '#1e293b',
-                        fontSize: '13px',
-                        outline: 'none',
-                        fontWeight: '600'
-                      }}
-                    >
-                      <option value={10}>10 per page</option>
-                      <option value={25}>25 per page</option>
-                      <option value={50}>50 per page</option>
-                      <option value={100}>100 per page</option>
-                    </select>
-                  </div>
+            {/* Header & Controls Bar */}
+            <div style={{ background: '#ffffff', border: '1px solid #fed7aa', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '14px' }}>
+                <div>
+                  <h4 style={{ margin: 0, color: '#ea580c', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>📑</span> <span>Submitted PAN Application Requests</span>
+                  </h4>
+                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '12px' }}>
+                    View all submitted Form 49A applications, inspect full form data, download PDFs, and update processing status.
+                  </p>
                 </div>
 
-                {/* Applications Data Table */}
-                {loadingHistory ? (
-                  <div className="pancard-loading-state" style={{ padding: '40px', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1px solid #fed7aa' }}>
-                    <div className="spinner"></div>
-                    <p style={{ marginTop: '12px', color: '#ea580c', fontWeight: '600' }}>Loading PAN application requests...</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => fetchHistory()}
+                    style={{
+                      background: '#fff7ed',
+                      color: '#ea580c',
+                      border: '1px solid #fdba74',
+                      padding: '7px 14px',
+                      borderRadius: '10px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 6px rgba(234, 88, 12, 0.08)'
+                    }}
+                  >
+                    <span>🔄</span> <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary Statistics Cards Bar (Accurate matching counts per retailer / search query) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+                {/* Total Applications Sent */}
+                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                    🪪
                   </div>
-                ) : filteredList.length === 0 ? (
-                  <div className="pancard-empty-history" style={{ padding: '50px 20px', textAlign: 'center', background: '#fff7ed', borderRadius: '16px', border: '1px dashed #fdba74' }}>
-                    <span style={{ fontSize: '36px', display: 'block', marginBottom: '10px' }}>📂</span>
-                    <p style={{ color: '#ea580c', margin: 0, fontSize: '14px', fontWeight: '600' }}>
-                      No PAN application requests found matching your filter.
-                    </p>
-                  </div>
-                ) : (
                   <div>
-                  <div className="history-table-wrapper" style={{ width: '100%', overflowX: 'auto' }}>
-                    <table className="pancard-history-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px', tableLayout: 'auto' }}>
-                      <thead>
-                        <tr style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', borderBottom: '2px solid #fed7aa' }}>
-                          <th style={{ padding: '9px 6px', borderRadius: '8px 0 0 8px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
-                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
-                          <th style={{ padding: '9px 5px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
-                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
-                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
-                          <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
-                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
-                          <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
-                          <th style={{ padding: '9px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedList.map((app) => {
-                          const statusStyle = getStatusBadgeStyle(app.status || 'Submitted');
-                          const hasReceipt = Boolean(app.receiptUrl || app.nsdlReceiptNumber || (app.status || '').toLowerCase() === 'approved');
-
-                          return (
-                            <tr
-                              key={app._id}
-                              onClick={() => setSelectedAppForModal(app)}
-                              title="Click to view full applicant details"
-                              style={{
-                                background: '#ffffff',
-                                border: '1px solid #fed7aa',
-                                boxShadow: '0 1px 6px rgba(234, 88, 12, 0.04)',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              {/* ACK NO */}
-                              <td className="col-ack" style={{ padding: '8px 6px', borderRadius: '8px 0 0 8px', whiteSpace: 'nowrap' }}>
-                                <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 6px', borderRadius: '5px', fontSize: '11px', fontWeight: '800', fontFamily: 'monospace' }}>
-                                  {app.ackNumber}
-                                </span>
-                              </td>
-
-                              {/* CATEGORY */}
-                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '2px 5px', borderRadius: '5px', fontSize: '9.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
-                                  {app.category || app.details?.category || 'INDIVIDUAL'}
-                                </span>
-                              </td>
-
-                              {/* TYPE */}
-                              <td style={{ padding: '8px 5px', fontSize: '11px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                {app.applicationType}
-                              </td>
-
-                              {/* APPLICANT NAME */}
-                              <td style={{ padding: '8px 6px', fontSize: '11.5px', fontWeight: '800', color: '#0f172a' }}>
-                                {app.applicantName}
-                              </td>
-
-                              {/* MOBILE / EMAIL */}
-                              <td style={{ padding: '8px 6px', fontSize: '11px', color: '#334155' }}>
-                                <div style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>📞 {app.mobileNumber}</div>
-                                <div style={{ fontSize: '10px', color: '#64748b', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={app.email}>✉️ {app.email}</div>
-                              </td>
-
-                              {/* SUBMITTED DATE */}
-                              <td style={{ padding: '8px 6px', color: '#475569' }}>
-                                <div style={{ fontWeight: '700', fontSize: '11px', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleDateString()}</div>
-                                <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                              </td>
-
-                              {/* STATUS */}
-                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <span style={{ ...statusStyle, padding: '3px 7px', borderRadius: '16px', fontSize: '10px', fontWeight: '800', display: 'inline-block', textTransform: 'capitalize' }}>
-                                  ● {app.status || 'Submitted'}
-                                </span>
-                              </td>
-
-                              {/* NSDL RECEIPT */}
-                              <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                {hasReceipt ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (app.receiptUrl) {
-                                        downloadReceiptToPc(app.receiptUrl, app.ackNumber || app.nsdlReceiptNumber || 'PAN');
-                                      } else {
-                                        Toast.fire({
-                                          icon: 'info',
-                                          title: `NSDL Receipt No: ${app.nsdlReceiptNumber || app.ackNumber}`
-                                        });
-                                      }
-                                    }}
-                                    title={app.receiptUrl ? "Click to view / download approved NSDL receipt" : `NSDL Receipt: ${app.nsdlReceiptNumber || app.ackNumber}`}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '3px',
-                                      background: '#f0f9ff',
-                                      color: '#0284c7',
-                                      border: '1px solid #7dd3fc',
-                                      padding: '3px 7px',
-                                      borderRadius: '6px',
-                                      fontSize: '10px',
-                                      fontWeight: '800',
-                                      fontFamily: 'monospace',
-                                      cursor: app.receiptUrl ? 'pointer' : 'default',
-                                      textDecoration: 'none',
-                                      boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
-                                      transition: 'all 0.15s ease'
-                                    }}
-                                  >
-                                    <span style={{ fontSize: '10.5px' }}>🗎</span>
-                                    <span style={{ textDecoration: app.receiptUrl ? 'underline' : 'none' }}>
-                                      {app.nsdlReceiptNumber || app.ackNumber}
-                                    </span>
-                                  </button>
-                                ) : (
-                                  <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>—</span>
-                                )}
-                              </td>
-
-                              {/* ADMIN ACTIONS */}
-                              <td style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', whiteSpace: 'nowrap' }}>
-                                <div style={{ display: 'inline-flex', gap: '4px', justifyContent: 'center', alignItems: 'center', whiteSpace: 'nowrap' }}>
-                                  {/* View Full Form Details */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedAppForModal(app);
-                                    }}
-                                    style={{
-                                      background: '#f0f9ff',
-                                      color: '#0284c7',
-                                      border: '1px solid #bae6fd',
-                                      padding: '4px 7px',
-                                      borderRadius: '6px',
-                                      fontSize: '10.5px',
-                                      fontWeight: '700',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '3px',
-                                      transition: 'all 0.15s ease',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    title="View complete submitted form details"
-                                  >
-                                    <span>👁️</span> <span>Details</span>
-                                  </button>
-
-                                  {/* Add Documents */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedAppForDocument(app);
-                                      setDocumentToAdd('');
-                                      setDocumentName('');
-                                    }}
-                                    style={{
-                                      background: '#fff7ed',
-                                      color: '#ea580c',
-                                      border: '1px solid #fdba74',
-                                      padding: '4px 7px',
-                                      borderRadius: '6px',
-                                      fontSize: '10.5px',
-                                      fontWeight: '700',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '3px',
-                                      transition: 'all 0.15s ease',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    title="Add a supporting document to this application"
-                                  >
-                                    <span>📁</span> <span>Docs</span>
-                                  </button>
-
-                                  {/* Download Pre-Filled PDF */}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      generateForm49APdf(app.details || app);
-                                    }}
-                                    style={{
-                                      background: '#ecfdf5',
-                                      color: '#059669',
-                                      border: '1px solid #a7f3d0',
-                                      padding: '4px 7px',
-                                      borderRadius: '6px',
-                                      fontSize: '10.5px',
-                                      fontWeight: '700',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '3px',
-                                      transition: 'all 0.15s ease',
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    title="Download pre-filled official Form 49A PDF"
-                                  >
-                                    <span>📥</span> <span>PDF</span>
-                                  </button>
-
-                                  {/* Delete Submission (Locked if Approved or Completed) */}
-                                  {((app.status || '').toLowerCase() === 'approved' || (app.status || '').toLowerCase() === 'completed') ? (
-                                    <span
-                                      style={{
-                                        background: '#f1f5f9',
-                                        color: '#94a3b8',
-                                        border: '1px solid #cbd5e1',
-                                        padding: '4px 7px',
-                                        borderRadius: '6px',
-                                        fontSize: '10.5px',
-                                        fontWeight: '700',
-                                        cursor: 'not-allowed',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '3px',
-                                        whiteSpace: 'nowrap'
-                                      }}
-                                      title="Approved by Admin — Cannot be deleted"
-                                    >
-                                      <span>🔒</span>
-                                    </span>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRetailerDeleteApplication(app);
-                                      }}
-                                      style={{
-                                        background: '#fef2f2',
-                                        color: '#dc2626',
-                                        border: '1px solid #fca5a5',
-                                        padding: '4px 7px',
-                                        borderRadius: '6px',
-                                        fontSize: '10.5px',
-                                        fontWeight: '700',
-                                        cursor: 'pointer',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '3px',
-                                        transition: 'all 0.15s ease',
-                                        whiteSpace: 'nowrap'
-                                      }}
-                                      title="Delete application and get instant wallet refund"
-                                    >
-                                      <span>🗑️</span>
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>TOTAL SENT TO ADMIN</div>
+                    <div style={{ fontSize: '19px', color: '#0f172a', fontWeight: '800' }}>{searchedList.length}</div>
                   </div>
+                </div>
 
-                  {/* Pagination Footer Controls */}
-                  <div style={{
-                    display: 'flex',
-                    justify: 'space-between',
-                    alignItems: 'center',
-                    marginTop: '14px',
-                    padding: '12px 18px',
-                    background: '#ffffff',
-                    borderRadius: '12px',
-                    border: '1px solid #fed7aa',
-                    flexWrap: 'wrap',
-                    gap: '10px'
-                  }}>
-                    <div style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>
-                      Showing <strong>{filteredList.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + historyPageSize, filteredList.length)}</strong> of <strong>{filteredList.length}</strong> applications
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <button
-                        type="button"
-                        disabled={currentPage <= 1}
-                        onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
-                        style={{
-                          padding: '6px 14px',
-                          borderRadius: '8px',
-                          border: '1px solid #fdba74',
-                          background: currentPage <= 1 ? '#f1f5f9' : '#fff7ed',
-                          color: currentPage <= 1 ? '#94a3b8' : '#ea580c',
-                          fontWeight: '700',
-                          fontSize: '12px',
-                          cursor: currentPage <= 1 ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        ◀ Prev
-                      </button>
-
-                      <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', padding: '0 8px' }}>
-                        Page {currentPage} of {totalPages}
-                      </span>
-
-                      <button
-                        type="button"
-                        disabled={currentPage >= totalPages}
-                        onClick={() => setHistoryPage(prev => Math.min(totalPages, prev + 1))}
-                        style={{
-                          padding: '6px 14px',
-                          borderRadius: '8px',
-                          border: '1px solid #fdba74',
-                          background: currentPage >= totalPages ? '#f1f5f9' : '#fff7ed',
-                          color: currentPage >= totalPages ? '#94a3b8' : '#ea580c',
-                          fontWeight: '700',
-                          fontSize: '12px',
-                          cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        Next ▶
-                      </button>
+                {/* Approved Applications */}
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                    ✅
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10.5px', color: '#15803d', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>APPROVED APPLICATIONS</div>
+                    <div style={{ fontSize: '19px', color: '#166534', fontWeight: '800' }}>
+                      {searchedList.filter(a => (a.status || '').toLowerCase() === 'approved').length}
                     </div>
                   </div>
                 </div>
-              )}
+
+                {/* Completed Applications */}
+                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                    🎯
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10.5px', color: '#0369a1', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>COMPLETED APPLICATIONS</div>
+                    <div style={{ fontSize: '19px', color: '#075985', fontWeight: '800' }}>
+                      {searchedList.filter(a => (a.status || '').toLowerCase() === 'completed').length}
+                    </div>
+                  </div>
+                </div>
+
+                {/* In Progress / Pending */}
+                <div style={{ background: '#fffbe6', border: '1px solid #fde68a', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                    ⌛
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10.5px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>PENDING / IN PROGRESS</div>
+                    <div style={{ fontSize: '19px', color: '#92400e', fontWeight: '800' }}>
+                      {searchedList.filter(a => (a.status || '').toLowerCase() === 'submitted' || (a.status || '').toLowerCase() === 'in progress').length}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rejected / Correction */}
+                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                    ❌
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10.5px', color: '#b91c1c', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>REJECTED / CORRECTION</div>
+                    <div style={{ fontSize: '19px', color: '#991b1b', fontWeight: '800' }}>
+                      {searchedList.filter(a => (a.status || '').toLowerCase() === 'rejected').length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters Bar */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px 170px', gap: '12px', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search by Ack No, Applicant Name, Mobile or User ID..."
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setHistoryPage(1); }}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #fdba74',
+                    borderRadius: '10px',
+                    padding: '9px 14px',
+                    color: '#1e293b',
+                    fontSize: '13px',
+                    outline: 'none'
+                  }}
+                />
+
+                <select
+                  value={statusFilter}
+                  onChange={e => { setStatusFilter(e.target.value); setHistoryPage(1); }}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #fdba74',
+                    borderRadius: '10px',
+                    padding: '9px 12px',
+                    color: '#1e293b',
+                    fontSize: '13px',
+                    outline: 'none',
+                    fontWeight: '600'
+                  }}
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="Submitted">Submitted</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+
+                <select
+                  value={historyPageSize}
+                  onChange={e => { setHistoryPageSize(Number(e.target.value)); setHistoryPage(1); }}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid #fdba74',
+                    borderRadius: '10px',
+                    padding: '9px 12px',
+                    color: '#1e293b',
+                    fontSize: '13px',
+                    outline: 'none',
+                    fontWeight: '600'
+                  }}
+                >
+                  <option value={10}>10 per page</option>
+                  <option value={25}>25 per page</option>
+                  <option value={50}>50 per page</option>
+                  <option value={100}>100 per page</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Applications Data Table */}
+            {loadingHistory ? (
+              <div className="pancard-loading-state" style={{ padding: '40px', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1px solid #fed7aa' }}>
+                <div className="spinner"></div>
+                <p style={{ marginTop: '12px', color: '#ea580c', fontWeight: '600' }}>Loading PAN application requests...</p>
+              </div>
+            ) : filteredList.length === 0 ? (
+              <div className="pancard-empty-history" style={{ padding: '50px 20px', textAlign: 'center', background: '#fff7ed', borderRadius: '16px', border: '1px dashed #fdba74' }}>
+                <span style={{ fontSize: '36px', display: 'block', marginBottom: '10px' }}>📂</span>
+                <p style={{ color: '#ea580c', margin: 0, fontSize: '14px', fontWeight: '600' }}>
+                  No PAN application requests found matching your filter.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="history-table-wrapper" style={{ width: '100%', overflowX: 'auto' }}>
+                  <table className="pancard-history-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px', tableLayout: 'auto' }}>
+                    <thead>
+                      <tr style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', borderBottom: '2px solid #fed7aa' }}>
+                        <th style={{ padding: '9px 6px', borderRadius: '8px 0 0 8px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
+                        <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
+                        <th style={{ padding: '9px 5px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
+                        <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
+                        <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
+                        <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
+                        <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
+                        <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
+                        <th style={{ padding: '9px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedList.map((app) => {
+                        const statusStyle = getStatusBadgeStyle(app.status || 'Submitted');
+                        const hasReceipt = Boolean(app.receiptUrl || app.nsdlReceiptNumber || (app.status || '').toLowerCase() === 'approved');
+
+                        return (
+                          <tr
+                            key={app._id}
+                            onClick={() => setSelectedAppForModal(app)}
+                            title="Click to view full applicant details"
+                            style={{
+                              background: '#ffffff',
+                              border: '1px solid #fed7aa',
+                              boxShadow: '0 1px 6px rgba(234, 88, 12, 0.04)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {/* ACK NO */}
+                            <td className="col-ack" style={{ padding: '8px 6px', borderRadius: '8px 0 0 8px', whiteSpace: 'nowrap' }}>
+                              <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 6px', borderRadius: '5px', fontSize: '11px', fontWeight: '800', fontFamily: 'monospace' }}>
+                                {app.ackNumber}
+                              </span>
+                            </td>
+
+                            {/* CATEGORY */}
+                            <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '2px 5px', borderRadius: '5px', fontSize: '9.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                {app.category || app.details?.category || 'INDIVIDUAL'}
+                              </span>
+                            </td>
+
+                            {/* TYPE */}
+                            <td style={{ padding: '8px 5px', fontSize: '11px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                              {app.applicationType}
+                            </td>
+
+                            {/* APPLICANT NAME */}
+                            <td style={{ padding: '8px 6px', fontSize: '11.5px', fontWeight: '800', color: '#0f172a' }}>
+                              {app.applicantName}
+                            </td>
+
+                            {/* MOBILE / EMAIL */}
+                            <td style={{ padding: '8px 6px', fontSize: '11px', color: '#334155' }}>
+                              <div style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>📞 {app.mobileNumber}</div>
+                              <div style={{ fontSize: '10px', color: '#64748b', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={app.email}>✉️ {app.email}</div>
+                            </td>
+
+                            {/* SUBMITTED DATE */}
+                            <td style={{ padding: '8px 6px', color: '#475569' }}>
+                              <div style={{ fontWeight: '700', fontSize: '11px', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleDateString()}</div>
+                              <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                            </td>
+
+                            {/* STATUS */}
+                            <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <span style={{ ...statusStyle, padding: '3px 7px', borderRadius: '16px', fontSize: '10px', fontWeight: '800', display: 'inline-block', textTransform: 'capitalize' }}>
+                                ● {app.status || 'Submitted'}
+                              </span>
+                            </td>
+
+                            {/* NSDL RECEIPT */}
+                            <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              {hasReceipt ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (app.receiptUrl) {
+                                      downloadReceiptToPc(app.receiptUrl, app.ackNumber || app.nsdlReceiptNumber || 'PAN');
+                                    } else {
+                                      Toast.fire({
+                                        icon: 'info',
+                                        title: `NSDL Receipt No: ${app.nsdlReceiptNumber || app.ackNumber}`
+                                      });
+                                    }
+                                  }}
+                                  title={app.receiptUrl ? "Click to view / download approved NSDL receipt" : `NSDL Receipt: ${app.nsdlReceiptNumber || app.ackNumber}`}
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    background: '#f0f9ff',
+                                    color: '#0284c7',
+                                    border: '1px solid #7dd3fc',
+                                    padding: '3px 7px',
+                                    borderRadius: '6px',
+                                    fontSize: '10px',
+                                    fontWeight: '800',
+                                    fontFamily: 'monospace',
+                                    cursor: app.receiptUrl ? 'pointer' : 'default',
+                                    textDecoration: 'none',
+                                    boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  <span style={{ fontSize: '10.5px' }}>🗎</span>
+                                  <span style={{ textDecoration: app.receiptUrl ? 'underline' : 'none' }}>
+                                    {app.nsdlReceiptNumber || app.ackNumber}
+                                  </span>
+                                </button>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>—</span>
+                              )}
+                            </td>
+
+                            {/* ADMIN ACTIONS */}
+                            <td style={{ padding: '8px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'inline-flex', gap: '4px', justifyContent: 'center', alignItems: 'center', whiteSpace: 'nowrap' }}>
+                                {/* View Full Form Details */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedAppForModal(app);
+                                  }}
+                                  style={{
+                                    background: '#f0f9ff',
+                                    color: '#0284c7',
+                                    border: '1px solid #bae6fd',
+                                    padding: '4px 7px',
+                                    borderRadius: '6px',
+                                    fontSize: '10.5px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    transition: 'all 0.15s ease',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  title="View complete submitted form details"
+                                >
+                                  <span>👁️</span> <span>Details</span>
+                                </button>
+
+                                {/* Add Documents */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedAppForDocument(app);
+                                    setDocumentToAdd('');
+                                    setDocumentName('');
+                                  }}
+                                  style={{
+                                    background: '#fff7ed',
+                                    color: '#ea580c',
+                                    border: '1px solid #fdba74',
+                                    padding: '4px 7px',
+                                    borderRadius: '6px',
+                                    fontSize: '10.5px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    transition: 'all 0.15s ease',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  title="Add a supporting document to this application"
+                                >
+                                  <span>📁</span> <span>Docs</span>
+                                </button>
+
+                                {/* Download Pre-Filled PDF */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const appData = app.details || app;
+                                    const isCorr = (app.applicationType || '').toLowerCase().includes('correction') || (appData.panNumber && !appData.aadhaarNumber);
+                                    if (isCorr) {
+                                      generatePanCrPdf(appData);
+                                    } else {
+                                      generateForm49APdf(appData);
+                                    }
+                                  }}
+                                  style={{
+                                    background: '#ecfdf5',
+                                    color: '#059669',
+                                    border: '1px solid #a7f3d0',
+                                    padding: '4px 7px',
+                                    borderRadius: '6px',
+                                    fontSize: '10.5px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    transition: 'all 0.15s ease',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  title="Download pre-filled official PDF"
+                                >
+                                  <span>📥</span> <span>PDF</span>
+                                </button>
+
+                                {/* Delete Submission (Locked if Approved or Completed) */}
+                                {((app.status || '').toLowerCase() === 'approved' || (app.status || '').toLowerCase() === 'completed') ? (
+                                  <span
+                                    style={{
+                                      background: '#f1f5f9',
+                                      color: '#94a3b8',
+                                      border: '1px solid #cbd5e1',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
+                                      fontWeight: '700',
+                                      cursor: 'not-allowed',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title="Approved by Admin — Cannot be deleted"
+                                  >
+                                    <span>🔒</span>
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRetailerDeleteApplication(app);
+                                    }}
+                                    style={{
+                                      background: '#fef2f2',
+                                      color: '#dc2626',
+                                      border: '1px solid #fca5a5',
+                                      padding: '4px 7px',
+                                      borderRadius: '6px',
+                                      fontSize: '10.5px',
+                                      fontWeight: '700',
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      transition: 'all 0.15s ease',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title="Delete application and get instant wallet refund"
+                                  >
+                                    <span>🗑️</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Footer Controls */}
+                <div style={{
+                  display: 'flex',
+                  justify: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '14px',
+                  padding: '12px 18px',
+                  background: '#ffffff',
+                  borderRadius: '12px',
+                  border: '1px solid #fed7aa',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  <div style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>
+                    Showing <strong>{filteredList.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + historyPageSize, filteredList.length)}</strong> of <strong>{filteredList.length}</strong> applications
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      disabled={currentPage <= 1}
+                      onClick={() => setHistoryPage(prev => Math.max(1, prev - 1))}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #fdba74',
+                        background: currentPage <= 1 ? '#f1f5f9' : '#fff7ed',
+                        color: currentPage <= 1 ? '#94a3b8' : '#ea580c',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: currentPage <= 1 ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      ◀ Prev
+                    </button>
+
+                    <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', padding: '0 8px' }}>
+                      Page {currentPage} of {totalPages}
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setHistoryPage(prev => Math.min(totalPages, prev + 1))}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #fdba74',
+                        background: currentPage >= totalPages ? '#f1f5f9' : '#fff7ed',
+                        color: currentPage >= totalPages ? '#94a3b8' : '#ea580c',
+                        fontWeight: '700',
+                        fontSize: '12px',
+                        cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Next ▶
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {selectedAppForDocument && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                <div style={{ width: '100%', maxWidth: '520px', background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.35)' }}>
+              <div style={{
+                position: 'fixed',
+                inset: 0,
+                background: isLightTheme ? 'rgba(15, 23, 42, 0.65)' : 'rgba(0,0,0,0.75)',
+                zIndex: 100000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}>
+                <div style={{
+                  width: '100%',
+                  maxWidth: '520px',
+                  background: isLightTheme ? '#ffffff' : '#1e293b',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  boxShadow: isLightTheme ? '0 20px 50px rgba(15, 23, 42, 0.2)' : '0 20px 50px rgba(0,0,0,0.5)',
+                  border: isLightTheme ? '1.5px solid #fed7aa' : '1.5px solid #ea580c',
+                  color: isLightTheme ? '#0f172a' : '#fff'
+                }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '8px' }}>
                     <div>
                       <h4 style={{ margin: 0, color: '#c2410c' }}>📎 Add supporting document</h4>
-                      <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '12px' }}>Application: {selectedAppForDocument.ackNumber}</p>
+                      <p style={{ margin: '5px 0 0', color: isLightTheme ? '#64748b' : '#94a3b8', fontSize: '12px' }}>Application: {selectedAppForDocument.ackNumber}</p>
                     </div>
-                    <button type="button" onClick={() => setSelectedAppForDocument(null)} style={{ border: 'none', background: 'transparent', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>×</button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAppForDocument(null)}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '22px',
+                        cursor: 'pointer',
+                        color: isLightTheme ? '#64748b' : '#94a3b8'
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <p style={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>The document will be attached to this application and immediately visible in the Admin details screen. No fee is charged.</p>
+                  <p style={{ color: isLightTheme ? '#475569' : '#cbd5e1', fontSize: '13px', lineHeight: 1.5 }}>
+                    The document will be attached to this application and immediately visible in the Admin details screen. No fee is charged.
+                  </p>
                   <input
                     type="text"
                     value={documentName}
                     onChange={e => setDocumentName(e.target.value)}
                     placeholder="Document Name (e.g. Aadhaar Card, DOB Proof)"
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', marginBottom: '12px', boxSizing: 'border-box' }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: isLightTheme ? '#ffffff' : '#0f172a',
+                      border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      marginBottom: '12px',
+                      boxSizing: 'border-box',
+                      color: isLightTheme ? '#0f172a' : '#fff'
+                    }}
                   />
                   <input
                     type="file"
@@ -2942,11 +3128,41 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                         reader.readAsDataURL(file);
                       }
                     }}
-                    style={{ width: '100%', marginBottom: '16px' }}
+                    style={{
+                      width: '100%',
+                      marginBottom: '16px',
+                      color: isLightTheme ? '#0f172a' : '#fff'
+                    }}
                   />
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
-                    <button type="button" onClick={() => setSelectedAppForDocument(null)} style={{ padding: '10px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff', cursor: 'pointer' }}>Cancel</button>
-                    <button type="button" onClick={handleAddDocument} disabled={isAddingDocument || !documentToAdd} style={{ padding: '10px 16px', border: 'none', borderRadius: '8px', color: '#fff', background: documentToAdd ? '#ea580c' : '#cbd5e1', cursor: documentToAdd ? 'pointer' : 'not-allowed', fontWeight: '700' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAppForDocument(null)}
+                      style={{
+                        padding: '10px 16px',
+                        border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                        borderRadius: '8px',
+                        background: isLightTheme ? '#ffffff' : 'rgba(255,255,255,0.1)',
+                        color: isLightTheme ? '#334155' : '#fff',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddDocument}
+                      disabled={isAddingDocument || !documentToAdd}
+                      style={{
+                        padding: '10px 16px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        background: documentToAdd ? '#ea580c' : '#cbd5e1',
+                        cursor: documentToAdd ? 'pointer' : 'not-allowed',
+                        fontWeight: '700'
+                      }}
+                    >
                       {isAddingDocument ? 'Adding…' : 'Add document'}
                     </button>
                   </div>
@@ -2958,20 +3174,70 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             {/* MODAL 1: VIEW FULL APPLICATION DETAILS (ADMIN / RETAILER) */}
             {/* ========================================================================= */}
             {selectedAppForModal && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.85)', zIndex: 99999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 12px 12px 12px', backdropFilter: 'blur(4px)', overflowY: 'auto' }}>
-                <div style={{ background: '#1e293b', border: '1.5px solid #0284c7', borderRadius: '16px', width: '96%', maxWidth: '940px', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', color: '#fff', boxShadow: '0 25px 60px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: isLightTheme ? 'rgba(15, 23, 42, 0.6)' : 'rgba(0, 0, 0, 0.85)',
+                zIndex: 99999,
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                padding: '24px 12px 12px 12px',
+                backdropFilter: 'blur(4px)',
+                overflowY: 'auto'
+              }}>
+                <div style={{
+                  background: isLightTheme ? '#ffffff' : '#1e293b',
+                  border: isLightTheme ? '1.5px solid #fed7aa' : '1.5px solid #0284c7',
+                  borderRadius: '16px',
+                  width: '96%',
+                  maxWidth: '940px',
+                  maxHeight: 'calc(100vh - 48px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  color: isLightTheme ? '#0f172a' : '#fff',
+                  boxShadow: isLightTheme ? '0 25px 60px rgba(15, 23, 42, 0.2)' : '0 25px 60px rgba(0,0,0,0.7)',
+                  overflow: 'hidden'
+                }}>
 
                   {/* Fixed Header Bar */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '12px 20px', gap: '10px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: isLightTheme ? 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' : '#0f172a',
+                    borderBottom: isLightTheme ? '1px solid #fed7aa' : '1px solid rgba(255,255,255,0.1)',
+                    padding: '12px 20px',
+                    gap: '10px'
+                  }}>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '16px', color: '#38bdf8', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h4 style={{
+                        margin: 0,
+                        fontSize: '16px',
+                        color: isLightTheme ? '#c2410c' : '#38bdf8',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
                         <span>📋</span> <span>PAN Form Details</span>
-                        <span style={{ fontSize: '12px', background: 'rgba(2, 132, 199, 0.25)', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#7dd3fc', padding: '2px 8px', borderRadius: '6px', fontWeight: '700' }}>
+                        <span style={{
+                          fontSize: '12px',
+                          background: isLightTheme ? '#ffedd5' : 'rgba(2, 132, 199, 0.25)',
+                          border: isLightTheme ? '1px solid #fdba74' : '1px solid rgba(56, 189, 248, 0.4)',
+                          color: isLightTheme ? '#ea580c' : '#7dd3fc',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontWeight: '700'
+                        }}>
                           ACK: {selectedAppForModal.ackNumber || 'N/A'}
                         </span>
                       </h4>
-                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
-                        Submitted by User: <strong style={{ color: '#e2e8f0' }}>{selectedAppForModal.userId || selectedAppForModal.userMobile || 'Retailer'}</strong>
+                      <div style={{ fontSize: '11.5px', color: isLightTheme ? '#64748b' : '#94a3b8', marginTop: '2px' }}>
+                        Submitted by User: <strong style={{ color: isLightTheme ? '#1e293b' : '#e2e8f0' }}>{selectedAppForModal.userId || selectedAppForModal.userMobile || 'Retailer'}</strong>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2979,9 +3245,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                         type="button"
                         onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
                         style={{
-                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          background: isLightTheme ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                           color: '#ffffff',
-                          border: '1px solid rgba(56, 189, 248, 0.5)',
+                          border: isLightTheme ? '1px solid #fdba74' : '1px solid rgba(56, 189, 248, 0.5)',
                           padding: '6px 14px',
                           borderRadius: '8px',
                           fontSize: '12px',
@@ -2990,7 +3256,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+                          boxShadow: isLightTheme ? '0 2px 8px rgba(234, 88, 12, 0.3)' : '0 2px 8px rgba(2, 132, 199, 0.35)',
                           transition: 'all 0.15s ease'
                         }}
                         title="Copy all application details to clipboard"
@@ -3000,9 +3266,29 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       <button
                         type="button"
                         onClick={() => setSelectedAppForModal(null)}
-                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#ef4444'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                        style={{
+                          background: isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)',
+                          border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                          color: isLightTheme ? '#64748b' : '#fff',
+                          width: '30px',
+                          height: '30px',
+                          borderRadius: '50%',
+                          cursor: 'pointer',
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#ef4444';
+                          e.currentTarget.style.color = '#ffffff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)';
+                          e.currentTarget.style.color = isLightTheme ? '#64748b' : '#fff';
+                        }}
                       >
                         ✕
                       </button>
@@ -3010,19 +3296,41 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   {/* Scrollable Body Content (Compact 2-Column Dashboard Layout) */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px' }}>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px', background: isLightTheme ? '#f8fafc' : 'transparent' }}>
                     {(() => {
                       const d = selectedAppForModal.details || {};
+                      const catStr = String(d.category || selectedAppForModal.category || d.applicantStatus || selectedAppForModal.applicantStatus || '').toUpperCase();
+                      const nonIndTypes = ['COMPANY', 'FIRM', 'TRUST', 'HUF', 'HINDU', 'ASSOCIATION', 'AOP', 'BODY', 'BOI', 'LOCAL', 'ARTIFICIAL', 'AJP', 'GOVERNMENT', 'LIMITED', 'LLP'];
+                      const isNonIndiv = nonIndTypes.some(t => catStr.includes(t)) || (catStr !== '' && catStr !== 'INDIVIDUAL');
+                      const district = (d.district && d.district !== 'SELECT') ? d.district : (selectedAppForModal.district || '—');
+                      const state = (d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedAppForModal.state || 'MAHARASHTRA');
+
                       const appStatus = (selectedAppForModal.status || 'Submitted').toUpperCase();
                       const statusColor = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? '#10b981' : appStatus === 'REJECTED' ? '#ef4444' : '#f59e0b';
-                      const statusBg = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? 'rgba(16, 185, 129, 0.15)' : appStatus === 'REJECTED' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)';
+                      const statusBg = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? (isLightTheme ? '#dcfce7' : 'rgba(16, 185, 129, 0.15)') : appStatus === 'REJECTED' ? (isLightTheme ? '#fee2e2' : 'rgba(239, 68, 68, 0.15)') : (isLightTheme ? '#fef3c7' : 'rgba(245, 158, 11, 0.15)');
+
+                      const sectionBg = isLightTheme ? '#ffffff' : 'rgba(15, 23, 42, 0.5)';
+                      const sectionBorder = isLightTheme ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)';
+                      const labelColor = isLightTheme ? '#64748b' : '#94a3b8';
+                      const valColor = isLightTheme ? '#0f172a' : '#f8fafc';
+                      const headingColor = isLightTheme ? '#ea580c' : '#fb923c';
 
                       return (
                         <>
                           {/* Top Status & Type Bar */}
-                          <div style={{ background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(15, 23, 42, 0.4) 100%)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '8px 14px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{
+                            background: isLightTheme ? 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' : 'linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(15, 23, 42, 0.4) 100%)',
+                            border: isLightTheme ? '1px solid #fed7aa' : '1px solid rgba(56, 189, 248, 0.25)',
+                            padding: '8px 14px',
+                            borderRadius: '10px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '8px'
+                          }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ color: '#94a3b8', fontSize: '11.5px', fontWeight: '600' }}>Current Status:</span>
+                              <span style={{ color: labelColor, fontSize: '11.5px', fontWeight: '600' }}>Current Status:</span>
                               <span style={{ background: statusBg, border: `1px solid ${statusColor}`, color: statusColor, padding: '2px 10px', borderRadius: '14px', fontWeight: '800', fontSize: '11.5px', letterSpacing: '0.4px' }}>
                                 {appStatus}
                               </span>
@@ -3038,8 +3346,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                 </button>
                               )}
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>Type:</span>
-                                <strong style={{ color: '#38bdf8', background: 'rgba(2, 132, 199, 0.2)', padding: '2px 8px', borderRadius: '5px', fontSize: '11.5px' }}>
+                                <span style={{ color: labelColor, fontSize: '11.5px' }}>Type:</span>
+                                <strong style={{ color: isLightTheme ? '#c2410c' : '#38bdf8', background: isLightTheme ? '#fed7aa' : 'rgba(2, 132, 199, 0.2)', padding: '2px 8px', borderRadius: '5px', fontSize: '11.5px' }}>
                                   {selectedAppForModal.applicationType || 'Manual New PAN'}
                                 </strong>
                               </div>
@@ -3047,128 +3355,198 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           </div>
 
                           {/* 2-Column Responsive Dashboard */}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '10px' }}>
-                            
-                            {/* Left Column: Personal Particulars & Parents */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                              {/* Personal Particulars */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span>👤</span> <span>Personal Particulars</span>
-                                </h5>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: '#cbd5e1', fontSize: '12px' }}>
-                                  <div><span style={{ color: '#94a3b8' }}>Title:</span> <strong style={{ color: '#f8fafc' }}>{d.title || selectedAppForModal.title || 'SHRI'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Gender:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.gender || d.gender || 'Male'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Last Name:</span> <strong style={{ color: '#f8fafc' }}>{d.lastName || selectedAppForModal.applicantName || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>DOB:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.dob || d.dob || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>First Name:</span> <strong style={{ color: '#f8fafc' }}>{d.firstName || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Aadhaar:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.aadhaarNumber || d.aadhaarNumber || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Middle Name:</span> <strong style={{ color: '#f8fafc' }}>{d.middleName || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Mobile:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.mobileNumber || '—'}</strong></div>
-                                  <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94a3b8' }}>Email:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.email || '—'}</strong></div>
+                          {isNonIndiv ? (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '10px' }}>
+                              {/* Left Column: Entity Particulars & Authorized Signatory */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {/* Entity Particulars */}
+                                <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>🏢</span> <span>Entity Particulars</span>
+                                  </h5>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: valColor, fontSize: '12px' }}>
+                                    <div style={{ gridColumn: 'span 2' }}><span style={{ color: labelColor }}>Entity Name:</span> <strong style={{ color: valColor }}>{d.entityName || selectedAppForModal.applicantName || d.lastName || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Category:</span> <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{catStr || 'COMPANY'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Date of Incorp:</span> <strong style={{ color: valColor }}>{d.dateOfIncorporation || selectedAppForModal.dob || d.dob || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Registration/CIN:</span> <strong style={{ color: valColor }}>{d.registrationNumber || d.cin || d.llpin || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Existing PAN:</span> <strong style={{ color: valColor }}>{selectedAppForModal.panNumber || d.panNumber || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Mobile:</span> <strong style={{ color: valColor }}>{selectedAppForModal.mobileNumber || d.mobileNumber || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Email:</span> <strong style={{ color: valColor }}>{selectedAppForModal.email || d.email || '—'}</strong></div>
+                                    <div style={{ gridColumn: 'span 2' }}><span style={{ color: labelColor }}>Income Source:</span> <strong style={{ color: valColor }}>{d.incomeSource || d.sourceOfIncome || d.sourceofincome || 'BUSINESS / PROFESSION'}</strong></div>
+                                  </div>
+                                </div>
+
+                                {/* Authorized Representative / Signatory */}
+                                <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>✍️</span> <span>Authorized Signatory / Verifier</span>
+                                  </h5>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: valColor, fontSize: '12px' }}>
+                                    <div><span style={{ color: labelColor }}>Signatory Name:</span> <strong style={{ color: valColor }}>{d.verifierName || d.raName || selectedAppForModal.fatherName || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Capacity:</span> <strong style={{ color: valColor }}>{d.verifierCapacity || d.designation || 'DIRECTOR'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Place:</span> <strong style={{ color: valColor }}>{d.verifierPlace || d.place || district || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Date:</span> <strong style={{ color: valColor }}>{d.verifierDate || d.date || (selectedAppForModal.createdAt ? new Date(selectedAppForModal.createdAt).toLocaleDateString() : '—')}</strong></div>
+                                  </div>
                                 </div>
                               </div>
 
-                              {/* Parents Details */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span>👨‍👩‍👦</span> <span>Parents Details</span>
-                                </h5>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: '#cbd5e1', fontSize: '12px' }}>
-                                  <div><span style={{ color: '#94a3b8' }}>Father's Name:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.fatherName || `${d.fatherFirstName || ''} ${d.fatherLastName || ''}`.trim() || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Mother's Name:</span> <strong style={{ color: '#f8fafc' }}>{`${d.motherFirstName || ''} ${d.motherLastName || ''}`.trim() || '—'}</strong></div>
+                              {/* Right Column: Office Address & Stamp/Signature */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {/* Registered / Office Address */}
+                                <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>🏢</span> <span>Office Address</span>
+                                  </h5>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: valColor, fontSize: '12px' }}>
+                                    <div><span style={{ color: labelColor }}>Flat/Door:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.flatNo) || d.flatNo || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Building:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.premises) || d.premises || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Street:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.roadStreet) || d.roadStreet || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Area:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.areaTaluka) || d.areaTaluka || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>District:</span> <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{(d.officeAddress && d.officeAddress.district) || district}</strong></div>
+                                    <div><span style={{ color: labelColor }}>State:</span> <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{(d.officeAddress && d.officeAddress.state) || state}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Pincode:</span> <strong style={{ color: valColor }}>{(d.officeAddress && d.officeAddress.pincode) || d.pincode || '—'}</strong></div>
+                                  </div>
+                                </div>
+
+                                {/* Authorized Stamp & Signature */}
+                                <div style={{ background: sectionBg, padding: '10px 12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 6px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>🖼️</span> <span>Authorized Stamp & Signature</span>
+                                  </h5>
+                                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                    {(selectedAppForModal.signatureUrl || d.signatureUrl) && (
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10.5px', color: labelColor, marginBottom: '3px' }}>Sign / Stamp</div>
+                                        <img src={selectedAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '150px', height: '60px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer', boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.1)' : 'none' }} title="Click to view full stamp/signature" />
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-
-                            {/* Right Column: Address, AO Code & Attachments */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                              {/* Residence Address */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span>🏠</span> <span>Residence Address</span>
-                                </h5>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: '#cbd5e1', fontSize: '12px' }}>
-                                  <div><span style={{ color: '#94a3b8' }}>Flat/Door:</span> <strong style={{ color: '#e2e8f0' }}>{d.flatNo || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Building:</span> <strong style={{ color: '#e2e8f0' }}>{d.premises || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Street:</span> <strong style={{ color: '#e2e8f0' }}>{d.roadStreet || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Area:</span> <strong style={{ color: '#e2e8f0' }}>{d.areaTaluka || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>District:</span> <strong style={{ color: '#38bdf8' }}>{(d.district && d.district !== 'SELECT') ? d.district : (selectedAppForModal.district || '—')}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>State:</span> <strong style={{ color: '#38bdf8' }}>{(d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedAppForModal.state || 'MAHARASHTRA')}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Pincode:</span> <strong style={{ color: '#f8fafc' }}>{d.pincode || '—'}</strong></div>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '10px' }}>
+                              {/* Left Column: Personal Particulars & Parents */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {/* Personal Particulars */}
+                                <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>👤</span> <span>Personal Particulars</span>
+                                  </h5>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: valColor, fontSize: '12px' }}>
+                                    <div><span style={{ color: labelColor }}>Title:</span> <strong style={{ color: valColor }}>{d.title || selectedAppForModal.title || 'SHRI'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Gender:</span> <strong style={{ color: valColor }}>{selectedAppForModal.gender || d.gender || 'Male'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Last Name:</span> <strong style={{ color: valColor }}>{d.lastName || selectedAppForModal.applicantName || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>DOB:</span> <strong style={{ color: valColor }}>{selectedAppForModal.dob || d.dob || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>First Name:</span> <strong style={{ color: valColor }}>{d.firstName || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Aadhaar:</span> <strong style={{ color: valColor }}>{selectedAppForModal.aadhaarNumber || d.aadhaarNumber || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Middle Name:</span> <strong style={{ color: valColor }}>{d.middleName || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Mobile:</span> <strong style={{ color: valColor }}>{selectedAppForModal.mobileNumber || '—'}</strong></div>
+                                    <div style={{ gridColumn: 'span 2' }}><span style={{ color: labelColor }}>Email:</span> <strong style={{ color: valColor }}>{selectedAppForModal.email || '—'}</strong></div>
+                                  </div>
                                 </div>
-                              </div>
 
-                              {/* AO Code Details */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span>🏢</span> <span>AO Code Details</span>
-                                </h5>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', textAlign: 'center' }}>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Area</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoAreaCode || 'MUM'}</strong>
-                                  </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Type</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoType || 'C'}</strong>
-                                  </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Range</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoRangeCode || '11'}</strong>
-                                  </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>AO No</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoNo || '1'}</strong>
-                                  </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>City</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoCity || d.district || 'MUMBAI'}</strong>
+                                {/* Parents Details */}
+                                <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>👨‍👩‍👦</span> <span>Parents Details</span>
+                                  </h5>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: valColor, fontSize: '12px' }}>
+                                    <div><span style={{ color: labelColor }}>Father's Name:</span> <strong style={{ color: valColor }}>{selectedAppForModal.fatherName || `${d.fatherFirstName || ''} ${d.fatherLastName || ''}`.trim() || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Mother's Name:</span> <strong style={{ color: valColor }}>{`${d.motherFirstName || ''} ${d.motherLastName || ''}`.trim() || '—'}</strong></div>
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Photo & Signature Attachments */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span>🖼️</span> <span>Attachments</span>
-                                </h5>
-                                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                                  {(selectedAppForModal.photoUrl || d.photoUrl) && (
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Photo</div>
-                                      <img src={selectedAppForModal.photoUrl || d.photoUrl} alt="Photo" onClick={() => window.open(selectedAppForModal.photoUrl || d.photoUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full photo" />
-                                    </div>
-                                  )}
-                                  {(selectedAppForModal.signatureUrl || d.signatureUrl) && (
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Signature</div>
-                                      <img src={selectedAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '120px', height: '50px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full signature" />
-                                    </div>
-                                  )}
-                                  {(d.raPhotoUrl || d.proofOfOtherUrl) && (
-                                    <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Guardian</div>
-                                      <img src={d.raPhotoUrl || d.proofOfOtherUrl} alt="RA Photo" onClick={() => window.open(d.raPhotoUrl || d.proofOfOtherUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #f97316', cursor: 'pointer' }} title="Click to view full photo" />
-                                    </div>
-                                  )}
+                              {/* Right Column: Address, AO Code & Attachments */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {/* Residence Address */}
+                                <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>🏠</span> <span>Residence Address</span>
+                                  </h5>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: valColor, fontSize: '12px' }}>
+                                    <div><span style={{ color: labelColor }}>Flat/Door:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.flatNo || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Building:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.premises || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Street:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.roadStreet || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Area:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.areaTaluka || '—'}</strong></div>
+                                    <div><span style={{ color: labelColor }}>District:</span> <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{(d.district && d.district !== 'SELECT') ? d.district : (selectedAppForModal.district || '—')}</strong></div>
+                                    <div><span style={{ color: labelColor }}>State:</span> <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{(d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedAppForModal.state || 'MAHARASHTRA')}</strong></div>
+                                    <div><span style={{ color: labelColor }}>Pincode:</span> <strong style={{ color: valColor }}>{d.pincode || '—'}</strong></div>
+                                  </div>
                                 </div>
-                              </div>
 
+                                {/* AO Code Details */}
+                                <div style={{ background: sectionBg, padding: '10px 12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 6px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>🏢</span> <span>AO Code Details</span>
+                                  </h5>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', textAlign: 'center' }}>
+                                    <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                      <div style={{ fontSize: '10px', color: labelColor }}>Area</div>
+                                      <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoAreaCode || 'MUM'}</strong>
+                                    </div>
+                                    <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                      <div style={{ fontSize: '10px', color: labelColor }}>Type</div>
+                                      <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoType || 'C'}</strong>
+                                    </div>
+                                    <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                      <div style={{ fontSize: '10px', color: labelColor }}>Range</div>
+                                      <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoRangeCode || '11'}</strong>
+                                    </div>
+                                    <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                      <div style={{ fontSize: '10px', color: labelColor }}>AO No</div>
+                                      <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoNo || '1'}</strong>
+                                    </div>
+                                    <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                      <div style={{ fontSize: '10px', color: labelColor }}>City</div>
+                                      <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoCity || d.district || 'MUMBAI'}</strong>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Photo & Signature Attachments */}
+                                <div style={{ background: sectionBg, padding: '10px 12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                  <h5 style={{ margin: '0 0 6px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span>🖼️</span> <span>Attachments</span>
+                                  </h5>
+                                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                    {(selectedAppForModal.photoUrl || d.photoUrl) && (
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10.5px', color: labelColor, marginBottom: '3px' }}>Photo</div>
+                                        <img src={selectedAppForModal.photoUrl || d.photoUrl} alt="Photo" onClick={() => window.open(selectedAppForModal.photoUrl || d.photoUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer', boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.1)' : 'none' }} title="Click to view full photo" />
+                                      </div>
+                                    )}
+                                    {(selectedAppForModal.signatureUrl || d.signatureUrl) && (
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10.5px', color: labelColor, marginBottom: '3px' }}>Signature</div>
+                                        <img src={selectedAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '120px', height: '50px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer', boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.1)' : 'none' }} title="Click to view full signature" />
+                                      </div>
+                                    )}
+                                    {(d.raPhotoUrl || d.proofOfOtherUrl) && (
+                                      <div style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '10.5px', color: labelColor, marginBottom: '3px' }}>Guardian</div>
+                                        <img src={d.raPhotoUrl || d.proofOfOtherUrl} alt="RA Photo" onClick={() => window.open(d.raPhotoUrl || d.proofOfOtherUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #f97316', cursor: 'pointer', boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.1)' : 'none' }} title="Click to view full photo" />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           {(selectedAppForModal.additionalDocuments || []).length > 0 && (
-                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                              <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ background: sectionBg, padding: '10px 12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                              <h5 style={{ margin: '0 0 6px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span>📎</span> <span>Additional Documents from Retailer</span>
                               </h5>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {selectedAppForModal.additionalDocuments.map((document, index) => (
-                                  <div key={document._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: 'rgba(255,255,255,0.06)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                  <div key={document._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: isLightTheme ? '#f8fafc' : 'rgba(255,255,255,0.06)', padding: '8px 12px', borderRadius: '6px', border: isLightTheme ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)' }}>
                                     <div>
-                                      <strong style={{ color: '#f8fafc', fontSize: '12px' }}>{document.name || 'Additional document'}</strong>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '1px' }}>Uploaded {document.uploadedAt ? new Date(document.uploadedAt).toLocaleString() : 'recently'}</div>
+                                      <strong style={{ color: valColor, fontSize: '12px' }}>{document.name || 'Additional document'}</strong>
+                                      <div style={{ fontSize: '10.5px', color: labelColor, marginTop: '1px' }}>Uploaded {document.uploadedAt ? new Date(document.uploadedAt).toLocaleString() : 'recently'}</div>
                                     </div>
                                     <button type="button" onClick={() => window.open(document.dataUrl, '_blank')} style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer' }}>View</button>
                                   </div>
@@ -3182,7 +3560,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   {/* Fixed Footer Bar */}
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center', background: '#0f172a', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '10px 20px', flexWrap: 'wrap' }}>
+                  <div style={{
+                    display: 'flex',
+                    gap: '10px',
+                    justifyContent: 'flex-end',
+                    alignItems: 'center',
+                    background: isLightTheme ? '#f8fafc' : '#0f172a',
+                    borderTop: isLightTheme ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                    padding: '10px 20px',
+                    flexWrap: 'wrap'
+                  }}>
                     <button
                       type="button"
                       onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
@@ -3213,17 +3600,32 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                         📥 Download Receipt
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => generateForm49APdf(selectedAppForModal.details?.lastName ? selectedAppForModal.details : selectedAppForModal)}
-                      style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '12px' }}
-                    >
-                      📄 Download Form 49A PDF
-                    </button>
+                    {(() => {
+                      const appData = selectedAppForModal.details?.lastName || selectedAppForModal.details?.entityName ? selectedAppForModal.details : selectedAppForModal;
+                      const isCorr = (selectedAppForModal.applicationType || '').toLowerCase().includes('correction') || (appData.panNumber && !appData.aadhaarNumber);
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => isCorr ? generatePanCrPdf(appData) : generateForm49APdf(appData)}
+                          style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '12px' }}
+                        >
+                          📄 {isCorr ? 'Download PAN CR PDF' : 'Download Form 49A PDF'}
+                        </button>
+                      );
+                    })()}
                     <button
                       type="button"
                       onClick={() => setSelectedAppForModal(null)}
-                      style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }}
+                      style={{
+                        background: isLightTheme ? '#ffffff' : 'rgba(255,255,255,0.12)',
+                        color: isLightTheme ? '#334155' : '#fff',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '700',
+                        fontSize: '12px'
+                      }}
                     >
                       Close
                     </button>
@@ -3237,34 +3639,80 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             {/* MODAL 2: ADMIN STATUS UPDATE MODAL */}
             {/* ========================================================================= */}
             {selectedAppForStatusUpdate && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                <div style={{ background: '#1e293b', border: '1.5px solid #ea580c', borderRadius: '18px', width: '100%', maxWidth: '500px', padding: '24px', color: '#fff', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: isLightTheme ? 'rgba(15, 23, 42, 0.65)' : 'rgba(0,0,0,0.8)',
+                zIndex: 99999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}>
+                <div style={{
+                  background: isLightTheme ? '#ffffff' : '#1e293b',
+                  border: isLightTheme ? '1.5px solid #fed7aa' : '1.5px solid #ea580c',
+                  borderRadius: '18px',
+                  width: '100%',
+                  maxWidth: '500px',
+                  padding: '24px',
+                  color: isLightTheme ? '#0f172a' : '#fff',
+                  boxShadow: isLightTheme ? '0 20px 50px rgba(15, 23, 42, 0.18)' : '0 20px 50px rgba(0,0,0,0.6)'
+                }}>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px', marginBottom: '16px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: isLightTheme ? '1px solid #fed7aa' : '1px solid rgba(255,255,255,0.1)',
+                    paddingBottom: '12px',
+                    marginBottom: '16px'
+                  }}>
                     <h4 style={{ margin: 0, fontSize: '17px', color: '#ea580c', fontWeight: '800' }}>
                       ✏️ Update Form Status (Admin)
                     </h4>
                     <button
                       type="button"
                       onClick={() => setSelectedAppForStatusUpdate(null)}
-                      style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '15px' }}
+                      style={{
+                        background: isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)',
+                        border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                        color: isLightTheme ? '#64748b' : '#fff',
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '50%',
+                        cursor: 'pointer',
+                        fontSize: '15px'
+                      }}
                     >
                       ✕
                     </button>
                   </div>
 
-                  <div style={{ fontSize: '13px', marginBottom: '14px', color: '#cbd5e1' }}>
-                    Updating status for Ack: <strong style={{ color: '#38bdf8' }}>{selectedAppForStatusUpdate.ackNumber}</strong> ({selectedAppForStatusUpdate.applicantName})
+                  <div style={{ fontSize: '13px', marginBottom: '14px', color: isLightTheme ? '#475569' : '#cbd5e1' }}>
+                    Updating status for Ack: <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{selectedAppForStatusUpdate.ackNumber}</strong> ({selectedAppForStatusUpdate.applicantName})
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#94a3b8' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#475569' : '#94a3b8' }}>
                       Select New Application Status:
                     </label>
                     <select
                       value={statusUpdateVal}
                       onChange={e => setStatusUpdateVal(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: '700' }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: isLightTheme ? '#ffffff' : '#0f172a',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                        borderRadius: '8px',
+                        color: isLightTheme ? '#0f172a' : '#fff',
+                        fontSize: '14px',
+                        fontWeight: '700'
+                      }}
                     >
                       <option value="Submitted">Submitted</option>
                       <option value="In Progress">In Progress</option>
@@ -3275,7 +3723,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#94a3b8' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#475569' : '#94a3b8' }}>
                       Admin Remarks (Optional):
                     </label>
                     <textarea
@@ -3283,13 +3731,23 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       placeholder="e.g. Verified by Admin. e-PAN dispatched to email."
                       value={adminRemarksInput}
                       onChange={e => setAdminRemarksInput(e.target.value)}
-                      style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', fontSize: '13px', outline: 'none' }}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: isLightTheme ? '#ffffff' : '#0f172a',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                        borderRadius: '8px',
+                        color: isLightTheme ? '#0f172a' : '#fff',
+                        fontSize: '13px',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
                     />
                   </div>
 
                   {/* NSDL Receipt / Ack Slip Remark */}
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#38bdf8' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#0284c7' : '#38bdf8' }}>
                       NSDL Receipt / Ack Slip Remark (Send to Retailer):
                     </label>
                     <input
@@ -3298,16 +3756,34 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       value={nsdlReceiptInput}
                       onChange={e => setNsdlReceiptInput(e.target.value)}
                       maxLength={50}
-                      style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1.5px solid #0284c7', borderRadius: '8px', color: '#38bdf8', fontSize: '13px', fontFamily: 'monospace', fontWeight: '700', outline: 'none', boxSizing: 'border-box' }}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: isLightTheme ? '#f0f9ff' : '#0f172a',
+                        border: '1.5px solid #0284c7',
+                        borderRadius: '8px',
+                        color: isLightTheme ? '#0369a1' : '#38bdf8',
+                        fontSize: '13px',
+                        fontFamily: 'monospace',
+                        fontWeight: '700',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
                     />
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: isLightTheme ? '#64748b' : '#94a3b8', marginTop: '4px' }}>
                       💡 This receipt number / remark will be sent to retailer and displayed in the <strong>NSDL RECEIPT</strong> column.
                     </div>
                   </div>
 
                   {/* Send / Upload Approved Application Receipt PDF */}
-                  <div style={{ marginBottom: '20px', background: 'rgba(2, 132, 199, 0.1)', border: '1px dashed rgba(56, 189, 248, 0.4)', padding: '12px', borderRadius: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#38bdf8' }}>
+                  <div style={{
+                    marginBottom: '20px',
+                    background: isLightTheme ? '#f0fdf4' : 'rgba(2, 132, 199, 0.1)',
+                    border: isLightTheme ? '1px dashed #86efac' : '1px dashed rgba(56, 189, 248, 0.4)',
+                    padding: '12px',
+                    borderRadius: '10px'
+                  }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#16a34a' : '#38bdf8' }}>
                       📄 Send Approved Receipt PDF / Ack Slip (To Retailer):
                     </label>
                     <input
@@ -3321,10 +3797,18 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           reader.readAsDataURL(file);
                         }
                       }}
-                      style={{ width: '100%', padding: '6px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
+                      style={{
+                        width: '100%',
+                        padding: '6px',
+                        background: isLightTheme ? '#ffffff' : '#0f172a',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: '6px',
+                        color: isLightTheme ? '#0f172a' : '#fff',
+                        fontSize: '12px'
+                      }}
                     />
                     {(receiptInputUrl || selectedAppForStatusUpdate.receiptUrl) && (
-                      <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#34d399', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#16a34a', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span>✓</span> <span>{receiptInputUrl ? 'New receipt PDF selected! Will be sent to retailer upon saving.' : 'Receipt already uploaded for retailer.'}</span>
                       </div>
                     )}
@@ -3334,7 +3818,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     <button
                       type="button"
                       onClick={() => setSelectedAppForStatusUpdate(null)}
-                      style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+                      style={{
+                        background: isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)',
+                        color: isLightTheme ? '#475569' : '#fff',
+                        border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                      }}
                     >
                       Cancel
                     </button>
@@ -3397,7 +3889,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                 </div>
                 <div>
                   <button
-                    type="button" 
+                    type="button"
                     onClick={handleGetAoCode}
                     style={{
                       background: '#00b4d8',
@@ -3425,13 +3917,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   <table className="ao-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '55px', textAlign: 'center' }}>Select</th>
-                        <th style={{ width: '140px' }}>Description</th>
-                        <th>Additional Jurisdiction Description</th>
-                        <th style={{ width: '80px', textAlign: 'center' }}>Area Code</th>
-                        <th style={{ width: '70px', textAlign: 'center' }}>AO Type</th>
-                        <th style={{ width: '80px', textAlign: 'center' }}>Range Code</th>
-                        <th style={{ width: '80px', textAlign: 'center' }}>AO Number</th>
+                        <th style={{ width: '55px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Select</th>
+                        <th style={{ width: '140px', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Description</th>
+                        <th style={{ color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Additional Jurisdiction Description</th>
+                        <th style={{ width: '80px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Area Code</th>
+                        <th style={{ width: '70px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>AO Type</th>
+                        <th style={{ width: '80px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Range Code</th>
+                        <th style={{ width: '80px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>AO Number</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3445,15 +3937,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                 name="selectedAoCodeRow"
                                 checked={isSelected}
                                 onChange={() => handleAoSelect(ao.id)}
-                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#38bdf8' }}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: isLightTheme ? '#0284c7' : '#38bdf8' }}
                               />
                             </td>
-                            <td style={{ fontWeight: '700', color: '#f8fafc' }}>{ao.description}</td>
-                            <td style={{ color: '#94a3b8', lineHeight: '1.4', fontSize: '11.5px' }}>{ao.additionalDesc || 'Territorial Jurisdiction Details'}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.areaCode}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.aoType}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.rangeCode}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.aoNo}</td>
+                            <td style={{ fontWeight: '800', color: isLightTheme ? '#0f172a' : '#f8fafc', fontSize: '12.5px' }}>{ao.description}</td>
+                            <td style={{ color: isLightTheme ? '#1e293b' : '#94a3b8', lineHeight: '1.4', fontSize: '11.5px', fontWeight: isLightTheme ? '600' : 'normal' }}>{ao.additionalDesc || 'Territorial Jurisdiction Details'}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.areaCode}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.aoType}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.rangeCode}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.aoNo}</td>
                           </tr>
                         );
                       })}
@@ -3463,29 +3955,29 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
                 {/* Active Synced AO Code Summary & Manual Input Sync */}
                 <div className="ao-summary-bar">
-                  <div style={{ fontSize: '12.5px', color: '#e2e8f0', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ fontSize: '12.5px', color: isLightTheme ? '#0f172a' : '#e2e8f0', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>✅ Active Synced AO Code: </span>
-                    <span style={{ color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: '800', letterSpacing: '1px' }}>
+                    <span style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', background: isLightTheme ? '#e0f2fe' : 'rgba(56, 189, 248, 0.15)', padding: '4px 10px', borderRadius: '6px', border: isLightTheme ? '1.5px solid #7dd3fc' : '1px solid rgba(56, 189, 248, 0.3)', fontWeight: '800', letterSpacing: '1px' }}>
                       {manualData.aoAreaCode || '--'} | {manualData.aoType || '--'} | {manualData.aoRangeCode || '--'} | {manualData.aoNo || '--'}
                     </span>
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>Area:</span>
-                      <input type="text" name="aoAreaCode" maxLength={3} value={manualData.aoAreaCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>Area:</span>
+                      <input type="text" name="aoAreaCode" maxLength={3} value={manualData.aoAreaCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>Type:</span>
-                      <input type="text" name="aoType" maxLength={2} value={manualData.aoType || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '45px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>Type:</span>
+                      <input type="text" name="aoType" maxLength={2} value={manualData.aoType || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '45px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>Range:</span>
-                      <input type="text" name="aoRangeCode" maxLength={3} value={manualData.aoRangeCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>Range:</span>
+                      <input type="text" name="aoRangeCode" maxLength={3} value={manualData.aoRangeCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>No:</span>
-                      <input type="text" name="aoNo" maxLength={3} value={manualData.aoNo || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>No:</span>
+                      <input type="text" name="aoNo" maxLength={3} value={manualData.aoNo || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                   </div>
                 </div>
@@ -3510,16 +4002,26 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     />
                   )}
                   {isFieldVisible('signatureUrl') && (
-                    <DropzoneBox
-                      label={manualData.category === 'INDIVIDUAL' ? 'Upload Applicant Signature' : 'Upload Authorized Signatory Signature / Official Stamp'}
-                      fieldName="signatureUrl"
-                      isRequired={isFieldReq('signatureUrl')}
-                      currentValue={manualData.signatureUrl}
-                      onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, signatureUrl: dataUrl }))}
-                      accept="image/*"
-                      hint={manualData.category === 'INDIVIDUAL' ? 'Drag & drop applicant signature here or click to browse (JPG, PNG)' : 'Drag & drop authorized signatory signature / official stamp here (JPG, PNG)'}
-                      icon="✍️"
-                    />
+                    manualData.category === 'INDIVIDUAL' ? (
+                      <DropzoneBox
+                        label="Upload Applicant Signature"
+                        fieldName="signatureUrl"
+                        isRequired={isFieldReq('signatureUrl')}
+                        currentValue={manualData.signatureUrl}
+                        onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, signatureUrl: dataUrl }))}
+                        accept="image/*"
+                        hint="Drag & drop applicant signature here or click to browse (JPG, PNG)"
+                        icon="✍️"
+                      />
+                    ) : (
+                      <div style={{ gridColumn: 'span 1' }}>
+                        <StampSignatureMerger
+                          value={manualData.signatureUrl}
+                          isRequired={isFieldReq('signatureUrl')}
+                          onMerge={(dataUrl) => setManualData(prev => ({ ...prev, signatureUrl: dataUrl }))}
+                        />
+                      </div>
+                    )
                   )}
                 </div>
 
@@ -3620,38 +4122,104 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   <div className="pancard-form-grid">
-                    <div className="form-group-pro">
-                      <label className="form-label-pro">Applicant Full Name (As per Aadhaar) <span className="req-star">*</span></label>
-                      <input type="text" name="applicantName" value={formData.applicantName} onChange={handleChange} placeholder="Enter full name of applicant..." className="form-input-pro" required />
-                    </div>
-                    <div className="form-group-pro">
-                      <label className="form-label-pro">Father's Full Name <span className="req-star">*</span></label>
-                      <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="Enter father's full name..." className="form-input-pro" required />
-                    </div>
-                    <div className="form-group-pro">
-                      <label className="form-label-pro">Date of Birth (DOB) <span className="req-star">*</span></label>
-                      <input type="date" name="dob" value={formData.dob} onChange={handleChange} className="form-input-pro" required />
-                    </div>
-                    <div className="form-group-pro">
-                      <label className="form-label-pro">Gender <span className="req-star">*</span></label>
-                      <select name="gender" value={formData.gender} onChange={handleChange} className="form-select-pro">
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Transgender">Transgender</option>
-                      </select>
-                    </div>
-                    <div className="form-group-pro">
-                      <label className="form-label-pro">Mobile Number <span className="req-star">*</span></label>
-                      <input type="tel" name="mobileNumber" value={formData.mobileNumber} onChange={handleChange} placeholder="10-digit mobile number..." maxLength={10} className="form-input-pro" required />
-                    </div>
-                    <div className="form-group-pro">
-                      <label className="form-label-pro">Email Address <span className="req-star">*</span></label>
-                      <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter email address..." className="form-input-pro" required />
-                    </div>
-                    <div className="form-group-pro full-width-field">
-                      <label className="form-label-pro">12-Digit Aadhaar Number <span className="req-star">*</span></label>
-                      <input type="text" name="aadhaarNumber" value={formData.aadhaarNumber} onChange={handleChange} placeholder="12-digit Aadhaar number..." maxLength={12} className="form-input-pro" required />
-                    </div>
+                    {currentTabObj?.fields && currentTabObj.fields.length > 0 ? (
+                      currentTabObj.fields.filter(f => !f.hidden).map((f, idx) => {
+                        const fieldKey = f.name || `field_${idx}`;
+                        const isFullWidth = f.gridSpan === 2 || f.type === 'file';
+                        if (f.type === 'select') {
+                          const options = f.options || [];
+                          return (
+                            <div key={fieldKey} className={`form-group-pro ${isFullWidth ? 'full-width-field' : ''}`}>
+                              <label className="form-label-pro">
+                                {f.label} {f.required && <span className="req-star">*</span>}
+                              </label>
+                              <select
+                                name={fieldKey}
+                                value={formData[fieldKey] || ''}
+                                onChange={handleChange}
+                                className="form-select-pro"
+                                required={f.required}
+                              >
+                                <option value="">-- Select {f.label} --</option>
+                                {options.map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        }
+                        if (f.type === 'file') {
+                          return (
+                            <div key={fieldKey} className={`form-group-pro ${isFullWidth ? 'full-width-field' : ''}`}>
+                              <label className="form-label-pro">
+                                {f.label} {f.required && <span className="req-star">*</span>}
+                              </label>
+                              <DropzoneBox
+                                label={f.label}
+                                fieldName={fieldKey}
+                                isRequired={f.required}
+                                currentValue={formData[fieldKey] || ''}
+                                onFileSelect={(dataUrl) => setFormData(prev => ({ ...prev, [fieldKey]: dataUrl }))}
+                                accept="image/*,application/pdf"
+                                hint={`Drag & drop ${f.label} here`}
+                                icon={f.icon || '📁'}
+                              />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div key={fieldKey} className={`form-group-pro ${isFullWidth ? 'full-width-field' : ''}`}>
+                            <label className="form-label-pro">
+                              {f.label} {f.required && <span className="req-star">*</span>}
+                            </label>
+                            <input
+                              type={f.type || 'text'}
+                              name={fieldKey}
+                              value={formData[fieldKey] || ''}
+                              onChange={handleChange}
+                              placeholder={f.placeholder || `Enter ${f.label}...`}
+                              className="form-input-pro"
+                              required={f.required}
+                            />
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <>
+                        <div className="form-group-pro">
+                          <label className="form-label-pro">Applicant Full Name (As per Aadhaar) <span className="req-star">*</span></label>
+                          <input type="text" name="applicantName" value={formData.applicantName} onChange={handleChange} placeholder="Enter full name of applicant..." className="form-input-pro" required />
+                        </div>
+                        <div className="form-group-pro">
+                          <label className="form-label-pro">Father's Full Name <span className="req-star">*</span></label>
+                          <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="Enter father's full name..." className="form-input-pro" required />
+                        </div>
+                        <div className="form-group-pro">
+                          <label className="form-label-pro">Date of Birth (DOB) <span className="req-star">*</span></label>
+                          <input type="date" name="dob" value={formData.dob} onChange={handleChange} className="form-input-pro" required />
+                        </div>
+                        <div className="form-group-pro">
+                          <label className="form-label-pro">Gender <span className="req-star">*</span></label>
+                          <select name="gender" value={formData.gender} onChange={handleChange} className="form-select-pro">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Transgender">Transgender</option>
+                          </select>
+                        </div>
+                        <div className="form-group-pro">
+                          <label className="form-label-pro">Mobile Number <span className="req-star">*</span></label>
+                          <input type="tel" name="mobileNumber" value={formData.mobileNumber} onChange={handleChange} placeholder="10-digit mobile number..." maxLength={10} className="form-input-pro" required />
+                        </div>
+                        <div className="form-group-pro">
+                          <label className="form-label-pro">Email Address <span className="req-star">*</span></label>
+                          <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Enter email address..." className="form-input-pro" required />
+                        </div>
+                        <div className="form-group-pro full-width-field">
+                          <label className="form-label-pro">12-Digit Aadhaar Number <span className="req-star">*</span></label>
+                          <input type="text" name="aadhaarNumber" value={formData.aadhaarNumber} onChange={handleChange} placeholder="12-digit Aadhaar number..." maxLength={12} className="form-input-pro" required />
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div style={{ marginTop: '20px' }}>
@@ -3731,7 +4299,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               }));
               fetchHistory();
             }}
-            handleDownloadPdf={(data) => generateForm49APdf(data.lastName ? data : selectedAppForEdit)}
+            handleDownloadPdf={(data) => {
+              const appData = data.lastName || data.entityName ? data : selectedAppForEdit;
+              const isCorr = (selectedAppForEdit?.applicationType || '').toLowerCase().includes('correction') || (appData.panNumber && !appData.aadhaarNumber);
+              if (isCorr) {
+                generatePanCrPdf(appData);
+              } else {
+                generateForm49APdf(appData);
+              }
+            }}
           />
         )}
 

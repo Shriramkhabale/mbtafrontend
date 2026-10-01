@@ -308,6 +308,7 @@ const Dashboard = () => {
           initialTab={walletTab}
           walletBalance={walletBalance}
           onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+          theme={theme}
         />
       )}
 
@@ -567,6 +568,7 @@ const Dashboard = () => {
               initialTab={walletTab}
               walletBalance={walletBalance}
               onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+              theme={theme}
             />
           ) : isPanCardRoute ? (
             <PanCardView

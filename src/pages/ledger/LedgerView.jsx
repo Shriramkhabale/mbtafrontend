@@ -367,6 +367,7 @@ const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false }) =
               <div className="col-date">DATE & TIME</div>
               <div className="col-desc">DESCRIPTION & REF</div>
               <div className="col-type">TYPE</div>
+              <div className="col-status">STATUS</div>
               <div className="col-amount">AMOUNT (₹)</div>
               <div className="col-bal">BALANCE AFTER</div>
             </div>
@@ -374,6 +375,8 @@ const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false }) =
             <div className="ledger-table-body">
               {transactions.map((tx, idx) => {
                 const isCredit = tx.transactionType === 'Credit';
+                const isSuccess = tx.status === 'Success';
+                const isPending = tx.status === 'Pending';
                 return (
                   <div key={tx._id || tx.id || idx} className="ledger-table-row">
                     <div className="col-date">
@@ -389,6 +392,12 @@ const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false }) =
                     <div className="col-type">
                       <span className={`type-badge ${isCredit ? 'credit' : 'debit'}`}>
                         {isCredit ? '📥 CREDIT' : '📤 DEBIT'}
+                      </span>
+                    </div>
+
+                    <div className="col-status">
+                      <span className={`ledger-status-badge ${isSuccess ? 'status-success' : isPending ? 'status-pending' : 'status-failed'}`}>
+                        {isSuccess ? '✓ SUCCESS' : isPending ? '⏳ PENDING' : tx.status || 'FAILED'}
                       </span>
                     </div>
 

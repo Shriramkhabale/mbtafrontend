@@ -1,14 +1,8 @@
 export const getApiBaseUrl = () => {
-  const hostname = (typeof window !== 'undefined' && window.location.hostname) || 'localhost';
-  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-
-  if (isLocal) {
-    return `http://${hostname}:5000`;
-  }
-
   const configuredUrl = process.env.REACT_APP_API_URL;
   if (configuredUrl) return configuredUrl.replace(/\/$/, '');
 
+  const hostname = (typeof window !== 'undefined' && window.location.hostname) || 'localhost';
   return `http://${hostname}:5000`;
 };
 

@@ -6,6 +6,7 @@ import './PanCardView.css';
 import Form93PdfTemplate, { generateForm49APdf } from './Form49APdfGenerator';
 import FormPanCrPdfTemplate, { generatePanCrPdf } from './PanCrPdfGenerator';
 import PanCorrectionForm from './PanCorrectionForm';
+import StampSignatureMerger from './StampSignatureMerger';
 import { Form49ADirectEditModal } from './Form49ADirectEditModal'; // eslint-disable-line no-unused-vars
 import { ALL_INDIAN_STATES, INDIAN_STATES_DISTRICTS, ALL_INDIAN_DISTRICTS, PROOF_OF_IDENTITY_OPTIONS, PROOF_OF_ADDRESS_OPTIONS, PROOF_OF_DOB_OPTIONS } from '../../utils/indiaData';
 
@@ -414,6 +415,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   const [tabs, setTabs] = useState([]);
 
   const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'dark');
+  const isLightTheme = currentTheme === 'light';
 
   useEffect(() => {
     if (propTheme) {
@@ -427,7 +429,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
       setCurrentTheme(saved);
     };
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    const interval = setInterval(handleStorage, 500);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
   }, []);
 
   // Read initial active tab from URL search parameters if available
@@ -965,7 +971,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   };
 
   const handleCorrectionFileUpload = (e, fieldName) => {
-    const file = e.target.files?.[0];
+    if (typeof e === 'string') {
+      setCorrectionData(prev => ({ ...prev, [fieldName]: e }));
+      return;
+    }
+    const file = e?.target?.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onloadend = () => setCorrectionData(prev => ({ ...prev, [fieldName]: reader.result }));
@@ -2901,22 +2911,64 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               )}
 
             {selectedAppForDocument && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 100000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                <div style={{ width: '100%', maxWidth: '520px', background: '#fff', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.35)' }}>
+              <div style={{
+                position: 'fixed',
+                inset: 0,
+                background: isLightTheme ? 'rgba(15, 23, 42, 0.65)' : 'rgba(0,0,0,0.75)',
+                zIndex: 100000,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}>
+                <div style={{
+                  width: '100%',
+                  maxWidth: '520px',
+                  background: isLightTheme ? '#ffffff' : '#1e293b',
+                  borderRadius: '16px',
+                  padding: '24px',
+                  boxShadow: isLightTheme ? '0 20px 50px rgba(15, 23, 42, 0.2)' : '0 20px 50px rgba(0,0,0,0.5)',
+                  border: isLightTheme ? '1.5px solid #fed7aa' : '1.5px solid #ea580c',
+                  color: isLightTheme ? '#0f172a' : '#fff'
+                }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', marginBottom: '8px' }}>
                     <div>
                       <h4 style={{ margin: 0, color: '#c2410c' }}>📎 Add supporting document</h4>
-                      <p style={{ margin: '5px 0 0', color: '#64748b', fontSize: '12px' }}>Application: {selectedAppForDocument.ackNumber}</p>
+                      <p style={{ margin: '5px 0 0', color: isLightTheme ? '#64748b' : '#94a3b8', fontSize: '12px' }}>Application: {selectedAppForDocument.ackNumber}</p>
                     </div>
-                    <button type="button" onClick={() => setSelectedAppForDocument(null)} style={{ border: 'none', background: 'transparent', fontSize: '22px', cursor: 'pointer', color: '#64748b' }}>×</button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAppForDocument(null)}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        fontSize: '22px',
+                        cursor: 'pointer',
+                        color: isLightTheme ? '#64748b' : '#94a3b8'
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <p style={{ color: '#475569', fontSize: '13px', lineHeight: 1.5 }}>The document will be attached to this application and immediately visible in the Admin details screen. No fee is charged.</p>
+                  <p style={{ color: isLightTheme ? '#475569' : '#cbd5e1', fontSize: '13px', lineHeight: 1.5 }}>
+                    The document will be attached to this application and immediately visible in the Admin details screen. No fee is charged.
+                  </p>
                   <input
                     type="text"
                     value={documentName}
                     onChange={e => setDocumentName(e.target.value)}
                     placeholder="Document Name (e.g. Aadhaar Card, DOB Proof)"
-                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', marginBottom: '12px', boxSizing: 'border-box' }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: isLightTheme ? '#ffffff' : '#0f172a',
+                      border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      marginBottom: '12px',
+                      boxSizing: 'border-box',
+                      color: isLightTheme ? '#0f172a' : '#fff'
+                    }}
                   />
                   <input
                     type="file"
@@ -2928,11 +2980,41 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                         reader.readAsDataURL(file);
                       }
                     }}
-                    style={{ width: '100%', marginBottom: '16px' }}
+                    style={{
+                      width: '100%',
+                      marginBottom: '16px',
+                      color: isLightTheme ? '#0f172a' : '#fff'
+                    }}
                   />
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
-                    <button type="button" onClick={() => setSelectedAppForDocument(null)} style={{ padding: '10px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#fff', cursor: 'pointer' }}>Cancel</button>
-                    <button type="button" onClick={handleAddDocument} disabled={isAddingDocument || !documentToAdd} style={{ padding: '10px 16px', border: 'none', borderRadius: '8px', color: '#fff', background: documentToAdd ? '#ea580c' : '#cbd5e1', cursor: documentToAdd ? 'pointer' : 'not-allowed', fontWeight: '700' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAppForDocument(null)}
+                      style={{
+                        padding: '10px 16px',
+                        border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                        borderRadius: '8px',
+                        background: isLightTheme ? '#ffffff' : 'rgba(255,255,255,0.1)',
+                        color: isLightTheme ? '#334155' : '#fff',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddDocument}
+                      disabled={isAddingDocument || !documentToAdd}
+                      style={{
+                        padding: '10px 16px',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        background: documentToAdd ? '#ea580c' : '#cbd5e1',
+                        cursor: documentToAdd ? 'pointer' : 'not-allowed',
+                        fontWeight: '700'
+                      }}
+                    >
                       {isAddingDocument ? 'Adding…' : 'Add document'}
                     </button>
                   </div>
@@ -2944,20 +3026,70 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             {/* MODAL 1: VIEW FULL APPLICATION DETAILS (ADMIN / RETAILER) */}
             {/* ========================================================================= */}
             {selectedAppForModal && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.85)', zIndex: 99999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 12px 12px 12px', backdropFilter: 'blur(4px)', overflowY: 'auto' }}>
-                <div style={{ background: '#1e293b', border: '1.5px solid #0284c7', borderRadius: '16px', width: '96%', maxWidth: '940px', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', color: '#fff', boxShadow: '0 25px 60px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: isLightTheme ? 'rgba(15, 23, 42, 0.6)' : 'rgba(0, 0, 0, 0.85)',
+                zIndex: 99999,
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                padding: '24px 12px 12px 12px',
+                backdropFilter: 'blur(4px)',
+                overflowY: 'auto'
+              }}>
+                <div style={{
+                  background: isLightTheme ? '#ffffff' : '#1e293b',
+                  border: isLightTheme ? '1.5px solid #fed7aa' : '1.5px solid #0284c7',
+                  borderRadius: '16px',
+                  width: '96%',
+                  maxWidth: '940px',
+                  maxHeight: 'calc(100vh - 48px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  color: isLightTheme ? '#0f172a' : '#fff',
+                  boxShadow: isLightTheme ? '0 25px 60px rgba(15, 23, 42, 0.2)' : '0 25px 60px rgba(0,0,0,0.7)',
+                  overflow: 'hidden'
+                }}>
 
                   {/* Fixed Header Bar */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0f172a', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '12px 20px', gap: '10px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: isLightTheme ? 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' : '#0f172a',
+                    borderBottom: isLightTheme ? '1px solid #fed7aa' : '1px solid rgba(255,255,255,0.1)',
+                    padding: '12px 20px',
+                    gap: '10px'
+                  }}>
                     <div>
-                      <h4 style={{ margin: 0, fontSize: '16px', color: '#38bdf8', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h4 style={{
+                        margin: 0,
+                        fontSize: '16px',
+                        color: isLightTheme ? '#c2410c' : '#38bdf8',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
                         <span>📋</span> <span>PAN Form Details</span>
-                        <span style={{ fontSize: '12px', background: 'rgba(2, 132, 199, 0.25)', border: '1px solid rgba(56, 189, 248, 0.4)', color: '#7dd3fc', padding: '2px 8px', borderRadius: '6px', fontWeight: '700' }}>
+                        <span style={{
+                          fontSize: '12px',
+                          background: isLightTheme ? '#ffedd5' : 'rgba(2, 132, 199, 0.25)',
+                          border: isLightTheme ? '1px solid #fdba74' : '1px solid rgba(56, 189, 248, 0.4)',
+                          color: isLightTheme ? '#ea580c' : '#7dd3fc',
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          fontWeight: '700'
+                        }}>
                           ACK: {selectedAppForModal.ackNumber || 'N/A'}
                         </span>
                       </h4>
-                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '2px' }}>
-                        Submitted by User: <strong style={{ color: '#e2e8f0' }}>{selectedAppForModal.userId || selectedAppForModal.userMobile || 'Retailer'}</strong>
+                      <div style={{ fontSize: '11.5px', color: isLightTheme ? '#64748b' : '#94a3b8', marginTop: '2px' }}>
+                        Submitted by User: <strong style={{ color: isLightTheme ? '#1e293b' : '#e2e8f0' }}>{selectedAppForModal.userId || selectedAppForModal.userMobile || 'Retailer'}</strong>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2965,9 +3097,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                         type="button"
                         onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
                         style={{
-                          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                          background: isLightTheme ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
                           color: '#ffffff',
-                          border: '1px solid rgba(56, 189, 248, 0.5)',
+                          border: isLightTheme ? '1px solid #fdba74' : '1px solid rgba(56, 189, 248, 0.5)',
                           padding: '6px 14px',
                           borderRadius: '8px',
                           fontSize: '12px',
@@ -2976,7 +3108,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+                          boxShadow: isLightTheme ? '0 2px 8px rgba(234, 88, 12, 0.3)' : '0 2px 8px rgba(2, 132, 199, 0.35)',
                           transition: 'all 0.15s ease'
                         }}
                         title="Copy all application details to clipboard"
@@ -2986,9 +3118,29 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       <button
                         type="button"
                         onClick={() => setSelectedAppForModal(null)}
-                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = '#ef4444'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                        style={{
+                          background: isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)',
+                          border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                          color: isLightTheme ? '#64748b' : '#fff',
+                          width: '30px',
+                          height: '30px',
+                          borderRadius: '50%',
+                          cursor: 'pointer',
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = '#ef4444';
+                          e.currentTarget.style.color = '#ffffff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)';
+                          e.currentTarget.style.color = isLightTheme ? '#64748b' : '#fff';
+                        }}
                       >
                         ✕
                       </button>
@@ -2996,19 +3148,35 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   {/* Scrollable Body Content (Compact 2-Column Dashboard Layout) */}
-                  <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px' }}>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px', background: isLightTheme ? '#f8fafc' : 'transparent' }}>
                     {(() => {
                       const d = selectedAppForModal.details || {};
                       const appStatus = (selectedAppForModal.status || 'Submitted').toUpperCase();
                       const statusColor = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? '#10b981' : appStatus === 'REJECTED' ? '#ef4444' : '#f59e0b';
-                      const statusBg = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? 'rgba(16, 185, 129, 0.15)' : appStatus === 'REJECTED' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)';
+                      const statusBg = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? (isLightTheme ? '#dcfce7' : 'rgba(16, 185, 129, 0.15)') : appStatus === 'REJECTED' ? (isLightTheme ? '#fee2e2' : 'rgba(239, 68, 68, 0.15)') : (isLightTheme ? '#fef3c7' : 'rgba(245, 158, 11, 0.15)');
+
+                      const sectionBg = isLightTheme ? '#ffffff' : 'rgba(15, 23, 42, 0.5)';
+                      const sectionBorder = isLightTheme ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)';
+                      const labelColor = isLightTheme ? '#64748b' : '#94a3b8';
+                      const valColor = isLightTheme ? '#0f172a' : '#f8fafc';
+                      const headingColor = isLightTheme ? '#ea580c' : '#fb923c';
 
                       return (
                         <>
                           {/* Top Status & Type Bar */}
-                          <div style={{ background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(15, 23, 42, 0.4) 100%)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '8px 14px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{
+                            background: isLightTheme ? 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' : 'linear-gradient(135deg, rgba(2, 132, 199, 0.12) 0%, rgba(15, 23, 42, 0.4) 100%)',
+                            border: isLightTheme ? '1px solid #fed7aa' : '1px solid rgba(56, 189, 248, 0.25)',
+                            padding: '8px 14px',
+                            borderRadius: '10px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '8px'
+                          }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ color: '#94a3b8', fontSize: '11.5px', fontWeight: '600' }}>Current Status:</span>
+                              <span style={{ color: labelColor, fontSize: '11.5px', fontWeight: '600' }}>Current Status:</span>
                               <span style={{ background: statusBg, border: `1px solid ${statusColor}`, color: statusColor, padding: '2px 10px', borderRadius: '14px', fontWeight: '800', fontSize: '11.5px', letterSpacing: '0.4px' }}>
                                 {appStatus}
                               </span>
@@ -3024,8 +3192,8 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                 </button>
                               )}
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ color: '#94a3b8', fontSize: '11.5px' }}>Type:</span>
-                                <strong style={{ color: '#38bdf8', background: 'rgba(2, 132, 199, 0.2)', padding: '2px 8px', borderRadius: '5px', fontSize: '11.5px' }}>
+                                <span style={{ color: labelColor, fontSize: '11.5px' }}>Type:</span>
+                                <strong style={{ color: isLightTheme ? '#c2410c' : '#38bdf8', background: isLightTheme ? '#fed7aa' : 'rgba(2, 132, 199, 0.2)', padding: '2px 8px', borderRadius: '5px', fontSize: '11.5px' }}>
                                   {selectedAppForModal.applicationType || 'Manual New PAN'}
                                 </strong>
                               </div>
@@ -3038,31 +3206,31 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                             {/* Left Column: Personal Particulars & Parents */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                               {/* Personal Particulars */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>👤</span> <span>Personal Particulars</span>
                                 </h5>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: '#cbd5e1', fontSize: '12px' }}>
-                                  <div><span style={{ color: '#94a3b8' }}>Title:</span> <strong style={{ color: '#f8fafc' }}>{d.title || selectedAppForModal.title || 'SHRI'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Gender:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.gender || d.gender || 'Male'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Last Name:</span> <strong style={{ color: '#f8fafc' }}>{d.lastName || selectedAppForModal.applicantName || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>DOB:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.dob || d.dob || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>First Name:</span> <strong style={{ color: '#f8fafc' }}>{d.firstName || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Aadhaar:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.aadhaarNumber || d.aadhaarNumber || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Middle Name:</span> <strong style={{ color: '#f8fafc' }}>{d.middleName || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Mobile:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.mobileNumber || '—'}</strong></div>
-                                  <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94a3b8' }}>Email:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.email || '—'}</strong></div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: valColor, fontSize: '12px' }}>
+                                  <div><span style={{ color: labelColor }}>Title:</span> <strong style={{ color: valColor }}>{d.title || selectedAppForModal.title || 'SHRI'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Gender:</span> <strong style={{ color: valColor }}>{selectedAppForModal.gender || d.gender || 'Male'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Last Name:</span> <strong style={{ color: valColor }}>{d.lastName || selectedAppForModal.applicantName || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>DOB:</span> <strong style={{ color: valColor }}>{selectedAppForModal.dob || d.dob || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>First Name:</span> <strong style={{ color: valColor }}>{d.firstName || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Aadhaar:</span> <strong style={{ color: valColor }}>{selectedAppForModal.aadhaarNumber || d.aadhaarNumber || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Middle Name:</span> <strong style={{ color: valColor }}>{d.middleName || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Mobile:</span> <strong style={{ color: valColor }}>{selectedAppForModal.mobileNumber || '—'}</strong></div>
+                                  <div style={{ gridColumn: 'span 2' }}><span style={{ color: labelColor }}>Email:</span> <strong style={{ color: valColor }}>{selectedAppForModal.email || '—'}</strong></div>
                                 </div>
                               </div>
 
                               {/* Parents Details */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>👨‍👩‍👦</span> <span>Parents Details</span>
                                 </h5>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: '#cbd5e1', fontSize: '12px' }}>
-                                  <div><span style={{ color: '#94a3b8' }}>Father's Name:</span> <strong style={{ color: '#f8fafc' }}>{selectedAppForModal.fatherName || `${d.fatherFirstName || ''} ${d.fatherLastName || ''}`.trim() || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Mother's Name:</span> <strong style={{ color: '#f8fafc' }}>{`${d.motherFirstName || ''} ${d.motherLastName || ''}`.trim() || '—'}</strong></div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: valColor, fontSize: '12px' }}>
+                                  <div><span style={{ color: labelColor }}>Father's Name:</span> <strong style={{ color: valColor }}>{selectedAppForModal.fatherName || `${d.fatherFirstName || ''} ${d.fatherLastName || ''}`.trim() || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Mother's Name:</span> <strong style={{ color: valColor }}>{`${d.motherFirstName || ''} ${d.motherLastName || ''}`.trim() || '—'}</strong></div>
                                 </div>
                               </div>
                             </div>
@@ -3070,72 +3238,72 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                             {/* Right Column: Address, AO Code & Attachments */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                               {/* Residence Address */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ background: sectionBg, padding: '12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                <h5 style={{ margin: '0 0 8px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>🏠</span> <span>Residence Address</span>
                                 </h5>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: '#cbd5e1', fontSize: '12px' }}>
-                                  <div><span style={{ color: '#94a3b8' }}>Flat/Door:</span> <strong style={{ color: '#e2e8f0' }}>{d.flatNo || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Building:</span> <strong style={{ color: '#e2e8f0' }}>{d.premises || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Street:</span> <strong style={{ color: '#e2e8f0' }}>{d.roadStreet || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Area:</span> <strong style={{ color: '#e2e8f0' }}>{d.areaTaluka || '—'}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>District:</span> <strong style={{ color: '#38bdf8' }}>{(d.district && d.district !== 'SELECT') ? d.district : (selectedAppForModal.district || '—')}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>State:</span> <strong style={{ color: '#38bdf8' }}>{(d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedAppForModal.state || 'MAHARASHTRA')}</strong></div>
-                                  <div><span style={{ color: '#94a3b8' }}>Pincode:</span> <strong style={{ color: '#f8fafc' }}>{d.pincode || '—'}</strong></div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: valColor, fontSize: '12px' }}>
+                                  <div><span style={{ color: labelColor }}>Flat/Door:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.flatNo || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Building:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.premises || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Street:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.roadStreet || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Area:</span> <strong style={{ color: isLightTheme ? '#334155' : '#e2e8f0' }}>{d.areaTaluka || '—'}</strong></div>
+                                  <div><span style={{ color: labelColor }}>District:</span> <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{(d.district && d.district !== 'SELECT') ? d.district : (selectedAppForModal.district || '—')}</strong></div>
+                                  <div><span style={{ color: labelColor }}>State:</span> <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{(d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedAppForModal.state || 'MAHARASHTRA')}</strong></div>
+                                  <div><span style={{ color: labelColor }}>Pincode:</span> <strong style={{ color: valColor }}>{d.pincode || '—'}</strong></div>
                                 </div>
                               </div>
 
                               {/* AO Code Details */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ background: sectionBg, padding: '10px 12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                <h5 style={{ margin: '0 0 6px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>🏢</span> <span>AO Code Details</span>
                                 </h5>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', textAlign: 'center' }}>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Area</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoAreaCode || 'MUM'}</strong>
+                                  <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                    <div style={{ fontSize: '10px', color: labelColor }}>Area</div>
+                                    <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoAreaCode || 'MUM'}</strong>
                                   </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Type</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoType || 'C'}</strong>
+                                  <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                    <div style={{ fontSize: '10px', color: labelColor }}>Type</div>
+                                    <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoType || 'C'}</strong>
                                   </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>Range</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoRangeCode || '11'}</strong>
+                                  <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                    <div style={{ fontSize: '10px', color: labelColor }}>Range</div>
+                                    <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoRangeCode || '11'}</strong>
                                   </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>AO No</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoNo || '1'}</strong>
+                                  <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                    <div style={{ fontSize: '10px', color: labelColor }}>AO No</div>
+                                    <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoNo || '1'}</strong>
                                   </div>
-                                  <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>City</div>
-                                    <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoCity || d.district || 'MUMBAI'}</strong>
+                                  <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.15)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                    <div style={{ fontSize: '10px', color: labelColor }}>City</div>
+                                    <strong style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', fontSize: '12px' }}>{d.aoCity || d.district || 'MUMBAI'}</strong>
                                   </div>
                                 </div>
                               </div>
 
                               {/* Photo & Signature Attachments */}
-                              <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                                <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ background: sectionBg, padding: '10px 12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                                <h5 style={{ margin: '0 0 6px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                   <span>🖼️</span> <span>Attachments</span>
                                 </h5>
                                 <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
                                   {(selectedAppForModal.photoUrl || d.photoUrl) && (
                                     <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Photo</div>
-                                      <img src={selectedAppForModal.photoUrl || d.photoUrl} alt="Photo" onClick={() => window.open(selectedAppForModal.photoUrl || d.photoUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full photo" />
+                                      <div style={{ fontSize: '10.5px', color: labelColor, marginBottom: '3px' }}>Photo</div>
+                                      <img src={selectedAppForModal.photoUrl || d.photoUrl} alt="Photo" onClick={() => window.open(selectedAppForModal.photoUrl || d.photoUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer', boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.1)' : 'none' }} title="Click to view full photo" />
                                     </div>
                                   )}
                                   {(selectedAppForModal.signatureUrl || d.signatureUrl) && (
                                     <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Signature</div>
-                                      <img src={selectedAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '120px', height: '50px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full signature" />
+                                      <div style={{ fontSize: '10.5px', color: labelColor, marginBottom: '3px' }}>Signature</div>
+                                      <img src={selectedAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '120px', height: '50px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer', boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.1)' : 'none' }} title="Click to view full signature" />
                                     </div>
                                   )}
                                   {(d.raPhotoUrl || d.proofOfOtherUrl) && (
                                     <div style={{ textAlign: 'center' }}>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Guardian</div>
-                                      <img src={d.raPhotoUrl || d.proofOfOtherUrl} alt="RA Photo" onClick={() => window.open(d.raPhotoUrl || d.proofOfOtherUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #f97316', cursor: 'pointer' }} title="Click to view full photo" />
+                                      <div style={{ fontSize: '10.5px', color: labelColor, marginBottom: '3px' }}>Guardian</div>
+                                      <img src={d.raPhotoUrl || d.proofOfOtherUrl} alt="RA Photo" onClick={() => window.open(d.raPhotoUrl || d.proofOfOtherUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #f97316', cursor: 'pointer', boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.1)' : 'none' }} title="Click to view full photo" />
                                     </div>
                                   )}
                                 </div>
@@ -3145,16 +3313,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           </div>
 
                           {(selectedAppForModal.additionalDocuments || []).length > 0 && (
-                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                              <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ background: sectionBg, padding: '10px 12px', borderRadius: '10px', border: sectionBorder, boxShadow: isLightTheme ? '0 2px 6px rgba(0,0,0,0.03)' : 'none' }}>
+                              <h5 style={{ margin: '0 0 6px 0', color: headingColor, fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span>📎</span> <span>Additional Documents from Retailer</span>
                               </h5>
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {selectedAppForModal.additionalDocuments.map((document, index) => (
-                                  <div key={document._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: 'rgba(255,255,255,0.06)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                  <div key={document._id || index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: isLightTheme ? '#f8fafc' : 'rgba(255,255,255,0.06)', padding: '8px 12px', borderRadius: '6px', border: isLightTheme ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)' }}>
                                     <div>
-                                      <strong style={{ color: '#f8fafc', fontSize: '12px' }}>{document.name || 'Additional document'}</strong>
-                                      <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '1px' }}>Uploaded {document.uploadedAt ? new Date(document.uploadedAt).toLocaleString() : 'recently'}</div>
+                                      <strong style={{ color: valColor, fontSize: '12px' }}>{document.name || 'Additional document'}</strong>
+                                      <div style={{ fontSize: '10.5px', color: labelColor, marginTop: '1px' }}>Uploaded {document.uploadedAt ? new Date(document.uploadedAt).toLocaleString() : 'recently'}</div>
                                     </div>
                                     <button type="button" onClick={() => window.open(document.dataUrl, '_blank')} style={{ background: '#0284c7', color: '#fff', border: 'none', padding: '5px 12px', borderRadius: '5px', fontSize: '11.5px', fontWeight: '700', cursor: 'pointer' }}>View</button>
                                   </div>
@@ -3168,7 +3336,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   {/* Fixed Footer Bar */}
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', alignItems: 'center', background: '#0f172a', borderTop: '1px solid rgba(255,255,255,0.1)', padding: '10px 20px', flexWrap: 'wrap' }}>
+                  <div style={{
+                    display: 'flex',
+                    gap: '10px',
+                    justifyContent: 'flex-end',
+                    alignItems: 'center',
+                    background: isLightTheme ? '#f8fafc' : '#0f172a',
+                    borderTop: isLightTheme ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                    padding: '10px 20px',
+                    flexWrap: 'wrap'
+                  }}>
                     <button
                       type="button"
                       onClick={() => copyApplicationDetailsToClipboard(selectedAppForModal)}
@@ -3209,7 +3386,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     <button
                       type="button"
                       onClick={() => setSelectedAppForModal(null)}
-                      style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontWeight: '700', fontSize: '12px' }}
+                      style={{
+                        background: isLightTheme ? '#ffffff' : 'rgba(255,255,255,0.12)',
+                        color: isLightTheme ? '#334155' : '#fff',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '700',
+                        fontSize: '12px'
+                      }}
                     >
                       Close
                     </button>
@@ -3223,34 +3409,80 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             {/* MODAL 2: ADMIN STATUS UPDATE MODAL */}
             {/* ========================================================================= */}
             {selectedAppForStatusUpdate && (
-              <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                <div style={{ background: '#1e293b', border: '1.5px solid #ea580c', borderRadius: '18px', width: '100%', maxWidth: '500px', padding: '24px', color: '#fff', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: isLightTheme ? 'rgba(15, 23, 42, 0.65)' : 'rgba(0,0,0,0.8)',
+                zIndex: 99999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px'
+              }}>
+                <div style={{
+                  background: isLightTheme ? '#ffffff' : '#1e293b',
+                  border: isLightTheme ? '1.5px solid #fed7aa' : '1.5px solid #ea580c',
+                  borderRadius: '18px',
+                  width: '100%',
+                  maxWidth: '500px',
+                  padding: '24px',
+                  color: isLightTheme ? '#0f172a' : '#fff',
+                  boxShadow: isLightTheme ? '0 20px 50px rgba(15, 23, 42, 0.18)' : '0 20px 50px rgba(0,0,0,0.6)'
+                }}>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '12px', marginBottom: '16px' }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderBottom: isLightTheme ? '1px solid #fed7aa' : '1px solid rgba(255,255,255,0.1)',
+                    paddingBottom: '12px',
+                    marginBottom: '16px'
+                  }}>
                     <h4 style={{ margin: 0, fontSize: '17px', color: '#ea580c', fontWeight: '800' }}>
                       ✏️ Update Form Status (Admin)
                     </h4>
                     <button
                       type="button"
                       onClick={() => setSelectedAppForStatusUpdate(null)}
-                      style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: '30px', height: '30px', borderRadius: '50%', cursor: 'pointer', fontSize: '15px' }}
+                      style={{
+                        background: isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)',
+                        border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                        color: isLightTheme ? '#64748b' : '#fff',
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '50%',
+                        cursor: 'pointer',
+                        fontSize: '15px'
+                      }}
                     >
                       ✕
                     </button>
                   </div>
 
-                  <div style={{ fontSize: '13px', marginBottom: '14px', color: '#cbd5e1' }}>
-                    Updating status for Ack: <strong style={{ color: '#38bdf8' }}>{selectedAppForStatusUpdate.ackNumber}</strong> ({selectedAppForStatusUpdate.applicantName})
+                  <div style={{ fontSize: '13px', marginBottom: '14px', color: isLightTheme ? '#475569' : '#cbd5e1' }}>
+                    Updating status for Ack: <strong style={{ color: isLightTheme ? '#0284c7' : '#38bdf8' }}>{selectedAppForStatusUpdate.ackNumber}</strong> ({selectedAppForStatusUpdate.applicantName})
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#94a3b8' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#475569' : '#94a3b8' }}>
                       Select New Application Status:
                     </label>
                     <select
                       value={statusUpdateVal}
                       onChange={e => setStatusUpdateVal(e.target.value)}
-                      style={{ width: '100%', padding: '10px 14px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: '700' }}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        background: isLightTheme ? '#ffffff' : '#0f172a',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                        borderRadius: '8px',
+                        color: isLightTheme ? '#0f172a' : '#fff',
+                        fontSize: '14px',
+                        fontWeight: '700'
+                      }}
                     >
                       <option value="Submitted">Submitted</option>
                       <option value="In Progress">In Progress</option>
@@ -3261,7 +3493,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#94a3b8' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#475569' : '#94a3b8' }}>
                       Admin Remarks (Optional):
                     </label>
                     <textarea
@@ -3269,13 +3501,23 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       placeholder="e.g. Verified by Admin. e-PAN dispatched to email."
                       value={adminRemarksInput}
                       onChange={e => setAdminRemarksInput(e.target.value)}
-                      style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', color: '#fff', fontSize: '13px', outline: 'none' }}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: isLightTheme ? '#ffffff' : '#0f172a',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)',
+                        borderRadius: '8px',
+                        color: isLightTheme ? '#0f172a' : '#fff',
+                        fontSize: '13px',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
                     />
                   </div>
 
                   {/* NSDL Receipt / Ack Slip Remark */}
                   <div style={{ marginBottom: '14px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#38bdf8' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#0284c7' : '#38bdf8' }}>
                       NSDL Receipt / Ack Slip Remark (Send to Retailer):
                     </label>
                     <input
@@ -3284,16 +3526,34 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       value={nsdlReceiptInput}
                       onChange={e => setNsdlReceiptInput(e.target.value)}
                       maxLength={50}
-                      style={{ width: '100%', padding: '10px', background: '#0f172a', border: '1.5px solid #0284c7', borderRadius: '8px', color: '#38bdf8', fontSize: '13px', fontFamily: 'monospace', fontWeight: '700', outline: 'none', boxSizing: 'border-box' }}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        background: isLightTheme ? '#f0f9ff' : '#0f172a',
+                        border: '1.5px solid #0284c7',
+                        borderRadius: '8px',
+                        color: isLightTheme ? '#0369a1' : '#38bdf8',
+                        fontSize: '13px',
+                        fontFamily: 'monospace',
+                        fontWeight: '700',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
                     />
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: isLightTheme ? '#64748b' : '#94a3b8', marginTop: '4px' }}>
                       💡 This receipt number / remark will be sent to retailer and displayed in the <strong>NSDL RECEIPT</strong> column.
                     </div>
                   </div>
 
                   {/* Send / Upload Approved Application Receipt PDF */}
-                  <div style={{ marginBottom: '20px', background: 'rgba(2, 132, 199, 0.1)', border: '1px dashed rgba(56, 189, 248, 0.4)', padding: '12px', borderRadius: '10px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: '#38bdf8' }}>
+                  <div style={{
+                    marginBottom: '20px',
+                    background: isLightTheme ? '#f0fdf4' : 'rgba(2, 132, 199, 0.1)',
+                    border: isLightTheme ? '1px dashed #86efac' : '1px dashed rgba(56, 189, 248, 0.4)',
+                    padding: '12px',
+                    borderRadius: '10px'
+                  }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', marginBottom: '6px', color: isLightTheme ? '#16a34a' : '#38bdf8' }}>
                       📄 Send Approved Receipt PDF / Ack Slip (To Retailer):
                     </label>
                     <input
@@ -3307,10 +3567,18 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           reader.readAsDataURL(file);
                         }
                       }}
-                      style={{ width: '100%', padding: '6px', background: '#0f172a', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: '#fff', fontSize: '12px' }}
+                      style={{
+                        width: '100%',
+                        padding: '6px',
+                        background: isLightTheme ? '#ffffff' : '#0f172a',
+                        border: isLightTheme ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.15)',
+                        borderRadius: '6px',
+                        color: isLightTheme ? '#0f172a' : '#fff',
+                        fontSize: '12px'
+                      }}
                     />
                     {(receiptInputUrl || selectedAppForStatusUpdate.receiptUrl) && (
-                      <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#34d399', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <div style={{ marginTop: '6px', fontSize: '11.5px', color: '#16a34a', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <span>✓</span> <span>{receiptInputUrl ? 'New receipt PDF selected! Will be sent to retailer upon saving.' : 'Receipt already uploaded for retailer.'}</span>
                       </div>
                     )}
@@ -3320,7 +3588,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     <button
                       type="button"
                       onClick={() => setSelectedAppForStatusUpdate(null)}
-                      style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+                      style={{
+                        background: isLightTheme ? '#f1f5f9' : 'rgba(255,255,255,0.1)',
+                        color: isLightTheme ? '#475569' : '#fff',
+                        border: isLightTheme ? '1px solid #cbd5e1' : 'none',
+                        padding: '10px 18px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                      }}
                     >
                       Cancel
                     </button>
@@ -3411,13 +3687,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   <table className="ao-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '55px', textAlign: 'center' }}>Select</th>
-                        <th style={{ width: '140px' }}>Description</th>
-                        <th>Additional Jurisdiction Description</th>
-                        <th style={{ width: '80px', textAlign: 'center' }}>Area Code</th>
-                        <th style={{ width: '70px', textAlign: 'center' }}>AO Type</th>
-                        <th style={{ width: '80px', textAlign: 'center' }}>Range Code</th>
-                        <th style={{ width: '80px', textAlign: 'center' }}>AO Number</th>
+                        <th style={{ width: '55px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Select</th>
+                        <th style={{ width: '140px', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Description</th>
+                        <th style={{ color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Additional Jurisdiction Description</th>
+                        <th style={{ width: '80px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Area Code</th>
+                        <th style={{ width: '70px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>AO Type</th>
+                        <th style={{ width: '80px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>Range Code</th>
+                        <th style={{ width: '80px', textAlign: 'center', color: isLightTheme ? '#0f172a' : '#38bdf8', fontWeight: '800' }}>AO Number</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3431,15 +3707,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                 name="selectedAoCodeRow"
                                 checked={isSelected}
                                 onChange={() => handleAoSelect(ao.id)}
-                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#38bdf8' }}
+                                style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: isLightTheme ? '#0284c7' : '#38bdf8' }}
                               />
                             </td>
-                            <td style={{ fontWeight: '700', color: '#f8fafc' }}>{ao.description}</td>
-                            <td style={{ color: '#94a3b8', lineHeight: '1.4', fontSize: '11.5px' }}>{ao.additionalDesc || 'Territorial Jurisdiction Details'}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.areaCode}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.aoType}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.rangeCode}</td>
-                            <td style={{ textAlign: 'center', fontWeight: '800', color: '#38bdf8' }}>{ao.aoNo}</td>
+                            <td style={{ fontWeight: '800', color: isLightTheme ? '#0f172a' : '#f8fafc', fontSize: '12.5px' }}>{ao.description}</td>
+                            <td style={{ color: isLightTheme ? '#1e293b' : '#94a3b8', lineHeight: '1.4', fontSize: '11.5px', fontWeight: isLightTheme ? '600' : 'normal' }}>{ao.additionalDesc || 'Territorial Jurisdiction Details'}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.areaCode}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.aoType}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.rangeCode}</td>
+                            <td style={{ textAlign: 'center', fontWeight: '800', color: isLightTheme ? '#0284c7' : '#38bdf8', fontSize: '12.5px' }}>{ao.aoNo}</td>
                           </tr>
                         );
                       })}
@@ -3449,29 +3725,29 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
                 {/* Active Synced AO Code Summary & Manual Input Sync */}
                 <div className="ao-summary-bar">
-                  <div style={{ fontSize: '12.5px', color: '#e2e8f0', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ fontSize: '12.5px', color: isLightTheme ? '#0f172a' : '#e2e8f0', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>✅ Active Synced AO Code: </span>
-                    <span style={{ color: '#38bdf8', background: 'rgba(56, 189, 248, 0.15)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.3)', fontWeight: '800', letterSpacing: '1px' }}>
+                    <span style={{ color: isLightTheme ? '#0369a1' : '#38bdf8', background: isLightTheme ? '#e0f2fe' : 'rgba(56, 189, 248, 0.15)', padding: '4px 10px', borderRadius: '6px', border: isLightTheme ? '1.5px solid #7dd3fc' : '1px solid rgba(56, 189, 248, 0.3)', fontWeight: '800', letterSpacing: '1px' }}>
                       {manualData.aoAreaCode || '--'} | {manualData.aoType || '--'} | {manualData.aoRangeCode || '--'} | {manualData.aoNo || '--'}
                     </span>
                   </div>
 
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>Area:</span>
-                      <input type="text" name="aoAreaCode" maxLength={3} value={manualData.aoAreaCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>Area:</span>
+                      <input type="text" name="aoAreaCode" maxLength={3} value={manualData.aoAreaCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>Type:</span>
-                      <input type="text" name="aoType" maxLength={2} value={manualData.aoType || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '45px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>Type:</span>
+                      <input type="text" name="aoType" maxLength={2} value={manualData.aoType || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '45px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>Range:</span>
-                      <input type="text" name="aoRangeCode" maxLength={3} value={manualData.aoRangeCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>Range:</span>
+                      <input type="text" name="aoRangeCode" maxLength={3} value={manualData.aoRangeCode || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>No:</span>
-                      <input type="text" name="aoNo" maxLength={3} value={manualData.aoNo || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800' }} />
+                      <span style={{ fontSize: '12px', color: isLightTheme ? '#0f172a' : '#94a3b8', fontWeight: '800' }}>No:</span>
+                      <input type="text" name="aoNo" maxLength={3} value={manualData.aoNo || ''} onChange={handleManualChange} className="form-input-pro" style={{ width: '50px', textAlign: 'center', padding: '4px', textTransform: 'uppercase', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#fff', background: isLightTheme ? '#ffffff' : undefined, border: isLightTheme ? '1.5px solid #cbd5e1' : undefined }} />
                     </div>
                   </div>
                 </div>
@@ -3496,16 +3772,26 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     />
                   )}
                   {isFieldVisible('signatureUrl') && (
-                    <DropzoneBox
-                      label={manualData.category === 'INDIVIDUAL' ? 'Upload Applicant Signature' : 'Upload Authorized Signatory Signature / Official Stamp'}
-                      fieldName="signatureUrl"
-                      isRequired={isFieldReq('signatureUrl')}
-                      currentValue={manualData.signatureUrl}
-                      onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, signatureUrl: dataUrl }))}
-                      accept="image/*"
-                      hint={manualData.category === 'INDIVIDUAL' ? 'Drag & drop applicant signature here or click to browse (JPG, PNG)' : 'Drag & drop authorized signatory signature / official stamp here (JPG, PNG)'}
-                      icon="✍️"
-                    />
+                    manualData.category === 'INDIVIDUAL' ? (
+                      <DropzoneBox
+                        label="Upload Applicant Signature"
+                        fieldName="signatureUrl"
+                        isRequired={isFieldReq('signatureUrl')}
+                        currentValue={manualData.signatureUrl}
+                        onFileSelect={(dataUrl) => setManualData(prev => ({ ...prev, signatureUrl: dataUrl }))}
+                        accept="image/*"
+                        hint="Drag & drop applicant signature here or click to browse (JPG, PNG)"
+                        icon="✍️"
+                      />
+                    ) : (
+                      <div style={{ gridColumn: 'span 1' }}>
+                        <StampSignatureMerger
+                          value={manualData.signatureUrl}
+                          isRequired={isFieldReq('signatureUrl')}
+                          onMerge={(dataUrl) => setManualData(prev => ({ ...prev, signatureUrl: dataUrl }))}
+                        />
+                      </div>
+                    )
                   )}
                 </div>
 

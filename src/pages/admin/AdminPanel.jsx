@@ -5,10 +5,12 @@ import './AdminPanel.css';
 import { ALL_INDIAN_STATES, ALL_INDIAN_DISTRICTS, PROOF_OF_IDENTITY_OPTIONS, PROOF_OF_ADDRESS_OPTIONS, PROOF_OF_DOB_OPTIONS } from '../../utils/indiaData';
 
 import Form49APdfTemplate, { generateForm49APdf, getCleanLastName, getIndividualCapacity } from '../pancard/Form49APdfGenerator';
+import { generatePanCrPdf } from '../pancard/PanCrPdfGenerator';
 import { Form49ADirectEditModal } from '../pancard/Form49ADirectEditModal';
 import { API_URL, apiFetch } from '../../utils/apiClient';
 import NotificationBell from '../../context/NotificationBell';
 import { exportSinglePanApplicationToExcel } from '../../utils/exportPanToExcel';
+import logoImg from '../../assets/logo.png';
 
 const showCustomToast = (title, text = '', icon = 'success') => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -88,48 +90,101 @@ const Toast = {
 const copyApplicationDetailsToClipboard = (app) => {
   if (!app) return;
   const d = app.details || {};
-  const fullName = [d.firstName, d.middleName, d.lastName || app.applicantName].filter(Boolean).join(' ') || app.applicantName || '—';
-  const fatherName = app.fatherName || `${d.fatherFirstName || ''} ${d.fatherMiddleName || ''} ${d.fatherLastName || ''}`.trim() || '—';
-  const motherName = `${d.motherFirstName || ''} ${d.motherMiddleName || ''} ${d.motherLastName || ''}`.trim() || '—';
+  const catStr = String(d.category || app.category || d.applicantStatus || app.applicantStatus || '').toUpperCase();
+  const nonIndTypes = ['COMPANY', 'FIRM', 'TRUST', 'HUF', 'HINDU', 'ASSOCIATION', 'AOP', 'BODY', 'BOI', 'LOCAL', 'ARTIFICIAL', 'AJP', 'GOVERNMENT', 'LIMITED', 'LLP'];
+  const isNonIndiv = nonIndTypes.some(t => catStr.includes(t)) || (catStr !== '' && catStr !== 'INDIVIDUAL');
+
   const district = (d.district && d.district !== 'SELECT') ? d.district : (app.district || '—');
   const state = (d.state && d.state !== 'PLEASE SELECT') ? d.state : (app.state || 'MAHARASHTRA');
 
-  const text = [
-    `=== PAN APPLICATION DETAILS ===`,
-    `Ack Number: ${app.ackNumber || 'N/A'}`,
-    `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
-    `Status: ${(app.status || 'Submitted').toUpperCase()}`,
-    `Service Type: ${app.applicationType || 'Manual New PAN'}`,
-    `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
-    app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
-    app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
-    ``,
-    `--- PERSONAL PARTICULARS ---`,
-    `Title: ${d.title || app.title || 'SHRI'}`,
-    `Applicant Name: ${fullName}`,
-    `Gender: ${app.gender || d.gender || 'Male'}`,
-    `Date of Birth: ${app.dob || d.dob || '—'}`,
-    `Aadhaar Number: ${app.aadhaarNumber || d.aadhaarNumber || '—'}`,
-    `Mobile Number: ${app.mobileNumber || '—'}`,
-    `Email Address: ${app.email || '—'}`,
-    ``,
-    `--- PARENTS DETAILS ---`,
-    `Father's Name: ${fatherName}`,
-    `Mother's Name: ${motherName}`,
-    ``,
-    `--- RESIDENCE ADDRESS ---`,
-    `Flat/Door/Block: ${d.flatNo || '—'}`,
-    `Building/Premises: ${d.premises || '—'}`,
-    `Road/Street: ${d.roadStreet || '—'}`,
-    `Area/Taluka: ${d.areaTaluka || '—'}`,
-    `District: ${district}`,
-    `State: ${state}`,
-    `Pincode: ${d.pincode || '—'}`,
-    ``,
-    `--- AO CODE DETAILS ---`,
-    `Area Code: ${d.aoAreaCode || 'MUM'} | AO Type: ${d.aoType || 'C'} | Range Code: ${d.aoRangeCode || '11'} | AO No: ${d.aoNo || '1'} | City: ${d.aoCity || district || 'MUMBAI'}`,
-    `===============================`
-  ].filter(line => line !== false && line !== undefined).join('\n');
+  let text;
+  if (isNonIndiv) {
+    const entityName = d.entityName || app.applicantName || d.lastName || '—';
+    const incDate = d.dateOfIncorporation || app.dob || d.dob || '—';
+    const regNum = d.registrationNumber || d.cin || d.llpin || '—';
+    const verName = d.verifierName || d.raName || app.fatherName || '—';
+    const verCap = d.verifierCapacity || d.designation || 'DIRECTOR';
+    const verPlace = d.verifierPlace || d.place || district || '—';
+    const verDate = d.verifierDate || d.date || (app.createdAt ? new Date(app.createdAt).toLocaleDateString() : '—');
+
+    text = [
+      `=== PAN APPLICATION DETAILS (NON-INDIVIDUAL) ===`,
+      `Ack Number: ${app.ackNumber || 'N/A'}`,
+      `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
+      `Status: ${(app.status || 'Submitted').toUpperCase()}`,
+      `Service Type: ${app.applicationType || 'Manual New PAN'}`,
+      `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
+      app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
+      app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
+      ``,
+      `--- ENTITY PARTICULARS ---`,
+      `Category of Applicant: ${catStr || 'COMPANY'}`,
+      `Name of Entity / Company / Firm: ${entityName}`,
+      `Date of Incorporation: ${incDate}`,
+      `Registration / CIN / LLPIN Number: ${regNum}`,
+      (app.panNumber || d.panNumber) ? `Existing PAN Number: ${app.panNumber || d.panNumber}` : '',
+      `Mobile Number: ${app.mobileNumber || d.mobileNumber || '—'}`,
+      `Email Address: ${app.email || d.email || '—'}`,
+      `Source of Income: ${d.incomeSource || d.sourceOfIncome || d.sourceofincome || 'BUSINESS / PROFESSION'}`,
+      ``,
+      `--- AUTHORIZED REPRESENTATIVE / SIGNATORY ---`,
+      `Authorized Signatory Name: ${verName}`,
+      `Capacity / Designation: ${verCap}`,
+      `Place: ${verPlace}`,
+      `Date: ${verDate}`,
+      ``,
+      `--- REGISTERED / OFFICE ADDRESS ---`,
+      `Flat/Door/Block: ${(d.officeAddress && d.officeAddress.flatNo) || d.flatNo || '—'}`,
+      `Building/Premises: ${(d.officeAddress && d.officeAddress.premises) || d.premises || '—'}`,
+      `Road/Street: ${(d.officeAddress && d.officeAddress.roadStreet) || d.roadStreet || '—'}`,
+      `Area/Taluka: ${(d.officeAddress && d.officeAddress.areaTaluka) || d.areaTaluka || '—'}`,
+      `District: ${(d.officeAddress && d.officeAddress.district) || district}`,
+      `State: ${(d.officeAddress && d.officeAddress.state) || state}`,
+      `Pincode: ${(d.officeAddress && d.officeAddress.pincode) || d.pincode || '—'}`,
+      `===============================================`
+    ].filter(line => line !== false && line !== undefined && line !== '').join('\n');
+  } else {
+    const fullName = [d.firstName, d.middleName, d.lastName || app.applicantName].filter(Boolean).join(' ') || app.applicantName || '—';
+    const fatherName = app.fatherName || `${d.fatherFirstName || ''} ${d.fatherMiddleName || ''} ${d.fatherLastName || ''}`.trim() || '—';
+    const motherName = `${d.motherFirstName || ''} ${d.motherMiddleName || ''} ${d.motherLastName || ''}`.trim() || '—';
+
+    text = [
+      `=== PAN APPLICATION DETAILS ===`,
+      `Ack Number: ${app.ackNumber || 'N/A'}`,
+      `Submitted By: ${app.userId || app.userMobile || 'Retailer'}`,
+      `Status: ${(app.status || 'Submitted').toUpperCase()}`,
+      `Service Type: ${app.applicationType || 'Manual New PAN'}`,
+      `Date Submitted: ${app.createdAt ? new Date(app.createdAt).toLocaleString() : 'N/A'}`,
+      app.nsdlReceiptNumber ? `NSDL Receipt / Remark: ${app.nsdlReceiptNumber}` : '',
+      app.adminRemarks ? `Admin Remarks: ${app.adminRemarks}` : '',
+      ``,
+      `--- PERSONAL PARTICULARS ---`,
+      `Title: ${d.title || app.title || 'SHRI'}`,
+      `Applicant Name: ${fullName}`,
+      `Gender: ${app.gender || d.gender || 'Male'}`,
+      `Date of Birth: ${app.dob || d.dob || '—'}`,
+      `Aadhaar Number: ${app.aadhaarNumber || d.aadhaarNumber || '—'}`,
+      `Mobile Number: ${app.mobileNumber || '—'}`,
+      `Email Address: ${app.email || '—'}`,
+      ``,
+      `--- PARENTS DETAILS ---`,
+      `Father's Name: ${fatherName}`,
+      `Mother's Name: ${motherName}`,
+      ``,
+      `--- RESIDENCE ADDRESS ---`,
+      `Flat/Door/Block: ${d.flatNo || '—'}`,
+      `Building/Premises: ${d.premises || '—'}`,
+      `Road/Street: ${d.roadStreet || '—'}`,
+      `Area/Taluka: ${d.areaTaluka || '—'}`,
+      `District: ${district}`,
+      `State: ${state}`,
+      `Pincode: ${d.pincode || '—'}`,
+      ``,
+      `--- AO CODE DETAILS ---`,
+      `Area Code: ${d.aoAreaCode || 'MUM'} | AO Type: ${d.aoType || 'C'} | Range Code: ${d.aoRangeCode || '11'} | AO No: ${d.aoNo || '1'} | City: ${d.aoCity || district || 'MUMBAI'}`,
+      `===============================`
+    ].filter(line => line !== false && line !== undefined).join('\n');
+  }
 
   const showToast = () => {
     showCustomToast('Details Copied!', 'All application details copied to clipboard.', 'success');
@@ -1127,8 +1182,14 @@ const AdminPanel = () => {
 
     setPdfTargetData(normalized);
 
+    const isCorr = (app.applicationType || '').toLowerCase().includes('correction') || (normalized.panNumber && !normalized.aadhaarNumber);
+
     setTimeout(() => {
-      generateForm49APdf(normalized);
+      if (isCorr) {
+        generatePanCrPdf(normalized);
+      } else {
+        generateForm49APdf(normalized);
+      }
     }, 200);
   };
 
@@ -1343,36 +1404,16 @@ const AdminPanel = () => {
         { name: 'photoUrl', label: 'Upload Applicant Photo', type: 'file', required: false, formType: 'Form 93' },
         { name: 'signatureUrl', label: 'Upload Applicant Signature', type: 'file', required: false, formType: 'Form 93' },
         // Form 94 (Non-Individual / Other Entities) Fields
-        { name: 'entityName', label: 'NAME OF FIRM / COMPANY / TRUST / ENTITY (FORM 94)', type: 'text', placeholder: 'NAME OF ENTITY / FIRM', required: false, formType: 'Form 94' },
-        { name: 'dateOfIncorporation', label: 'DATE OF INCORPORATION / AGREEMENT / FORMATION (FORM 94)', type: 'date', required: false, formType: 'Form 94' },
-        { name: 'registrationNumber', label: 'REGISTRATION NUMBER (IF ANY) (FORM 94)', type: 'text', placeholder: 'REGISTRATION NUMBER', required: false, formType: 'Form 94' },
-        { name: 'incomeSource', label: 'SOURCE OF INCOME (FORM 94)', type: 'select', options: ['Income from Business/Profession', 'Salary', 'Capital Gains', 'Income from House Property', 'Income from Other Sources', 'No Income'], required: false, formType: 'Form 94' },
-        { name: 'proofOfIncorporation', label: 'PROOF OF INCORPORATION / REGISTRATION (FORM 94)', type: 'select', options: ['CERTIFICATE OF INCORPORATION / REGISTRATION', 'PARTNERSHIP DEED', 'TRUST DEED / AGREEMENT', 'REGISTRATION CERTIFICATE'], required: false, formType: 'Form 94' },
-        { name: 'commFlatNo', label: 'OFFICE FLAT/DOOR/BLOCK NO (FORM 94)', type: 'text', placeholder: 'OFFICE FLAT NO', required: false, formType: 'Form 94' },
-        { name: 'commPremises', label: 'OFFICE PREMISES/BUILDING/VILLAGE (FORM 94)', type: 'text', placeholder: 'OFFICE PREMISES', required: false, formType: 'Form 94' },
-        { name: 'commRoadStreet', label: 'OFFICE ROAD/STREET/POST OFFICE (FORM 94)', type: 'text', placeholder: 'OFFICE ROAD STREET', required: false, formType: 'Form 94' },
-        { name: 'commAreaTaluka', label: 'OFFICE AREA/TALUKA/SUB DIVISION (FORM 94)', type: 'text', placeholder: 'OFFICE AREA TALUKA', required: false, formType: 'Form 94' },
-        { name: 'commState', label: 'OFFICE STATE (FORM 94)', type: 'select', options: ['PLEASE SELECT', ...ALL_INDIAN_STATES], required: false, formType: 'Form 94' },
-        { name: 'commDistrict', label: 'OFFICE TOWN/DISTRICT (FORM 94)', type: 'select', options: ['SELECT', ...ALL_INDIAN_DISTRICTS], required: false, formType: 'Form 94' },
-        { name: 'commPincode', label: 'OFFICE PINCODE (FORM 94)', type: 'text', placeholder: 'OFFICE PINCODE', required: false, formType: 'Form 94' },
-        { name: 'raTitle', label: 'REPRESENTATIVE ASSESSEE TITLE (FORM 94)', type: 'select', options: ['SHRI', 'SMT', 'KUMARI', 'M/S'], required: false, formType: 'Form 94' },
-        { name: 'raFirstName', label: 'REPRESENTATIVE ASSESSEE FIRST NAME (FORM 94)', type: 'text', placeholder: 'RA FIRST NAME', required: false, formType: 'Form 94' },
-        { name: 'raMiddleName', label: 'REPRESENTATIVE ASSESSEE MIDDLE NAME (FORM 94)', type: 'text', placeholder: 'RA MIDDLE NAME', required: false, formType: 'Form 94' },
-        { name: 'raLastName', label: 'REPRESENTATIVE ASSESSEE LAST NAME (FORM 94)', type: 'text', placeholder: 'RA LAST NAME', required: false, formType: 'Form 94' },
-        { name: 'raPanNumber', label: 'REPRESENTATIVE ASSESSEE PAN (FORM 94)', type: 'text', placeholder: 'RA PAN NUMBER', required: false, formType: 'Form 94' },
-        { name: 'raAadhaarNumber', label: 'REPRESENTATIVE ASSESSEE AADHAAR NO (FORM 94)', type: 'text', placeholder: 'RA AADHAAR NO', required: false, formType: 'Form 94' },
-        { name: 'raMobileNumber', label: 'REPRESENTATIVE ASSESSEE MOBILE NO (FORM 94)', type: 'text', placeholder: 'RA MOBILE NO', required: false, formType: 'Form 94' },
-        { name: 'raEmail', label: 'REPRESENTATIVE ASSESSEE EMAIL ID (FORM 94)', type: 'email', placeholder: 'RA EMAIL ID', required: false, formType: 'Form 94' },
-        { name: 'raFlatNo', label: 'REPRESENTATIVE ASSESSEE FLAT NO (FORM 94)', type: 'text', placeholder: 'RA FLAT NO', required: false, formType: 'Form 94' },
-        { name: 'raRoadStreet', label: 'REPRESENTATIVE ASSESSEE ROAD/STREET (FORM 94)', type: 'text', placeholder: 'RA ROAD STREET', required: false, formType: 'Form 94' },
-        { name: 'raAreaTaluka', label: 'REPRESENTATIVE ASSESSEE AREA/TALUKA (FORM 94)', type: 'text', placeholder: 'RA AREA TALUKA', required: false, formType: 'Form 94' },
-        { name: 'raDistrict', label: 'REPRESENTATIVE ASSESSEE DISTRICT (FORM 94)', type: 'select', options: ['SELECT', ...ALL_INDIAN_DISTRICTS], required: false, formType: 'Form 94' },
-        { name: 'raState', label: 'REPRESENTATIVE ASSESSEE STATE (FORM 94)', type: 'select', options: ['PLEASE SELECT', ...ALL_INDIAN_STATES], required: false, formType: 'Form 94' },
-        { name: 'raPincode', label: 'REPRESENTATIVE ASSESSEE PINCODE (FORM 94)', type: 'text', placeholder: 'RA PINCODE', required: false, formType: 'Form 94' },
-        { name: 'verifierName', label: 'VERIFIER NAME (FORM 94)', type: 'text', placeholder: 'VERIFIER NAME', required: false, formType: 'Form 94' },
-        { name: 'verifierCapacity', label: 'VERIFIER CAPACITY (FORM 94)', type: 'select', options: ['PARTNER', 'DIRECTOR', 'TRUSTEE', 'AUTHORISED SIGNATORY', 'PROPRIETOR', 'KARTA'], required: false, formType: 'Form 94' },
-        { name: 'verifierPlace', label: 'VERIFIER PLACE (FORM 94)', type: 'text', placeholder: 'VERIFIER PLACE', required: false, formType: 'Form 94' },
-        { name: 'verifierDate', label: 'VERIFIER DATE (FORM 94)', type: 'date', required: false, formType: 'Form 94' }
+        { name: 'entityName', label: '1. NAME OF FIRM / ENTITY', type: 'text', placeholder: 'ENTER FULL NAME OF FIRM', required: true, formType: 'Form 94' },
+        { name: 'dateOfIncorporation', label: '2. DATE OF INCORPORATION / AGREEMENT / TRUST DEED / FORMATION', type: 'date', required: true, formType: 'Form 94' },
+        { name: 'registrationNumber', label: 'REGISTRATION NUMBER (FOR COMPANY, FIRM, LLP, TRUST, ETC.)', type: 'text', placeholder: 'ENTER REGISTRATION / CIN NO.', required: false, formType: 'Form 94' },
+        { name: 'tin', label: 'TAXPAYER IDENTIFICATION NUMBER (TIN IN COUNTRY OF RESIDENCE, IF ANY)', type: 'text', placeholder: 'ENTER TIN IN COUNTRY OF RESIDENCE (IF APPLICABLE)', required: false, formType: 'Both' },
+        { name: 'stdCode', label: 'STD CODE', type: 'text', placeholder: 'STD', required: false, formType: 'Form 94' },
+        { name: 'landlineNumber', label: 'LANDLINE NO. WITH STD CODE', type: 'text', placeholder: 'LANDLINE NO.', required: false, formType: 'Form 94' },
+        { name: 'proofOfIncorporation', label: 'PROOF OF INCORPORATION / AGREEMENT / DEED', type: 'select', options: ['REGISTRATION CERTIFICATE ISSUED BY REGISTRAR OF COMPANIES', 'PARTNERSHIP DEED', 'TRUST DEED', 'LLP AGREEMENT', 'CERTIFICATE OF INCORPORATION'], required: true, formType: 'Form 94' },
+        { name: 'verifierName', label: 'AUTHORIZED SIGNATORY / VERIFIER NAME', type: 'text', placeholder: 'AUTHORIZED SIGNATORY / VERIFIER NAME', required: true, formType: 'Form 94' },
+        { name: 'designation', label: 'DESIGNATION OF SIGNATORY', type: 'select', options: ['PARTNER', 'DIRECTOR', 'TRUSTEE', 'AUTHORISED SIGNATORY', 'PROPRIETOR', 'KARTA'], required: true, formType: 'Form 94' },
+        { name: 'proofOfIncorporationUrl', label: 'UPLOAD REGISTRATION CERTIFICATE (ROC / DEED)', type: 'file', required: false, formType: 'Form 94' }
       ]
     },
     {
@@ -1402,69 +1443,65 @@ const AdminPanel = () => {
       badgeClass: 'badge-correction',
       description: 'Update or correct personal details on your existing PAN Card record.',
       fields: [
+        // Primary & Common Fields (Both Form 93 & Form 94)
         { name: 'category', label: 'CATEGORY OF APPLICANT', type: 'select', options: ['INDIVIDUAL', 'FIRM', 'BODY OF INDIVIDUALS', 'TRUST', 'ASSOCIATION OF PERSONS', 'LOCAL AUTHORITY', 'COMPANY', 'HINDU UNDIVIDED FAMILY', 'LIMITED LIABILITY PARTNERSHIP', 'ARTIFICIAL JURIDICAL PERSON', 'GOVERNMENT'], required: true, formType: 'Both' },
         { name: 'panNumber', label: 'EXISTING PAN NUMBER', type: 'text', placeholder: 'e.g. ABCDE1234F', required: true, uppercase: true, formType: 'Both' },
+
+        // Form 93 (Individual Specific Fields)
         { name: 'aadhaarNumber', label: 'AADHAAR NO', type: 'text', placeholder: '12 DIGITS UID NO', required: true, formType: 'Form 93' },
+        { name: 'title', label: 'TITLE', type: 'select', options: ['SELECT', 'SHRI', 'SMT', 'KUMARI'], required: true, formType: 'Form 93' },
         { name: 'firstName', label: 'FIRST NAME', type: 'text', placeholder: 'FIRST NAME', required: true, formType: 'Form 93' },
         { name: 'middleName', label: 'MIDDLE NAME', type: 'text', placeholder: 'MIDDLE NAME', required: false, formType: 'Form 93' },
         { name: 'lastName', label: 'LAST NAME / SURNAME', type: 'text', placeholder: 'LAST NAME / SURNAME', required: true, formType: 'Form 93' },
         { name: 'nameAsPerAadhaar', label: 'NAME AS PER AADHAAR', type: 'text', placeholder: 'NAME AS PER AADHAAR', required: true, formType: 'Form 93' },
         { name: 'gender', label: 'GENDER', type: 'select', options: ['SELECT', 'MALE', 'FEMALE', 'TRANSGENDER'], required: true, formType: 'Form 93' },
         { name: 'dob', label: 'DATE OF BIRTH', type: 'date', required: true, formType: 'Form 93' },
-        { name: 'mobileNumber', label: 'MOBILE NO.', type: 'tel', placeholder: 'MOBILE NO.', required: true, formType: 'Both' },
-        { name: 'email', label: 'EMAIL ID', type: 'email', placeholder: 'EMAIL ID', required: true, formType: 'Both' },
-        { name: 'flatNo', label: 'FLAT / DOOR / BLOCK NO', type: 'text', placeholder: 'FLAT / DOOR / BLOCK NO', required: true, formType: 'Form 93' },
-        { name: 'premises', label: 'PREMISES / BUILDING / VILLAGE', type: 'text', placeholder: 'PREMISES / BUILDING / VILLAGE', required: true, formType: 'Form 93' },
-        { name: 'roadStreet', label: 'ROAD / STREET / POST OFFICE', type: 'text', placeholder: 'ROAD / STREET / POST OFFICE', required: true, formType: 'Form 93' },
-        { name: 'areaTaluka', label: 'AREA / TALUKA / SUB DIVISION', type: 'text', placeholder: 'AREA / TALUKA / SUB DIVISION', required: true, formType: 'Form 93' },
-        { name: 'state', label: 'STATE / UNION TERRITORY', type: 'select', options: ['PLEASE SELECT', ...ALL_INDIAN_STATES], required: true, formType: 'Form 93' },
-        { name: 'district', label: 'TOWN / DISTRICT', type: 'select', options: ['SELECT', ...ALL_INDIAN_DISTRICTS], required: true, formType: 'Form 93' },
-        { name: 'pincode', label: 'PINCODE', type: 'text', placeholder: 'PINCODE', required: true, formType: 'Form 93' },
-        { name: 'parentToPrint', label: 'PARENT NAME TO PRINT ON PAN CARD', type: 'select', options: ['Father', 'Mother'], required: true, formType: 'Form 93' },
+        { name: 'addressType', label: 'ADDRESS TYPE', type: 'select', options: ['RESIDENCE', 'OFFICE'], required: true, formType: 'Form 93' },
+        { name: 'parentToPrint', label: 'NAME OF PARENT TO PRINT ON PAN CARD', type: 'select', options: ['Father', 'Mother'], required: true, formType: 'Form 93' },
         { name: 'fatherFirstName', label: "FATHER'S FIRST NAME", type: 'text', placeholder: "FATHER'S FIRST NAME", required: true, formType: 'Form 93' },
         { name: 'fatherMiddleName', label: "FATHER'S MIDDLE NAME", type: 'text', placeholder: "FATHER'S MIDDLE NAME", required: false, formType: 'Form 93' },
         { name: 'fatherLastName', label: "FATHER'S LAST NAME", type: 'text', placeholder: "FATHER'S LAST NAME", required: true, formType: 'Form 93' },
         { name: 'motherFirstName', label: "MOTHER'S FIRST NAME", type: 'text', placeholder: "MOTHER'S FIRST NAME", required: false, formType: 'Form 93' },
         { name: 'motherMiddleName', label: "MOTHER'S MIDDLE NAME", type: 'text', placeholder: "MOTHER'S MIDDLE NAME", required: false, formType: 'Form 93' },
         { name: 'motherLastName', label: "MOTHER'S LAST NAME", type: 'text', placeholder: "MOTHER'S LAST NAME", required: false, formType: 'Form 93' },
-        { name: 'proofOfIdentity', label: 'PROOF OF IDENTITY', type: 'select', options: PROOF_OF_IDENTITY_OPTIONS, required: true, formType: 'Form 93' },
-        { name: 'proofOfAddress', label: 'PROOF OF ADDRESS', type: 'select', options: PROOF_OF_ADDRESS_OPTIONS, required: true, formType: 'Form 93' },
         { name: 'proofOfDob', label: 'PROOF OF DATE OF BIRTH', type: 'select', options: PROOF_OF_DOB_OPTIONS, required: true, formType: 'Form 93' },
-
         { name: 'passportNumber', label: 'PASSPORT NUMBER (IF APPLICABLE)', type: 'text', placeholder: 'PASSPORT NUMBER', required: false, formType: 'Form 93' },
         { name: 'photoUrl', label: 'UPLOAD APPLICANT PHOTO', type: 'file', required: false, formType: 'Form 93' },
-        { name: 'signatureUrl', label: 'UPLOAD APPLICANT SIGNATURE', type: 'file', required: false, formType: 'Form 93' },
-        // Form 94 (Non-Individual / Entity Corrections)
-        { name: 'entityName', label: 'NAME OF FIRM / COMPANY / TRUST / ENTITY (FORM 94)', type: 'text', placeholder: 'NAME OF ENTITY / FIRM', required: false, formType: 'Form 94' },
-        { name: 'dateOfIncorporation', label: 'DATE OF INCORPORATION / AGREEMENT / FORMATION (FORM 94)', type: 'date', required: false, formType: 'Form 94' },
-        { name: 'registrationNumber', label: 'REGISTRATION NUMBER (IF ANY) (FORM 94)', type: 'text', placeholder: 'REGISTRATION NUMBER', required: false, formType: 'Form 94' },
-        { name: 'incomeSource', label: 'SOURCE OF INCOME (FORM 94)', type: 'select', options: ['Income from Business/Profession', 'Salary', 'Capital Gains', 'Income from House Property', 'Income from Other Sources', 'No Income'], required: false, formType: 'Form 94' },
-        { name: 'proofOfIncorporation', label: 'PROOF OF INCORPORATION / REGISTRATION (FORM 94)', type: 'select', options: ['CERTIFICATE OF INCORPORATION / REGISTRATION', 'PARTNERSHIP DEED', 'TRUST DEED / AGREEMENT', 'REGISTRATION CERTIFICATE'], required: false, formType: 'Form 94' },
-        { name: 'commFlatNo', label: 'OFFICE FLAT/DOOR/BLOCK NO (FORM 94)', type: 'text', placeholder: 'OFFICE FLAT NO', required: false, formType: 'Form 94' },
-        { name: 'commPremises', label: 'OFFICE PREMISES/BUILDING/VILLAGE (FORM 94)', type: 'text', placeholder: 'OFFICE PREMISES', required: false, formType: 'Form 94' },
-        { name: 'commRoadStreet', label: 'OFFICE ROAD/STREET/POST OFFICE (FORM 94)', type: 'text', placeholder: 'OFFICE ROAD STREET', required: false, formType: 'Form 94' },
-        { name: 'commAreaTaluka', label: 'OFFICE AREA/TALUKA/SUB DIVISION (FORM 94)', type: 'text', placeholder: 'OFFICE AREA TALUKA', required: false, formType: 'Form 94' },
-        { name: 'commState', label: 'OFFICE STATE (FORM 94)', type: 'select', options: ['PLEASE SELECT', ...ALL_INDIAN_STATES], required: false, formType: 'Form 94' },
-        { name: 'commDistrict', label: 'OFFICE TOWN/DISTRICT (FORM 94)', type: 'select', options: ['SELECT', ...ALL_INDIAN_DISTRICTS], required: false, formType: 'Form 94' },
-        { name: 'commPincode', label: 'OFFICE PINCODE (FORM 94)', type: 'text', placeholder: 'OFFICE PINCODE', required: false, formType: 'Form 94' },
-        { name: 'raTitle', label: 'REPRESENTATIVE ASSESSEE TITLE (FORM 94)', type: 'select', options: ['SHRI', 'SMT', 'KUMARI', 'M/S'], required: false, formType: 'Form 94' },
-        { name: 'raFirstName', label: 'REPRESENTATIVE ASSESSEE FIRST NAME (FORM 94)', type: 'text', placeholder: 'RA FIRST NAME', required: false, formType: 'Form 94' },
-        { name: 'raMiddleName', label: 'REPRESENTATIVE ASSESSEE MIDDLE NAME (FORM 94)', type: 'text', placeholder: 'RA MIDDLE NAME', required: false, formType: 'Form 94' },
-        { name: 'raLastName', label: 'REPRESENTATIVE ASSESSEE LAST NAME (FORM 94)', type: 'text', placeholder: 'RA LAST NAME', required: false, formType: 'Form 94' },
-        { name: 'raPanNumber', label: 'REPRESENTATIVE ASSESSEE PAN (FORM 94)', type: 'text', placeholder: 'RA PAN NUMBER', required: false, formType: 'Form 94' },
-        { name: 'raAadhaarNumber', label: 'REPRESENTATIVE ASSESSEE AADHAAR NO (FORM 94)', type: 'text', placeholder: 'RA AADHAAR NO', required: false, formType: 'Form 94' },
-        { name: 'raMobileNumber', label: 'REPRESENTATIVE ASSESSEE MOBILE NO (FORM 94)', type: 'text', placeholder: 'RA MOBILE NO', required: false, formType: 'Form 94' },
-        { name: 'raEmail', label: 'REPRESENTATIVE ASSESSEE EMAIL ID (FORM 94)', type: 'email', placeholder: 'RA EMAIL ID', required: false, formType: 'Form 94' },
-        { name: 'raFlatNo', label: 'REPRESENTATIVE ASSESSEE FLAT NO (FORM 94)', type: 'text', placeholder: 'RA FLAT NO', required: false, formType: 'Form 94' },
-        { name: 'raRoadStreet', label: 'REPRESENTATIVE ASSESSEE ROAD/STREET (FORM 94)', type: 'text', placeholder: 'RA ROAD STREET', required: false, formType: 'Form 94' },
-        { name: 'raAreaTaluka', label: 'REPRESENTATIVE ASSESSEE AREA/TALUKA (FORM 94)', type: 'text', placeholder: 'RA AREA TALUKA', required: false, formType: 'Form 94' },
-        { name: 'raDistrict', label: 'REPRESENTATIVE ASSESSEE DISTRICT (FORM 94)', type: 'select', options: ['SELECT', ...ALL_INDIAN_DISTRICTS], required: false, formType: 'Form 94' },
-        { name: 'raState', label: 'REPRESENTATIVE ASSESSEE STATE (FORM 94)', type: 'select', options: ['PLEASE SELECT', ...ALL_INDIAN_STATES], required: false, formType: 'Form 94' },
-        { name: 'raPincode', label: 'REPRESENTATIVE ASSESSEE PINCODE (FORM 94)', type: 'text', placeholder: 'RA PINCODE', required: false, formType: 'Form 94' },
-        { name: 'verifierName', label: 'VERIFIER NAME (FORM 94)', type: 'text', placeholder: 'VERIFIER NAME', required: false, formType: 'Form 94' },
-        { name: 'verifierCapacity', label: 'VERIFIER CAPACITY (FORM 94)', type: 'select', options: ['PARTNER', 'DIRECTOR', 'TRUSTEE', 'AUTHORISED SIGNATORY', 'PROPRIETOR', 'KARTA'], required: false, formType: 'Form 94' },
-        { name: 'verifierPlace', label: 'VERIFIER PLACE (FORM 94)', type: 'text', placeholder: 'VERIFIER PLACE', required: false, formType: 'Form 94' },
-        { name: 'verifierDate', label: 'VERIFIER DATE (FORM 94)', type: 'date', required: false, formType: 'Form 94' }
+        { name: 'proofOfDobUrl', label: 'UPLOAD DATE OF BIRTH PROOF', type: 'file', required: false, formType: 'Form 93' },
+
+        // Form 94 (Non-Individual Specific Fields - Part A)
+        { name: 'entityName', label: '1. NAME OF FIRM / ENTITY', type: 'text', placeholder: 'ENTER FULL NAME OF FIRM', required: true, formType: 'Form 94' },
+        { name: 'dateOfIncorporation', label: '2. DATE OF INCORPORATION / AGREEMENT / TRUST DEED / FORMATION', type: 'date', required: true, formType: 'Form 94' },
+        { name: 'registrationNumber', label: 'REGISTRATION NUMBER (FOR COMPANY, FIRM, LLP, TRUST, ETC.)', type: 'text', placeholder: 'ENTER REGISTRATION / CIN NO.', required: false, formType: 'Form 94' },
+        { name: 'tin', label: 'TAXPAYER IDENTIFICATION NUMBER (TIN IN COUNTRY OF RESIDENCE, IF ANY)', type: 'text', placeholder: 'ENTER TIN IN COUNTRY OF RESIDENCE (IF APPLICABLE)', required: false, formType: 'Both' },
+        { name: 'stdCode', label: 'STD CODE', type: 'text', placeholder: 'STD', required: false, formType: 'Form 94' },
+        { name: 'landlineNumber', label: 'LANDLINE NO. WITH STD CODE', type: 'text', placeholder: 'LANDLINE NO.', required: false, formType: 'Form 94' },
+
+        // Common Contact & Address Fields (Both Form 93 & Form 94)
+        { name: 'mobileNumber', label: 'MOBILE NO.', type: 'tel', placeholder: '10-DIGIT MOBILE NO.', required: true, formType: 'Both' },
+        { name: 'email', label: 'EMAIL ID', type: 'email', placeholder: 'OFFICIAL EMAIL ID', required: true, formType: 'Both' },
+        { name: 'flatNo', label: 'FLAT / DOOR / BUILDING', type: 'text', placeholder: 'FLAT / DOOR / BUILDING', required: true, formType: 'Both' },
+        { name: 'roadStreet', label: 'ROAD / STREET / BLOCK / SECTOR', type: 'text', placeholder: 'ROAD / STREET / BLOCK / SECTOR', required: true, formType: 'Both' },
+        { name: 'postOffice', label: 'POST OFFICE', type: 'text', placeholder: 'POST OFFICE', required: true, formType: 'Both' },
+        { name: 'areaTaluka', label: 'AREA / LOCALITY / TOWN / CITY', type: 'text', placeholder: 'AREA / LOCALITY / TOWN / CITY', required: true, formType: 'Both' },
+        { name: 'state', label: 'STATE / UNION TERRITORY', type: 'select', options: ['PLEASE SELECT', ...ALL_INDIAN_STATES], required: true, formType: 'Both' },
+        { name: 'district', label: 'DISTRICT', type: 'select', options: ['SELECT', ...ALL_INDIAN_DISTRICTS], required: true, formType: 'Both' },
+        { name: 'country', label: 'COUNTRY / REGION', type: 'text', placeholder: 'INDIA', required: true, formType: 'Both' },
+        { name: 'pincode', label: 'PIN / ZIP CODE', type: 'text', placeholder: 'PIN / ZIP CODE', required: true, formType: 'Both' },
+
+        // Part B - Declarations & Proof Documents (Both & Form 94)
+        { name: 'proofOfIdentity', label: 'PROOF OF IDENTITY', type: 'select', options: PROOF_OF_IDENTITY_OPTIONS, required: true, formType: 'Both' },
+        { name: 'proofOfAddress', label: 'PROOF OF ADDRESS', type: 'select', options: PROOF_OF_ADDRESS_OPTIONS, required: true, formType: 'Both' },
+        { name: 'proofOfIncorporation', label: 'PROOF OF INCORPORATION / AGREEMENT / DEED', type: 'select', options: ['REGISTRATION CERTIFICATE ISSUED BY REGISTRAR OF COMPANIES', 'PARTNERSHIP DEED', 'TRUST DEED', 'LLP AGREEMENT', 'CERTIFICATE OF INCORPORATION'], required: true, formType: 'Form 94' },
+        { name: 'copyOfPan', label: 'PROOF OF PAN', type: 'select', options: ['COPY OF PAN CARD ATTACHED', 'PAN ALLOTMENT LETTER ATTACHED', 'NO PAN COPY ATTACHED'], required: false, formType: 'Both' },
+        { name: 'verifierName', label: 'AUTHORIZED SIGNATORY / VERIFIER NAME', type: 'text', placeholder: 'AUTHORIZED SIGNATORY / VERIFIER NAME', required: true, formType: 'Form 94' },
+        { name: 'designation', label: 'DESIGNATION OF SIGNATORY', type: 'select', options: ['PARTNER', 'DIRECTOR', 'TRUSTEE', 'AUTHORISED SIGNATORY', 'PROPRIETOR', 'KARTA'], required: true, formType: 'Form 94' },
+
+        // Supporting Document Uploads
+        { name: 'signatureUrl', label: 'UPLOAD APPLICANT / SIGNATORY SIGNATURE', type: 'file', required: false, formType: 'Both' },
+        { name: 'proofOfIncorporationUrl', label: 'UPLOAD REGISTRATION CERTIFICATE (ROC / DEED)', type: 'file', required: false, formType: 'Form 94' },
+        { name: 'proofOfIdentityUrl', label: 'UPLOAD IDENTITY PROOF', type: 'file', required: false, formType: 'Both' },
+        { name: 'proofOfAddressUrl', label: 'UPLOAD ADDRESS PROOF', type: 'file', required: false, formType: 'Both' }
       ]
 
     }
@@ -1484,6 +1521,51 @@ const AdminPanel = () => {
   const [upiForm, setUpiForm] = useState({ upiId: '', qrCodeImgFile: null });
   const [userForm, setUserForm] = useState({ userId: '', email: '', mobile: '', role: 'customer' });
   const [userSearch, setUserSearch] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('All');
+  const [userRoleFilter, setUserRoleFilter] = useState('All');
+  const [userSortBy, setUserSortBy] = useState('newest'); // 'newest' | 'oldest' | 'userId' | 'name' | 'balanceHigh' | 'balanceLow'
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(15);
+  const [userViewMode, setUserViewMode] = useState('TABLE'); // 'TABLE' | 'GRID'
+
+  const [isUserCreateModalOpen, setIsUserCreateModalOpen] = useState(false);
+  const [isUserEditModalOpen, setIsUserEditModalOpen] = useState(false);
+  const [isUserViewModalOpen, setIsUserViewModalOpen] = useState(false);
+  const [selectedUserForModal, setSelectedUserForModal] = useState(null);
+
+  const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
+  const [showCreateUserConfirmPassword, setShowCreateUserConfirmPassword] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({
+    fullName: '',
+    name: '',
+    mobile: '',
+    shopName: '',
+    email: '',
+    businessAddress: '',
+    password: '',
+    confirmPassword: '',
+    userId: '',
+    retailerId: '',
+    role: 'retailer',
+    status: 'Approved',
+    walletBalance: 0
+  });
+
+  const [editUserForm, setEditUserForm] = useState({
+    _id: '',
+    userId: '',
+    retailerId: '',
+    name: '',
+    shopName: '',
+    businessAddress: '',
+    email: '',
+    mobile: '',
+    password: '',
+    role: 'retailer',
+    status: 'Approved',
+    walletBalance: 0
+  });
+
   const [reqSearch, setReqSearch] = useState('');
   const [reqStatusFilter, setReqStatusFilter] = useState('All');
 
@@ -2481,6 +2563,277 @@ const AdminPanel = () => {
     await fetch(`${API_URL}/api/upi-config`, { method: 'PUT', body: formData });
     fetchAll();
     Swal.fire({ icon: 'success', text: 'UPI Configuration Updated!', confirmButtonText: 'OK' });
+  };
+
+  const filteredAndSortedUsers = useMemo(() => {
+    let result = (users || []).filter(u => {
+      const q = (userSearch || '').trim().toLowerCase();
+      const matchesSearch = !q ||
+        (u.userId && u.userId.toLowerCase().includes(q)) ||
+        (u.retailerId && u.retailerId.toLowerCase().includes(q)) ||
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.shopName && u.shopName.toLowerCase().includes(q)) ||
+        (u.mobile && u.mobile.includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q)) ||
+        (u.businessAddress && u.businessAddress.toLowerCase().includes(q));
+
+      const matchesStatus = userStatusFilter === 'All' || (u.status || 'Approved').toLowerCase() === userStatusFilter.toLowerCase();
+      const matchesRole = userRoleFilter === 'All' || (u.role || 'customer').toLowerCase() === userRoleFilter.toLowerCase();
+
+      return matchesSearch && matchesStatus && matchesRole;
+    });
+
+    // Sorting
+    result.sort((a, b) => {
+      if (userSortBy === 'newest') {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }
+      if (userSortBy === 'oldest') {
+        return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      }
+      if (userSortBy === 'userId') {
+        return (a.userId || '').localeCompare(b.userId || '');
+      }
+      if (userSortBy === 'name') {
+        return (a.name || a.userId || '').localeCompare(b.name || b.userId || '');
+      }
+      if (userSortBy === 'balanceHigh') {
+        return (parseFloat(b.walletBalance) || 0) - (parseFloat(a.walletBalance) || 0);
+      }
+      if (userSortBy === 'balanceLow') {
+        return (parseFloat(a.walletBalance) || 0) - (parseFloat(b.walletBalance) || 0);
+      }
+      return 0;
+    });
+
+    return result;
+  }, [users, userSearch, userStatusFilter, userRoleFilter, userSortBy]);
+
+  const totalUserPages = Math.ceil(filteredAndSortedUsers.length / userPageSize) || 1;
+  const currentUserPage = Math.min(userPage, totalUserPages);
+  const userStartIndex = (currentUserPage - 1) * userPageSize;
+  const paginatedUsers = filteredAndSortedUsers.slice(userStartIndex, userStartIndex + userPageSize);
+
+  const handleOpenCreateUser = () => {
+    const randomRetailerId = 'MBM' + Math.floor(100000 + Math.random() * 900000);
+    setCreateUserForm({
+      fullName: '',
+      name: '',
+      mobile: '',
+      shopName: '',
+      email: '',
+      businessAddress: '',
+      password: '',
+      confirmPassword: '',
+      userId: '',
+      retailerId: randomRetailerId,
+      role: 'retailer',
+      status: 'Approved',
+      walletBalance: 0
+    });
+    setShowCreateUserPassword(false);
+    setShowCreateUserConfirmPassword(false);
+    setIsUserCreateModalOpen(true);
+  };
+
+  const handleSaveCreateUser = async (e) => {
+    if (e) e.preventDefault();
+    const name = (createUserForm.fullName || createUserForm.name || '').trim();
+    const mob = (createUserForm.mobile || '').trim();
+
+    if (!name) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter Full Name (As per Aadhar Card).', confirmButtonText: 'OK' });
+    }
+    if (!mob || mob.length !== 10) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter a valid 10-digit mobile number.', confirmButtonText: 'OK' });
+    }
+    if (!createUserForm.shopName.trim()) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter Shop Name.', confirmButtonText: 'OK' });
+    }
+    if (!createUserForm.businessAddress.trim()) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter Business Address.', confirmButtonText: 'OK' });
+    }
+    if (!createUserForm.password || createUserForm.password.length < 6) {
+      return Swal.fire({ icon: 'warning', text: 'Password must be at least 6 characters.', confirmButtonText: 'OK' });
+    }
+    if (createUserForm.confirmPassword && createUserForm.password !== createUserForm.confirmPassword) {
+      return Swal.fire({ icon: 'warning', text: 'Passwords do not match!', confirmButtonText: 'OK' });
+    }
+
+    let finalUserId = (createUserForm.userId || '').trim();
+    if (!finalUserId) {
+      finalUserId = name.toLowerCase().replace(/[^a-z0-9]/g, '') + mob.slice(-4);
+    }
+
+    try {
+      const payload = {
+        userId: finalUserId,
+        retailerId: createUserForm.retailerId || ('MBM' + Math.floor(100000 + Math.random() * 900000)),
+        name: name,
+        fullName: name,
+        mobile: mob,
+        shopName: createUserForm.shopName.trim(),
+        email: (createUserForm.email || '').trim(),
+        businessAddress: createUserForm.businessAddress.trim(),
+        password: createUserForm.password,
+        role: createUserForm.role || 'retailer',
+        status: createUserForm.status || 'Approved',
+        walletBalance: parseFloat(createUserForm.walletBalance) || 0
+      };
+
+      const response = await fetch(`${API_URL}/api/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (response.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: 'User Account Created!',
+          text: `User ${payload.userId} has been created successfully with ${payload.status} status.`,
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#10b981'
+        });
+        setIsUserCreateModalOpen(false);
+        fetchAll();
+      } else {
+        Swal.fire({ icon: 'error', text: data.message || 'Failed to create user', confirmButtonText: 'OK' });
+      }
+    } catch (err) {
+      console.error('Error creating user:', err);
+      Swal.fire({ icon: 'error', text: 'Error connecting to server', confirmButtonText: 'OK' });
+    }
+  };
+
+  const handleOpenEditUser = (u) => {
+    setSelectedUserForModal(u);
+    setEditUserForm({
+      _id: u._id,
+      userId: u.userId || '',
+      retailerId: u.retailerId || '',
+      name: u.name || '',
+      shopName: u.shopName || '',
+      businessAddress: u.businessAddress || '',
+      email: u.email || '',
+      mobile: u.mobile || '',
+      password: '',
+      role: u.role || 'retailer',
+      status: u.status || 'Approved',
+      walletBalance: u.walletBalance !== undefined ? u.walletBalance : 0
+    });
+    setIsUserEditModalOpen(true);
+  };
+
+  const handleSaveEditUser = async (e) => {
+    if (e) e.preventDefault();
+    if (!editUserForm._id) return;
+    if (editUserForm.mobile && editUserForm.mobile.trim().length !== 10) {
+      return Swal.fire({ icon: 'warning', text: 'Mobile number must be exactly 10 digits', confirmButtonText: 'OK' });
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/users/${editUserForm._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editUserForm)
+      });
+      const data = await response.json();
+      if (response.ok) {
+        Toast.fire({ icon: 'success', title: 'User Profile Updated Successfully!' });
+        setIsUserEditModalOpen(false);
+        fetchAll();
+      } else {
+        Toast.fire({ icon: 'error', title: data.message || 'Failed to update user' });
+      }
+    } catch (err) {
+      console.error('Error updating user:', err);
+      Toast.fire({ icon: 'error', title: 'Error connecting to server' });
+    }
+  };
+
+  const handleOpenViewUser = (u) => {
+    setSelectedUserForModal(u);
+    setIsUserViewModalOpen(true);
+  };
+
+  const handleExportUsersCSV = () => {
+    if (filteredAndSortedUsers.length === 0) {
+      return Toast.fire({ icon: 'warning', title: 'No users to export' });
+    }
+    const headers = ['S.No', 'User ID', 'Retailer ID', 'Full Name', 'Shop / Business', 'Mobile Number', 'Email Address', 'Role', 'Status', 'Wallet Balance (Rs)', 'Registered Date'];
+    const rows = filteredAndSortedUsers.map((u, i) => [
+      i + 1,
+      `"${(u.userId || '').replace(/"/g, '""')}"`,
+      `"${(u.retailerId || '').replace(/"/g, '""')}"`,
+      `"${(u.name || '').replace(/"/g, '""')}"`,
+      `"${(u.shopName || '').replace(/"/g, '""')}"`,
+      `"${(u.mobile || '').replace(/"/g, '""')}"`,
+      `"${(u.email || '').replace(/"/g, '""')}"`,
+      `"${(u.role || 'customer').toUpperCase()}"`,
+      `"${(u.status || 'Approved').toUpperCase()}"`,
+      parseFloat(u.walletBalance || 0).toFixed(2),
+      u.createdAt ? `"${new Date(u.createdAt).toLocaleString()}"` : '""'
+    ]);
+    const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csv));
+    link.setAttribute('download', `Users_Directory_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintUsersList = () => {
+    const w = window.open('', '_blank');
+    w.document.write(`
+      <html><head><title>Users Directory</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:24px;color:#1e293b}
+        h2{color:#1e40af;margin-bottom:4px}
+        .meta{font-size:13px;color:#64748b;margin-bottom:18px}
+        table{width:100%;border-collapse:collapse;margin-top:10px}
+        th,td{border:1px solid #cbd5e1;padding:8px 10px;text-align:left;font-size:11.5px}
+        th{background:#f1f5f9;font-weight:700}
+        .approved{color:#15803d;font-weight:bold}
+        .pending{color:#b45309;font-weight:bold}
+        .rejected{color:#dc2626;font-weight:bold}
+      </style></head><body>
+      <h2>👥 MB Mitra - Users & Retailers Directory</h2>
+      <div class="meta">Generated: ${new Date().toLocaleString()} | Total Users in Report: <strong>${filteredAndSortedUsers.length}</strong></div>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>User ID</th>
+            <th>Retailer ID</th>
+            <th>Name / Shop</th>
+            <th>Mobile</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Wallet (₹)</th>
+            <th>Status</th>
+            <th>Registered</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filteredAndSortedUsers.map((u, i) => `<tr>
+            <td>${i + 1}</td>
+            <td><strong>${u.userId || '-'}</strong></td>
+            <td>${u.retailerId || '-'}</td>
+            <td>${u.name || u.shopName || '-'}</td>
+            <td>${u.mobile || '-'}</td>
+            <td>${u.email || '-'}</td>
+            <td>${(u.role || 'customer').toUpperCase()}</td>
+            <td>₹${parseFloat(u.walletBalance || 0).toFixed(2)}</td>
+            <td class="${(u.status || 'Approved').toLowerCase()}">${(u.status || 'Approved').toUpperCase()}</td>
+            <td>${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </body></html>`);
+    w.document.close();
+    setTimeout(() => w.print(), 400);
   };
 
   const addUser = async () => {
@@ -4395,8 +4748,8 @@ const AdminPanel = () => {
                           const masterFields = currentTab.fields || [];
                           const isF94 = (f) => {
                             if (!f) return false;
-                            if (f.formType === 'Form 94') return true;
-                            if (f.formType === 'Form 93' || f.formType === 'Both') return false;
+                            if (f.formType === 'Form 94' || f.formType === 'Both') return true;
+                            if (f.formType === 'Form 93') return false;
                             const name = f.name || '';
                             return name.startsWith('comm') || name.startsWith('ra') || name.startsWith('verifier') || name === 'entityName' || name === 'dateOfIncorporation' || name === 'registrationNumber' || name === 'incomeSource' || name === 'proofOfIncorporation';
                           };
@@ -4697,8 +5050,8 @@ const AdminPanel = () => {
                           const masterFields = currentTab.fields || [];
                           const isF94 = (f) => {
                             if (!f) return false;
-                            if (f.formType === 'Form 94') return true;
-                            if (f.formType === 'Form 93' || f.formType === 'Both') return false;
+                            if (f.formType === 'Form 94' || f.formType === 'Both') return true;
+                            if (f.formType === 'Form 93') return false;
                             const name = f.name || '';
                             return name.startsWith('comm') || name.startsWith('ra') || name.startsWith('verifier') || name === 'entityName' || name === 'dateOfIncorporation' || name === 'registrationNumber' || name === 'incomeSource' || name === 'proofOfIncorporation';
                           };
@@ -5069,129 +5422,672 @@ const AdminPanel = () => {
             />
           )}
 
-          {/* User Management Tab */}
+          {/* User Management Tab (Redesigned for 100+ Users with Pagination, Filtering, and Table/Grid Views) */}
           {activeTab === 'users' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Pending Account Approval Requests Section */}
+            <div className="user-mgmt-container">
+              
+              {/* Summary Metric KPI Cards */}
+              <div className="user-stat-grid">
+                <div className="user-stat-card">
+                  <div className="user-stat-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>👥</div>
+                  <div className="user-stat-info">
+                    <span className="user-stat-label">Total Users</span>
+                    <span className="user-stat-value">{users.length}</span>
+                  </div>
+                </div>
+
+                <div className="user-stat-card">
+                  <div className="user-stat-icon" style={{ background: '#f0fdf4', color: '#15803d' }}>✅</div>
+                  <div className="user-stat-info">
+                    <span className="user-stat-label">Approved Users</span>
+                    <span className="user-stat-value" style={{ color: '#15803d' }}>
+                      {users.filter(u => (u.status || 'Approved') === 'Approved').length}
+                    </span>
+                  </div>
+                </div>
+
+                <div 
+                  className="user-stat-card" 
+                  style={{ 
+                    border: users.filter(u => u.status === 'Pending').length > 0 ? '1.5px solid #f59e0b' : undefined,
+                    cursor: users.filter(u => u.status === 'Pending').length > 0 ? 'pointer' : 'default'
+                  }}
+                  onClick={() => {
+                    if (users.filter(u => u.status === 'Pending').length > 0) {
+                      setUserStatusFilter('Pending');
+                      setUserPage(1);
+                    }
+                  }}
+                  title={users.filter(u => u.status === 'Pending').length > 0 ? 'Click to filter pending requests' : ''}
+                >
+                  <div className="user-stat-icon" style={{ background: '#fffbeb', color: '#d97706' }}>⏳</div>
+                  <div className="user-stat-info">
+                    <span className="user-stat-label">Pending Approval</span>
+                    <span className="user-stat-value" style={{ color: users.filter(u => u.status === 'Pending').length > 0 ? '#b45309' : '#64748b' }}>
+                      {users.filter(u => u.status === 'Pending').length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="user-stat-card">
+                  <div className="user-stat-icon" style={{ background: '#fef2f2', color: '#dc2626' }}>❌</div>
+                  <div className="user-stat-info">
+                    <span className="user-stat-label">Rejected Accounts</span>
+                    <span className="user-stat-value" style={{ color: '#dc2626' }}>
+                      {users.filter(u => u.status === 'Rejected').length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="user-stat-card">
+                  <div className="user-stat-icon" style={{ background: '#faf5ff', color: '#7c3aed' }}>💰</div>
+                  <div className="user-stat-info">
+                    <span className="user-stat-label">Retailer Balances</span>
+                    <span className="user-stat-value" style={{ color: '#7c3aed', fontSize: '18px' }}>
+                      ₹{users.reduce((sum, u) => sum + (parseFloat(u.walletBalance) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pending Approvals Attention Banner */}
               {users.filter(u => u.status === 'Pending').length > 0 && (
-                <div className="admin-card" style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '14px', padding: '20px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '24px' }}>⏳</span>
-                      <div>
-                        <h3 style={{ margin: 0, color: '#92400e', fontSize: '18px', fontWeight: '800' }}>
-                          Pending Account Approval Requests ({users.filter(u => u.status === 'Pending').length})
-                        </h3>
-                        <p style={{ margin: '2px 0 0 0', color: '#b45309', fontSize: '13px' }}>
-                          The following users registered online and are waiting for administrative approval to access their accounts.
-                        </p>
+                <div style={{ background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)', border: '1.5px solid #fde68a', borderRadius: '14px', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', boxShadow: '0 2px 8px rgba(245,158,11,0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '26px' }}>⏳</span>
+                    <div>
+                      <strong style={{ color: '#92400e', fontSize: '15px' }}>
+                        {users.filter(u => u.status === 'Pending').length} Registration Approval Request(s) Pending!
+                      </strong>
+                      <div style={{ color: '#b45309', fontSize: '12.5px', marginTop: '2px' }}>
+                        Review new user registrations waiting for administrative approval to access their accounts.
                       </div>
                     </div>
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}>
-                    {users.filter(u => u.status === 'Pending').map(u => (
-                      <div key={u._id} style={{ background: '#ffffff', border: '1px solid #fcd34d', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 6px rgba(245,158,11,0.08)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <div>
-                            <div style={{ fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>👤 {u.userId}</div>
-                            <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>📱 {u.mobile || 'No Mobile'}</div>
-                            {u.email && <div style={{ fontSize: '12px', color: '#64748b' }}>✉️ {u.email}</div>}
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                              Registered: {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : 'Recent'} | Retailer ID: {u.retailerId || 'MBM-Auto'}
-                            </div>
-                          </div>
-                          <span style={{ background: '#fef3c7', color: '#b45309', fontSize: '11px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px' }}>
-                            PENDING
-                          </span>
-                        </div>
-                        {hasStaffActionAccess('users.approve') && (
-                          <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
-                            <button
-                              onClick={() => updateUserStatus(u._id, 'Approved')}
-                              style={{ flex: 1, padding: '8px 12px', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                            >
-                              <span>✓</span> Approve User
-                            </button>
-                            <button
-                              onClick={() => updateUserStatus(u._id, 'Rejected')}
-                              style={{ padding: '8px 14px', background: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
-                            >
-                              ✕ Reject
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <button 
+                    onClick={() => {
+                      setUserStatusFilter('Pending');
+                      setUserPage(1);
+                    }}
+                    style={{ padding: '7px 14px', background: '#d97706', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '12.5px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 2px 6px rgba(217,119,6,0.25)' }}
+                  >
+                    🔍 View Pending Users Only
+                  </button>
                 </div>
               )}
 
-              <div className="admin-panel-grid" style={{ gridTemplateColumns: hasStaffActionAccess('users.create') ? undefined : '1fr' }}>
-                {hasStaffActionAccess('users.create') && (
-                  <div className="admin-card form-card">
-                    <h3>Create New User</h3>
-                    <form className="modern-form" autoComplete="off" onSubmit={(e) => e.preventDefault()}>
-                      <input type="text" placeholder="User ID (e.g. MBM000012)" value={userForm.userId} onChange={e => setUserForm({...userForm, userId: e.target.value})} autoComplete="off" />
-                      <input type="email" placeholder="Email Address" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} autoComplete="off" />
-                      <input type="text" placeholder="Mobile Number (10 digits)" value={userForm.mobile} onChange={e => setUserForm({...userForm, mobile: e.target.value})} autoComplete="off" />
-                      <button type="button" className="modern-submit-btn" onClick={addUser}>Create User</button>
-                    </form>
+              {/* Main Toolbar & Filter Bar */}
+              <div className="user-toolbar">
+                <div className="user-toolbar-top">
+                  <div className="user-toolbar-title-group">
+                    <h3>
+                      <span>👥</span> User & Retailer Management
+                      <span style={{ fontSize: '12px', background: '#eff6ff', color: '#2563eb', padding: '2px 8px', borderRadius: '12px', fontWeight: 800 }}>
+                        {filteredAndSortedUsers.length} {filteredAndSortedUsers.length === 1 ? 'User' : 'Users'}
+                      </span>
+                    </h3>
+                    <p>Search, manage permissions, approve accounts, inspect wallet balances, and view receipts for all retailers</p>
                   </div>
-                )}
-                <div className="admin-card list-card" style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f3f4f6', paddingBottom: '10px' }}>
-                    <h3 style={{ margin: 0, border: 'none', padding: 0 }}>Existing Users</h3>
-                    <input 
-                      type="text" 
-                      placeholder="Search by ID or Mobile..." 
-                      value={userSearch} 
-                      onChange={(e) => setUserSearch(e.target.value)} 
-                      style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '14px', outline: 'none', width: '200px' }}
-                    />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px', overflowY: 'auto', maxHeight: '550px', paddingRight: '10px' }}>
-                    {users.filter(u => u.userId.toLowerCase().includes(userSearch.toLowerCase()) || (u.mobile && u.mobile.includes(userSearch))).map(u => (
-                      <div className="list-item" key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <strong style={{ fontSize: '16px', color: '#1e293b' }}>👤 {u.userId}</strong>
-                          <span style={{ fontSize: '13px', color: '#64748b' }}>📱 {u.mobile || 'No Mobile'}</span>
-                          {u.status === 'Pending' ? (
-                            <span style={{ background: '#ffedd5', color: '#c2410c', fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', width: 'fit-content' }}>⏳ Pending Approval</span>
-                          ) : u.status === 'Rejected' ? (
-                            <span style={{ background: '#fee2e2', color: '#b91c1c', fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', width: 'fit-content' }}>✕ Rejected</span>
-                          ) : (
-                            <span style={{ background: '#dcfce7', color: '#15803d', fontSize: '11px', fontWeight: '800', padding: '2px 8px', borderRadius: '6px', width: 'fit-content' }}>✓ Approved</span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-                          {hasStaffActionAccess('users.approve') && u.status === 'Pending' && (
-                            <button
-                              onClick={() => updateUserStatus(u._id, 'Approved')}
-                              style={{ padding: '6px 12px', background: '#10b981', color: '#ffffff', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
-                            >
-                              Approve
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setPanRetailerFilter(u.userId);
-                              setActiveTab('panSubmissions');
-                            }}
-                            style={{ padding: '5px 9px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', borderRadius: '6px', fontSize: '11.5px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                            title={`View filings & send receipts for ${u.userId}`}
-                          >
-                            <span>📄</span> Receipts
-                          </button>
-                          {hasStaffActionAccess('users.delete') && (
-                            <button className="modern-delete-btn" onClick={() => deleteItem(`${API_URL}/api/users`, u._id)} style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '12px' }}>Remove</button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {users.length === 0 && <p style={{ color: '#888', padding: '20px' }}>No users found.</p>}
+
+                  <div className="user-toolbar-actions">
+                    <button onClick={fetchAll} className="user-btn user-btn-secondary" title="Refresh Users List">
+                      🔄 Refresh
+                    </button>
+                    <button onClick={handleExportUsersCSV} className="user-btn user-btn-secondary" title="Export to Excel / CSV">
+                      📥 Export CSV
+                    </button>
+                    <button onClick={handlePrintUsersList} className="user-btn user-btn-secondary" title="Print Users Directory">
+                      🖨️ Print
+                    </button>
+                    {hasStaffActionAccess('users.create') && (
+                      <button onClick={handleOpenCreateUser} className="user-btn user-btn-primary">
+                        ➕ Add New User
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Filter Controls Row */}
+                <div className="user-filter-row">
+                  {/* Search Input */}
+                  <div className="user-search-wrapper">
+                    <span className="user-search-icon">🔍</span>
+                    <input 
+                      type="text" 
+                      className="user-search-input"
+                      placeholder="Search User ID, Retailer ID, Name, Mobile, Email..."
+                      value={userSearch}
+                      onChange={(e) => {
+                        setUserSearch(e.target.value);
+                        setUserPage(1);
+                      }}
+                    />
+                    {userSearch && (
+                      <button 
+                        onClick={() => { setUserSearch(''); setUserPage(1); }}
+                        style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer', fontWeight: 800, fontSize: '13px' }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Status Filter */}
+                  <select 
+                    className="user-filter-select"
+                    value={userStatusFilter}
+                    onChange={(e) => {
+                      setUserStatusFilter(e.target.value);
+                      setUserPage(1);
+                    }}
+                  >
+                    <option value="All">All Statuses</option>
+                    <option value="Approved">✓ Approved</option>
+                    <option value="Pending">⏳ Pending Approval</option>
+                    <option value="Rejected">✕ Rejected</option>
+                  </select>
+
+                  {/* Role Filter */}
+                  <select 
+                    className="user-filter-select"
+                    value={userRoleFilter}
+                    onChange={(e) => {
+                      setUserRoleFilter(e.target.value);
+                      setUserPage(1);
+                    }}
+                  >
+                    <option value="All">All Roles</option>
+                    <option value="retailer">Retailer</option>
+                    <option value="customer">Customer</option>
+                    <option value="admin">Admin</option>
+                  </select>
+
+                  {/* Sort By */}
+                  <select 
+                    className="user-filter-select"
+                    value={userSortBy}
+                    onChange={(e) => setUserSortBy(e.target.value)}
+                  >
+                    <option value="newest">Sort: Newest First</option>
+                    <option value="oldest">Sort: Oldest First</option>
+                    <option value="userId">Sort: User ID (A-Z)</option>
+                    <option value="name">Sort: Name (A-Z)</option>
+                    <option value="balanceHigh">Sort: Highest Wallet</option>
+                    <option value="balanceLow">Sort: Lowest Wallet</option>
+                  </select>
+
+                  {/* Page Size */}
+                  <select 
+                    className="user-filter-select"
+                    style={{ minWidth: '100px' }}
+                    value={userPageSize}
+                    onChange={(e) => {
+                      setUserPageSize(Number(e.target.value));
+                      setUserPage(1);
+                    }}
+                  >
+                    <option value={10}>10 / page</option>
+                    <option value={15}>15 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
+                  </select>
+
+                  {/* View Mode Toggle */}
+                  <div className="user-view-toggle">
+                    <button 
+                      className={`user-view-btn ${userViewMode === 'TABLE' ? 'active' : ''}`}
+                      onClick={() => setUserViewMode('TABLE')}
+                      title="Table View (Compact & Detailed)"
+                    >
+                      📋 Table
+                    </button>
+                    <button 
+                      className={`user-view-btn ${userViewMode === 'GRID' ? 'active' : ''}`}
+                      onClick={() => setUserViewMode('GRID')}
+                      title="Grid Cards View"
+                    >
+                      🔲 Cards
+                    </button>
+                  </div>
+
+                  {/* Reset Filters */}
+                  {(userSearch || userStatusFilter !== 'All' || userRoleFilter !== 'All' || userSortBy !== 'newest') && (
+                    <button 
+                      onClick={() => {
+                        setUserSearch('');
+                        setUserStatusFilter('All');
+                        setUserRoleFilter('All');
+                        setUserSortBy('newest');
+                        setUserPage(1);
+                      }}
+                      style={{ padding: '8px 12px', background: '#ffffff', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ↺ Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Data Presentation Container */}
+              <div className="user-table-card">
+                {paginatedUsers.length === 0 ? (
+                  <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+                    <div style={{ fontSize: '48px', marginBottom: '12px' }}>👥</div>
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#1e293b' }}>No users found</h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
+                      {userSearch || userStatusFilter !== 'All' || userRoleFilter !== 'All' 
+                        ? 'No users match your active filters. Try adjusting search or filter options.'
+                        : 'No users registered yet in the system.'}
+                    </p>
+                    {(userSearch || userStatusFilter !== 'All' || userRoleFilter !== 'All') && (
+                      <button 
+                        onClick={() => {
+                          setUserSearch('');
+                          setUserStatusFilter('All');
+                          setUserRoleFilter('All');
+                        }}
+                        style={{ marginTop: '16px', padding: '8px 16px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Clear All Filters
+                      </button>
+                    )}
+                  </div>
+                ) : userViewMode === 'TABLE' ? (
+                  /* ================= TABLE VIEW ================= */
+                  <div className="user-table-scroll">
+                    <table className="user-data-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '50px' }}>#</th>
+                          <th>User &amp; Retailer ID</th>
+                          <th>Name / Shop</th>
+                          <th>Contact Details</th>
+                          <th>Role</th>
+                          <th>Wallet Balance</th>
+                          <th>Status</th>
+                          <th>Registered</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedUsers.map((u, index) => {
+                          const status = u.status || 'Approved';
+                          const role = u.role || 'customer';
+                          const initials = (u.name || u.userId || 'U').slice(0, 2).toUpperCase();
+                          const walletVal = parseFloat(u.walletBalance || 0);
+
+                          return (
+                            <tr key={u._id || index}>
+                              {/* Index */}
+                              <td style={{ fontWeight: 600, color: '#94a3b8' }}>
+                                {userStartIndex + index + 1}
+                              </td>
+
+                              {/* User ID & Retailer ID */}
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div className="user-avatar" title={u.userId}>
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      {u.userId}
+                                    </div>
+                                    <div style={{ marginTop: '2px' }}>
+                                      <span className="user-id-badge">
+                                        {u.retailerId || 'MBM-Retailer'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Name & Shop */}
+                              <td>
+                                <div>
+                                  <div style={{ fontWeight: 700, color: '#1e293b' }}>
+                                    {u.name || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No Name</span>}
+                                  </div>
+                                  {u.shopName && (
+                                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                      🏪 {u.shopName}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Contact */}
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                                    📱 {u.mobile || <span style={{ color: '#94a3b8' }}>No Mobile</span>}
+                                  </div>
+                                  {u.email && (
+                                    <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                                      ✉️ {u.email}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Role */}
+                              <td>
+                                <span className={`user-role-badge ${role === 'retailer' ? 'user-role-retailer' : role === 'admin' ? 'user-role-admin' : 'user-role-customer'}`}>
+                                  {role}
+                                </span>
+                              </td>
+
+                              {/* Wallet Balance */}
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontWeight: 900, color: walletVal >= 0 ? '#15803d' : '#dc2626', fontSize: '13.5px' }}>
+                                    ₹{walletVal.toFixed(2)}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      setSelectedRetailer(u);
+                                      setActiveTab('ledgerHistory');
+                                    }}
+                                    style={{ border: 'none', background: '#f0fdf4', color: '#166534', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 800, cursor: 'pointer' }}
+                                    title="View Wallet Ledger / Adjust Funds"
+                                  >
+                                    💳 Adjust
+                                  </button>
+                                </div>
+                              </td>
+
+                              {/* Status */}
+                              <td>
+                                {status === 'Pending' ? (
+                                  <span className="user-status-pill user-status-pending">
+                                    ⏳ Pending
+                                  </span>
+                                ) : status === 'Rejected' ? (
+                                  <span className="user-status-pill user-status-rejected">
+                                    ✕ Rejected
+                                  </span>
+                                ) : (
+                                  <span className="user-status-pill user-status-approved">
+                                    ✓ Approved
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Registered Date */}
+                              <td style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                                {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                              </td>
+
+                              {/* Actions */}
+                              <td>
+                                <div className="user-actions-cell" style={{ justifyContent: 'flex-end' }}>
+                                  {/* Quick Approve / Reject for Pending */}
+                                  {hasStaffActionAccess('users.approve') && status === 'Pending' && (
+                                    <>
+                                      <button 
+                                        className="user-mini-btn user-mini-btn-approve"
+                                        onClick={() => updateUserStatus(u._id, 'Approved')}
+                                        title="Approve User Registration"
+                                      >
+                                        ✓ Approve
+                                      </button>
+                                      <button 
+                                        className="user-mini-btn user-mini-btn-reject"
+                                        onClick={() => updateUserStatus(u._id, 'Rejected')}
+                                        title="Reject Registration"
+                                      >
+                                        ✕ Reject
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {/* View Profile */}
+                                  <button 
+                                    className="user-mini-btn user-mini-btn-view"
+                                    onClick={() => handleOpenViewUser(u)}
+                                    title="View Full Profile Details"
+                                  >
+                                    👁️ View
+                                  </button>
+
+                                  {/* Receipts / Filings */}
+                                  <button 
+                                    className="user-mini-btn user-mini-btn-receipts"
+                                    onClick={() => {
+                                      setPanRetailerFilter(u.userId);
+                                      setActiveTab('panSubmissions');
+                                    }}
+                                    title={`View PAN submissions & send receipts for ${u.userId}`}
+                                  >
+                                    📄 Receipts
+                                  </button>
+
+                                  {/* Edit Profile */}
+                                  <button 
+                                    className="user-mini-btn user-mini-btn-edit"
+                                    onClick={() => handleOpenEditUser(u)}
+                                    title="Edit User Information"
+                                  >
+                                    ✏️ Edit
+                                  </button>
+
+                                  {/* Remove / Delete */}
+                                  {hasStaffActionAccess('users.delete') && (
+                                    <button 
+                                      className="user-mini-btn user-mini-btn-delete"
+                                      onClick={() => deleteItem(`${API_URL}/api/users`, u._id)}
+                                      title="Delete User Account"
+                                    >
+                                      🗑️
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  /* ================= GRID CARDS VIEW ================= */
+                  <div className="user-grid-container">
+                    {paginatedUsers.map((u, index) => {
+                      const status = u.status || 'Approved';
+                      const role = u.role || 'customer';
+                      const initials = (u.name || u.userId || 'U').slice(0, 2).toUpperCase();
+                      const walletVal = parseFloat(u.walletBalance || 0);
+
+                      return (
+                        <div key={u._id || index} className="user-grid-card">
+                          <div className="user-grid-card-top">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div className="user-avatar">
+                                {initials}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>
+                                  {u.userId}
+                                </div>
+                                <div style={{ marginTop: '2px' }}>
+                                  <span className="user-id-badge">
+                                    {u.retailerId || 'MBM-Retailer'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              {status === 'Pending' ? (
+                                <span className="user-status-pill user-status-pending">⏳ Pending</span>
+                              ) : status === 'Rejected' ? (
+                                <span className="user-status-pill user-status-rejected">✕ Rejected</span>
+                              ) : (
+                                <span className="user-status-pill user-status-approved">✓ Approved</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12.5px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: '#64748b' }}>Name:</span>
+                              <strong style={{ color: '#1e293b' }}>{u.name || '—'}</strong>
+                            </div>
+                            {u.shopName && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#64748b' }}>Shop:</span>
+                                <span style={{ color: '#334155', fontWeight: 600 }}>{u.shopName}</span>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ color: '#64748b' }}>Mobile:</span>
+                              <strong style={{ color: '#334155' }}>{u.mobile || '—'}</strong>
+                            </div>
+                            {u.email && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ color: '#64748b' }}>Email:</span>
+                                <span style={{ color: '#334155', wordBreak: 'break-all', maxWidth: '180px' }}>{u.email}</span>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', borderTop: '1px solid #e2e8f0', paddingTop: '4px' }}>
+                              <span style={{ color: '#64748b', fontWeight: 700 }}>Wallet:</span>
+                              <strong style={{ color: '#15803d', fontSize: '13.5px' }}>₹{walletVal.toFixed(2)}</strong>
+                            </div>
+                          </div>
+
+                          {/* Card Actions */}
+                          <div className="user-grid-card-actions">
+                            {hasStaffActionAccess('users.approve') && status === 'Pending' && (
+                              <>
+                                <button 
+                                  className="user-mini-btn user-mini-btn-approve"
+                                  onClick={() => updateUserStatus(u._id, 'Approved')}
+                                  style={{ flex: '1 1 45%' }}
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button 
+                                  className="user-mini-btn user-mini-btn-reject"
+                                  onClick={() => updateUserStatus(u._id, 'Rejected')}
+                                  style={{ flex: '1 1 45%' }}
+                                >
+                                  ✕ Reject
+                                </button>
+                              </>
+                            )}
+
+                            <button 
+                              className="user-mini-btn user-mini-btn-view"
+                              onClick={() => handleOpenViewUser(u)}
+                              style={{ flex: '1 1 30%' }}
+                            >
+                              👁️ View
+                            </button>
+
+                            <button 
+                              className="user-mini-btn user-mini-btn-receipts"
+                              onClick={() => {
+                                setPanRetailerFilter(u.userId);
+                                setActiveTab('panSubmissions');
+                              }}
+                              style={{ flex: '1 1 30%' }}
+                            >
+                              📄 Receipts
+                            </button>
+
+                            <button 
+                              className="user-mini-btn user-mini-btn-edit"
+                              onClick={() => handleOpenEditUser(u)}
+                              style={{ flex: '1 1 30%' }}
+                            >
+                              ✏️ Edit
+                            </button>
+
+                            {hasStaffActionAccess('users.delete') && (
+                              <button 
+                                className="user-mini-btn user-mini-btn-delete"
+                                onClick={() => deleteItem(`${API_URL}/api/users`, u._id)}
+                                style={{ flex: '0 0 auto' }}
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Pagination Controls */}
+                {filteredAndSortedUsers.length > 0 && (
+                  <div className="user-pagination-bar">
+                    <div className="user-pagination-info">
+                      Showing <strong>{userStartIndex + 1}</strong> to <strong>{Math.min(userStartIndex + userPageSize, filteredAndSortedUsers.length)}</strong> of <strong>{filteredAndSortedUsers.length}</strong> users
+                      {filteredAndSortedUsers.length !== users.length && ` (filtered from ${users.length} total)`}
+                    </div>
+
+                    <div className="user-pagination-nav">
+                      <button 
+                        className="user-page-btn"
+                        onClick={() => setUserPage(1)}
+                        disabled={currentUserPage === 1}
+                        title="First Page"
+                      >
+                        «
+                      </button>
+                      <button 
+                        className="user-page-btn"
+                        onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                        disabled={currentUserPage === 1}
+                        title="Previous Page"
+                      >
+                        ‹
+                      </button>
+
+                      {/* Dynamic Page Numbers */}
+                      {Array.from({ length: totalUserPages }, (_, i) => i + 1)
+                        .filter(pageNum => {
+                          return pageNum === 1 ||
+                            pageNum === totalUserPages ||
+                            Math.abs(pageNum - currentUserPage) <= 2;
+                        })
+                        .map((pageNum, idx, arr) => {
+                          const prev = arr[idx - 1];
+                          return (
+                            <React.Fragment key={pageNum}>
+                              {prev && pageNum - prev > 1 && (
+                                <span style={{ padding: '0 4px', color: '#94a3b8' }}>...</span>
+                              )}
+                              <button 
+                                className={`user-page-btn ${currentUserPage === pageNum ? 'active' : ''}`}
+                                onClick={() => setUserPage(pageNum)}
+                              >
+                                {pageNum}
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+
+                      <button 
+                        className="user-page-btn"
+                        onClick={() => setUserPage(p => Math.min(totalUserPages, p + 1))}
+                        disabled={currentUserPage >= totalUserPages}
+                        title="Next Page"
+                      >
+                        ›
+                      </button>
+                      <button 
+                        className="user-page-btn"
+                        onClick={() => setUserPage(totalUserPages)}
+                        disabled={currentUserPage >= totalUserPages}
+                        title="Last Page"
+                      >
+                        »
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -6375,6 +7271,10 @@ const AdminPanel = () => {
             <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12.5px' }}>
               {(() => {
                 const d = selectedPanAppForModal.details || {};
+                const catStr = String(d.category || selectedPanAppForModal.category || d.applicantStatus || selectedPanAppForModal.applicantStatus || '').toUpperCase();
+                const nonIndTypes = ['COMPANY', 'FIRM', 'TRUST', 'HUF', 'HINDU', 'ASSOCIATION', 'AOP', 'BODY', 'BOI', 'LOCAL', 'ARTIFICIAL', 'AJP', 'GOVERNMENT', 'LIMITED', 'LLP'];
+                const isNonIndiv = nonIndTypes.some(t => catStr.includes(t)) || (catStr !== '' && catStr !== 'INDIVIDUAL');
+
                 const appStatus = (selectedPanAppForModal.status || 'Submitted').toUpperCase();
                 const statusColor = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? '#10b981' : appStatus === 'REJECTED' ? '#ef4444' : '#f59e0b';
                 const statusBg = appStatus === 'APPROVED' || appStatus === 'COMPLETED' ? 'rgba(16, 185, 129, 0.15)' : appStatus === 'REJECTED' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)';
@@ -6415,114 +7315,184 @@ const AdminPanel = () => {
 
                     {/* 2-Column Responsive Dashboard */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', gap: '10px' }}>
-                      
-                      {/* Left Column: Personal Particulars & Parents */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {/* Personal Particulars */}
-                        <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                          <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>👤</span> <span>Personal Particulars</span>
-                          </h5>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: '#cbd5e1', fontSize: '12px' }}>
-                            <div><span style={{ color: '#94a3b8' }}>Title:</span> <strong style={{ color: '#f8fafc' }}>{d.title || selectedPanAppForModal.title || 'SHRI'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Gender:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.gender || d.gender || 'Male'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Last Name:</span> <strong style={{ color: '#f8fafc' }}>{d.lastName || selectedPanAppForModal.applicantName || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>DOB:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.dob || d.dob || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>First Name:</span> <strong style={{ color: '#f8fafc' }}>{d.firstName || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Aadhaar:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.aadhaarNumber || d.aadhaarNumber || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Middle Name:</span> <strong style={{ color: '#f8fafc' }}>{d.middleName || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Mobile:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.mobileNumber || '—'}</strong></div>
-                            <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94a3b8' }}>Email:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.email || '—'}</strong></div>
-                          </div>
-                        </div>
-
-                        {/* Parents Details */}
-                        <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                          <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>👨‍👩‍👦</span> <span>Parents Details</span>
-                          </h5>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: '#cbd5e1', fontSize: '12px' }}>
-                            <div><span style={{ color: '#94a3b8' }}>Father's Name:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.fatherName || `${d.fatherFirstName || ''} ${d.fatherLastName || ''}`.trim() || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Mother's Name:</span> <strong style={{ color: '#f8fafc' }}>{`${d.motherFirstName || ''} ${d.motherLastName || ''}`.trim() || '—'}</strong></div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Column: Address, AO Code & Attachments */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {/* Residence Address */}
-                        <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                          <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>🏠</span> <span>Residence Address</span>
-                          </h5>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: '#cbd5e1', fontSize: '12px' }}>
-                            <div><span style={{ color: '#94a3b8' }}>Flat/Door:</span> <strong style={{ color: '#e2e8f0' }}>{d.flatNo || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Building:</span> <strong style={{ color: '#e2e8f0' }}>{d.premises || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Street:</span> <strong style={{ color: '#e2e8f0' }}>{d.roadStreet || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Area:</span> <strong style={{ color: '#e2e8f0' }}>{d.areaTaluka || '—'}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>District:</span> <strong style={{ color: '#38bdf8' }}>{(d.district && d.district !== 'SELECT') ? d.district : (selectedPanAppForModal.district || '—')}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>State:</span> <strong style={{ color: '#38bdf8' }}>{(d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedPanAppForModal.state || 'MAHARASHTRA')}</strong></div>
-                            <div><span style={{ color: '#94a3b8' }}>Pincode:</span> <strong style={{ color: '#f8fafc' }}>{d.pincode || '—'}</strong></div>
-                          </div>
-                        </div>
-
-                        {/* AO Code Details */}
-                        <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                          <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>🏢</span> <span>AO Code Details</span>
-                          </h5>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', textAlign: 'center' }}>
-                            <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                              <div style={{ fontSize: '10px', color: '#94a3b8' }}>Area</div>
-                              <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoAreaCode || 'MUM'}</strong>
-                            </div>
-                            <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                              <div style={{ fontSize: '10px', color: '#94a3b8' }}>Type</div>
-                              <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoType || 'C'}</strong>
-                            </div>
-                            <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                              <div style={{ fontSize: '10px', color: '#94a3b8' }}>Range</div>
-                              <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoRangeCode || '11'}</strong>
-                            </div>
-                            <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                              <div style={{ fontSize: '10px', color: '#94a3b8' }}>AO No</div>
-                              <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoNo || '1'}</strong>
-                            </div>
-                            <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
-                              <div style={{ fontSize: '10px', color: '#94a3b8' }}>City</div>
-                              <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoCity || d.district || 'MUMBAI'}</strong>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Photo & Signature Attachments */}
-                        <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                          <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>🖼️</span> <span>Attachments</span>
-                          </h5>
-                          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                            {(selectedPanAppForModal.photoUrl || d.photoUrl) && (
-                              <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Photo</div>
-                                <img src={selectedPanAppForModal.photoUrl || d.photoUrl} alt="Photo" onClick={() => window.open(selectedPanAppForModal.photoUrl || d.photoUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full photo" />
+                      {isNonIndiv ? (
+                        <>
+                          {/* Non-Individual Left Column: Entity Particulars & Authorized Signatory */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🏢</span> <span>Entity Particulars</span>
+                              </h5>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: '#cbd5e1', fontSize: '12px' }}>
+                                <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94a3b8' }}>Entity Name:</span> <strong style={{ color: '#f8fafc' }}>{d.entityName || selectedPanAppForModal.applicantName || d.lastName || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Category:</span> <strong style={{ color: '#38bdf8' }}>{catStr || 'COMPANY'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Date of Incorp:</span> <strong style={{ color: '#f8fafc' }}>{d.dateOfIncorporation || selectedPanAppForModal.dob || d.dob || '—'}</strong></div>
+                                <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94a3b8' }}>Reg / CIN / LLPIN:</span> <strong style={{ color: '#f8fafc' }}>{d.registrationNumber || d.cin || d.llpin || '—'}</strong></div>
+                                {(selectedPanAppForModal.panNumber || d.panNumber) && (
+                                  <div><span style={{ color: '#94a3b8' }}>Existing PAN:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.panNumber || d.panNumber}</strong></div>
+                                )}
+                                <div><span style={{ color: '#94a3b8' }}>Mobile:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.mobileNumber || d.mobileNumber || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Email:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.email || d.email || '—'}</strong></div>
+                                <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94a3b8' }}>Income Source:</span> <strong style={{ color: '#f8fafc' }}>{d.incomeSource || d.sourceOfIncome || d.sourceofincome || 'BUSINESS / PROFESSION'}</strong></div>
                               </div>
-                            )}
-                            {(selectedPanAppForModal.signatureUrl || d.signatureUrl) && (
-                              <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Signature</div>
-                                <img src={selectedPanAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedPanAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '120px', height: '50px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full signature" />
-                              </div>
-                            )}
-                            {(d.raPhotoUrl || d.proofOfOtherUrl) && (
-                              <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Guardian</div>
-                                <img src={d.raPhotoUrl || d.proofOfOtherUrl} alt="RA Photo" onClick={() => window.open(d.raPhotoUrl || d.proofOfOtherUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #f97316', cursor: 'pointer' }} title="Click to view full photo" />
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                            </div>
 
-                      </div>
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>✍️</span> <span>Authorized Signatory</span>
+                              </h5>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: '#cbd5e1', fontSize: '12px' }}>
+                                <div><span style={{ color: '#94a3b8' }}>Signatory Name:</span> <strong style={{ color: '#f8fafc' }}>{d.verifierName || d.raName || selectedPanAppForModal.fatherName || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Designation:</span> <strong style={{ color: '#f8fafc' }}>{d.verifierCapacity || d.designation || 'DIRECTOR'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Place:</span> <strong style={{ color: '#f8fafc' }}>{d.verifierPlace || d.place || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Date:</span> <strong style={{ color: '#f8fafc' }}>{d.verifierDate || d.date || '—'}</strong></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Non-Individual Right Column: Office Address & Seal/Signature */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🏢</span> <span>Registered / Office Address</span>
+                              </h5>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: '#cbd5e1', fontSize: '12px' }}>
+                                <div><span style={{ color: '#94a3b8' }}>Flat/Door:</span> <strong style={{ color: '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.flatNo) || d.flatNo || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Building:</span> <strong style={{ color: '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.premises) || d.premises || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Street:</span> <strong style={{ color: '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.roadStreet) || d.roadStreet || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Area:</span> <strong style={{ color: '#e2e8f0' }}>{(d.officeAddress && d.officeAddress.areaTaluka) || d.areaTaluka || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>District:</span> <strong style={{ color: '#38bdf8' }}>{(d.officeAddress && d.officeAddress.district) || ((d.district && d.district !== 'SELECT') ? d.district : (selectedPanAppForModal.district || '—'))}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>State:</span> <strong style={{ color: '#38bdf8' }}>{(d.officeAddress && d.officeAddress.state) || ((d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedPanAppForModal.state || 'MAHARASHTRA'))}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Pincode:</span> <strong style={{ color: '#f8fafc' }}>{(d.officeAddress && d.officeAddress.pincode) || d.pincode || '—'}</strong></div>
+                              </div>
+                            </div>
+
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🖼️</span> <span>Authorized Stamp & Signature</span>
+                              </h5>
+                              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                {(selectedPanAppForModal.signatureUrl || d.signatureUrl) && (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Authorized Stamp / Signature</div>
+                                    <img src={selectedPanAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedPanAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '150px', height: '65px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full signature" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Individual Left Column: Personal Particulars & Parents */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {/* Personal Particulars */}
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>👤</span> <span>Personal Particulars</span>
+                              </h5>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', color: '#cbd5e1', fontSize: '12px' }}>
+                                <div><span style={{ color: '#94a3b8' }}>Title:</span> <strong style={{ color: '#f8fafc' }}>{d.title || selectedPanAppForModal.title || 'SHRI'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Gender:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.gender || d.gender || 'Male'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Last Name:</span> <strong style={{ color: '#f8fafc' }}>{d.lastName || selectedPanAppForModal.applicantName || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>DOB:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.dob || d.dob || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>First Name:</span> <strong style={{ color: '#f8fafc' }}>{d.firstName || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Aadhaar:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.aadhaarNumber || d.aadhaarNumber || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Middle Name:</span> <strong style={{ color: '#f8fafc' }}>{d.middleName || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Mobile:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.mobileNumber || '—'}</strong></div>
+                                <div style={{ gridColumn: 'span 2' }}><span style={{ color: '#94a3b8' }}>Email:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.email || '—'}</strong></div>
+                              </div>
+                            </div>
+
+                            {/* Parents Details */}
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>👨‍👩‍👦</span> <span>Parents Details</span>
+                              </h5>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', color: '#cbd5e1', fontSize: '12px' }}>
+                                <div><span style={{ color: '#94a3b8' }}>Father's Name:</span> <strong style={{ color: '#f8fafc' }}>{selectedPanAppForModal.fatherName || `${d.fatherFirstName || ''} ${d.fatherLastName || ''}`.trim() || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Mother's Name:</span> <strong style={{ color: '#f8fafc' }}>{`${d.motherFirstName || ''} ${d.motherLastName || ''}`.trim() || '—'}</strong></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Individual Right Column: Address, AO Code & Attachments */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {/* Residence Address */}
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 8px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🏠</span> <span>Residence Address</span>
+                              </h5>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px', color: '#cbd5e1', fontSize: '12px' }}>
+                                <div><span style={{ color: '#94a3b8' }}>Flat/Door:</span> <strong style={{ color: '#e2e8f0' }}>{d.flatNo || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Building:</span> <strong style={{ color: '#e2e8f0' }}>{d.premises || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Street:</span> <strong style={{ color: '#e2e8f0' }}>{d.roadStreet || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Area:</span> <strong style={{ color: '#e2e8f0' }}>{d.areaTaluka || '—'}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>District:</span> <strong style={{ color: '#38bdf8' }}>{(d.district && d.district !== 'SELECT') ? d.district : (selectedPanAppForModal.district || '—')}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>State:</span> <strong style={{ color: '#38bdf8' }}>{(d.state && d.state !== 'PLEASE SELECT') ? d.state : (selectedPanAppForModal.state || 'MAHARASHTRA')}</strong></div>
+                                <div><span style={{ color: '#94a3b8' }}>Pincode:</span> <strong style={{ color: '#f8fafc' }}>{d.pincode || '—'}</strong></div>
+                              </div>
+                            </div>
+
+                            {/* AO Code Details */}
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🏢</span> <span>AO Code Details</span>
+                              </h5>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '6px', textAlign: 'center' }}>
+                                <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Area</div>
+                                  <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoAreaCode || 'MUM'}</strong>
+                                </div>
+                                <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Type</div>
+                                  <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoType || 'C'}</strong>
+                                </div>
+                                <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>Range</div>
+                                  <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoRangeCode || '11'}</strong>
+                                </div>
+                                <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>AO No</div>
+                                  <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoNo || '1'}</strong>
+                                </div>
+                                <div style={{ background: 'rgba(2, 132, 199, 0.15)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '5px 4px', borderRadius: '6px' }}>
+                                  <div style={{ fontSize: '10px', color: '#94a3b8' }}>City</div>
+                                  <strong style={{ color: '#38bdf8', fontSize: '12px' }}>{d.aoCity || d.district || 'MUMBAI'}</strong>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Photo & Signature Attachments */}
+                            <div style={{ background: 'rgba(15, 23, 42, 0.5)', padding: '10px 12px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                              <h5 style={{ margin: '0 0 6px 0', color: '#fb923c', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span>🖼️</span> <span>Attachments</span>
+                              </h5>
+                              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                {(selectedPanAppForModal.photoUrl || d.photoUrl) && (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Photo</div>
+                                    <img src={selectedPanAppForModal.photoUrl || d.photoUrl} alt="Photo" onClick={() => window.open(selectedPanAppForModal.photoUrl || d.photoUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full photo" />
+                                  </div>
+                                )}
+                                {(selectedPanAppForModal.signatureUrl || d.signatureUrl) && (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Signature</div>
+                                    <img src={selectedPanAppForModal.signatureUrl || d.signatureUrl} alt="Signature" onClick={() => window.open(selectedPanAppForModal.signatureUrl || d.signatureUrl, '_blank')} style={{ width: '120px', height: '50px', objectFit: 'contain', background: '#fff', padding: '4px', borderRadius: '6px', border: '1.5px solid #0284c7', cursor: 'pointer' }} title="Click to view full signature" />
+                                  </div>
+                                )}
+                                {(d.raPhotoUrl || d.proofOfOtherUrl) && (
+                                  <div style={{ textAlign: 'center' }}>
+                                    <div style={{ fontSize: '10.5px', color: '#94a3b8', marginBottom: '3px' }}>Guardian</div>
+                                    <img src={d.raPhotoUrl || d.proofOfOtherUrl} alt="RA Photo" onClick={() => window.open(d.raPhotoUrl || d.proofOfOtherUrl, '_blank')} style={{ width: '65px', height: '75px', objectFit: 'cover', borderRadius: '6px', border: '1.5px solid #f97316', cursor: 'pointer' }} title="Click to view full photo" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {(selectedPanAppForModal.additionalDocuments || []).length > 0 && (
@@ -6585,7 +7555,7 @@ const AdminPanel = () => {
                 onClick={() => handleDownloadPdf(selectedPanAppForModal)}
                 style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '12px' }}
               >
-                📄 Download Form 49A PDF
+                📄 {selectedPanAppForModal.applicationType?.toLowerCase()?.includes('correction') ? 'Download PAN CR PDF' : 'Download Form 49A PDF'}
               </button>
               <button
                 type="button"
@@ -7046,6 +8016,690 @@ const AdminPanel = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE NEW USER MODAL (MATCHING REGISTER PAGE FORM LAYOUT) */}
+      {isUserCreateModalOpen && (
+        <div className="staff-modal-overlay">
+          <div className="admin-reg-modal-box">
+            <div className="staff-modal-header" style={{ background: 'linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 100%)', borderBottom: '1.5px solid #FFEDD5' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="orange-logo-badge" style={{ width: '40px', height: '40px', margin: 0 }}>
+                  <img src={logoImg} alt="MB MITRA Logo" className="orange-badge-img" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0F172A' }}>Create Retailer Account</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748B' }}>Fill in details to register and activate retailer account as per standard registration</p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                className="staff-modal-close" 
+                onClick={() => setIsUserCreateModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCreateUser}>
+              <div className="staff-modal-body reg-custom-scrollbar" style={{ maxHeight: '74vh', overflowY: 'auto', padding: '18px 22px' }}>
+                
+                {/* 1. Personal & Business Details */}
+                <div className="admin-reg-section-card">
+                  <div className="admin-reg-section-header">
+                    <span className="admin-reg-section-num">1</span>
+                    <strong className="admin-reg-section-title">1. Personal &amp; Business Details</strong>
+                  </div>
+
+                  <div className="admin-reg-grid-2col">
+                    <div>
+                      <label className="admin-reg-field-label">Full Name (As per Aadhar Card) *</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        </span>
+                        <input
+                          type="text"
+                          value={createUserForm.fullName}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setCreateUserForm(prev => {
+                              const autoUserId = prev.userId ? prev.userId : (val ? val.toLowerCase().replace(/[^a-z0-9]/g, '') + (prev.mobile ? prev.mobile.slice(-4) : '') : '');
+                              return { ...prev, fullName: val, name: val, userId: prev.userId || autoUserId };
+                            });
+                          }}
+                          placeholder="Enter your full name"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="admin-reg-field-label">Mobile Number *</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                          </svg>
+                        </span>
+                        <input
+                          type="tel"
+                          maxLength="10"
+                          value={createUserForm.mobile}
+                          onChange={e => {
+                            const cleanMob = e.target.value.replace(/\D/g, '');
+                            setCreateUserForm(prev => {
+                              const autoUserId = (!prev.userId || prev.userId.startsWith('user_')) 
+                                ? (prev.fullName ? prev.fullName.toLowerCase().replace(/[^a-z0-9]/g, '') + cleanMob.slice(-4) : 'user_' + cleanMob.slice(-4)) 
+                                : prev.userId;
+                              return { ...prev, mobile: cleanMob, userId: autoUserId };
+                            });
+                          }}
+                          placeholder="Enter 10 digit mobile number"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-reg-grid-2col">
+                    <div>
+                      <label className="admin-reg-field-label">Shop Name *</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
+                          </svg>
+                        </span>
+                        <input
+                          type="text"
+                          value={createUserForm.shopName}
+                          onChange={e => setCreateUserForm({ ...createUserForm, shopName: e.target.value })}
+                          placeholder="Enter your shop name"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="admin-reg-field-label">E-Mail ID</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                            <polyline points="22,6 12,13 2,6" />
+                          </svg>
+                        </span>
+                        <input
+                          type="email"
+                          value={createUserForm.email}
+                          onChange={e => setCreateUserForm({ ...createUserForm, email: e.target.value })}
+                          placeholder="Enter your email address"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="admin-reg-field-label">Business Address *</label>
+                    <div className="admin-reg-input-wrapper">
+                      <span className="admin-reg-input-icon">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                      </span>
+                      <input
+                        type="text"
+                        value={createUserForm.businessAddress}
+                        onChange={e => setCreateUserForm({ ...createUserForm, businessAddress: e.target.value })}
+                        placeholder="Enter your complete business address"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Account Security */}
+                <div className="admin-reg-section-card">
+                  <div className="admin-reg-section-header">
+                    <span className="admin-reg-section-num">2</span>
+                    <strong className="admin-reg-section-title">2. Account Security</strong>
+                  </div>
+
+                  <div className="admin-reg-grid-2col">
+                    <div>
+                      <label className="admin-reg-field-label">Password *</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          </svg>
+                        </span>
+                        <input
+                          type={showCreateUserPassword ? "text" : "password"}
+                          value={createUserForm.password}
+                          onChange={e => setCreateUserForm({ ...createUserForm, password: e.target.value })}
+                          placeholder="Enter password"
+                          required
+                        />
+                        <span
+                          className="admin-reg-password-toggle"
+                          onClick={() => setShowCreateUserPassword(!showCreateUserPassword)}
+                          title={showCreateUserPassword ? "Hide password" : "Show password"}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            {showCreateUserPassword ? (
+                              <>
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                <line x1="1" y1="1" x2="23" y2="23" />
+                              </>
+                            ) : (
+                              <>
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </>
+                            )}
+                          </svg>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="admin-reg-field-label">Confirm Password *</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          </svg>
+                        </span>
+                        <input
+                          type={showCreateUserConfirmPassword ? "text" : "password"}
+                          value={createUserForm.confirmPassword}
+                          onChange={e => setCreateUserForm({ ...createUserForm, confirmPassword: e.target.value })}
+                          placeholder="Re-enter password"
+                          required
+                        />
+                        <span
+                          className="admin-reg-password-toggle"
+                          onClick={() => setShowCreateUserConfirmPassword(!showCreateUserConfirmPassword)}
+                          title={showCreateUserConfirmPassword ? "Hide password" : "Show password"}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            {showCreateUserConfirmPassword ? (
+                              <>
+                                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                                <line x1="1" y1="1" x2="23" y2="23" />
+                              </>
+                            ) : (
+                              <>
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </>
+                            )}
+                          </svg>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Account Configuration & Role */}
+                <div className="admin-reg-section-card">
+                  <div className="admin-reg-section-header">
+                    <span className="admin-reg-section-num">3</span>
+                    <strong className="admin-reg-section-title">3. Account Configuration &amp; Role</strong>
+                  </div>
+
+                  <div className="admin-reg-grid-2col">
+                    <div>
+                      <label className="admin-reg-field-label">User ID / Username</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="4" width="18" height="16" rx="2" />
+                            <circle cx="9" cy="10" r="2" />
+                            <line x1="15" y1="8" x2="17" y2="8" />
+                            <line x1="15" y1="12" x2="17" y2="12" />
+                            <line x1="7" y1="16" x2="17" y2="16" />
+                          </svg>
+                        </span>
+                        <input
+                          type="text"
+                          value={createUserForm.userId}
+                          onChange={e => setCreateUserForm({ ...createUserForm, userId: e.target.value.trim() })}
+                          placeholder="Auto-generated or custom"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const namePart = createUserForm.fullName ? createUserForm.fullName.toLowerCase().replace(/[^a-z0-9]/g, '') : 'user';
+                            const mobPart = createUserForm.mobile ? createUserForm.mobile.slice(-4) : Math.floor(1000 + Math.random() * 9000);
+                            setCreateUserForm(prev => ({ ...prev, userId: `${namePart}${mobPart}` }));
+                          }}
+                          style={{ border: 'none', background: '#FFEDD5', color: '#C2410C', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          title="Generate User ID"
+                        >
+                          ⚡ Auto
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="admin-reg-field-label">Retailer ID</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                            <polyline points="10 9 9 9 8 9" />
+                          </svg>
+                        </span>
+                        <input
+                          type="text"
+                          value={createUserForm.retailerId}
+                          onChange={e => setCreateUserForm({ ...createUserForm, retailerId: e.target.value.toUpperCase() })}
+                          placeholder="e.g. MBM649780"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="admin-reg-grid-3col">
+                    <div>
+                      <label className="admin-reg-field-label">Account Role</label>
+                      <div className="admin-reg-input-wrapper">
+                        <select
+                          value={createUserForm.role}
+                          onChange={e => setCreateUserForm({ ...createUserForm, role: e.target.value })}
+                        >
+                          <option value="retailer">Retailer</option>
+                          <option value="customer">Customer</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="admin-reg-field-label">Account Status</label>
+                      <div className="admin-reg-input-wrapper">
+                        <select
+                          value={createUserForm.status}
+                          onChange={e => setCreateUserForm({ ...createUserForm, status: e.target.value })}
+                        >
+                          <option value="Approved">✓ Approved (Active)</option>
+                          <option value="Pending">⏳ Pending</option>
+                          <option value="Rejected">✕ Rejected</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="admin-reg-field-label">Initial Wallet (₹)</label>
+                      <div className="admin-reg-input-wrapper">
+                        <span className="admin-reg-input-icon">₹</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={createUserForm.walletBalance}
+                          onChange={e => setCreateUserForm({ ...createUserForm, walletBalance: parseFloat(e.target.value) || 0 })}
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="staff-modal-footer" style={{ background: '#F8FAFC', borderTop: '1.5px solid #F1F5F9' }}>
+                <button 
+                  type="button" 
+                  className="staff-modal-cancel-btn"
+                  onClick={() => setIsUserCreateModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="admin-reg-submit-btn"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="8.5" cy="7" r="4" />
+                    <line x1="20" y1="8" x2="20" y2="14" />
+                    <line x1="23" y1="11" x2="17" y2="11" />
+                  </svg>
+                  <span>Register Account</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT USER MODAL */}
+      {isUserEditModalOpen && (
+        <div className="staff-modal-overlay">
+          <div className="staff-modal-box" style={{ maxWidth: '640px' }}>
+            <div className="staff-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: '#fef3c7', color: '#b45309', width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>
+                  ✏️
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>Edit User Profile</h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                    User ID: <strong>{editUserForm.userId}</strong> {editUserForm.retailerId ? `(${editUserForm.retailerId})` : ''}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                className="staff-modal-close" 
+                onClick={() => setIsUserEditModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditUser}>
+              <div className="staff-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+                <div className="staff-input-row">
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>User ID</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      value={editUserForm.userId}
+                      disabled
+                      style={{ background: '#f1f5f9', cursor: 'not-allowed' }}
+                    />
+                  </div>
+
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Retailer ID</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      value={editUserForm.retailerId}
+                      onChange={e => setEditUserForm({...editUserForm, retailerId: e.target.value.toUpperCase()})}
+                    />
+                  </div>
+                </div>
+
+                <div className="staff-input-row">
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Full Name</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      placeholder="e.g. Rahul Sharma"
+                      value={editUserForm.name}
+                      onChange={e => setEditUserForm({...editUserForm, name: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Shop / Firm Name</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      placeholder="e.g. Sharma Cyber Cafe"
+                      value={editUserForm.shopName}
+                      onChange={e => setEditUserForm({...editUserForm, shopName: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="staff-input-row">
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Mobile Number</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      placeholder="e.g. 9876543210"
+                      maxLength={10}
+                      value={editUserForm.mobile}
+                      onChange={e => setEditUserForm({...editUserForm, mobile: e.target.value.replace(/\D/g, '')})}
+                    />
+                  </div>
+
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Email Address</label>
+                    <input 
+                      type="email" 
+                      className="staff-input-field" 
+                      placeholder="e.g. rahul@example.com"
+                      value={editUserForm.email}
+                      onChange={e => setEditUserForm({...editUserForm, email: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="staff-input-row">
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Reset Password (leave blank to keep current)</label>
+                    <input 
+                      type="password" 
+                      className="staff-input-field" 
+                      placeholder="Enter new password to change"
+                      value={editUserForm.password}
+                      onChange={e => setEditUserForm({...editUserForm, password: e.target.value})}
+                    />
+                  </div>
+
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Wallet Balance (₹)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className="staff-input-field" 
+                      value={editUserForm.walletBalance}
+                      onChange={e => setEditUserForm({...editUserForm, walletBalance: parseFloat(e.target.value) || 0})}
+                    />
+                  </div>
+                </div>
+
+                <div className="staff-input-row">
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Role</label>
+                    <select 
+                      className="staff-input-field"
+                      value={editUserForm.role}
+                      onChange={e => setEditUserForm({...editUserForm, role: e.target.value})}
+                    >
+                      <option value="retailer">Retailer</option>
+                      <option value="customer">Customer</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Account Status</label>
+                    <select 
+                      className="staff-input-field"
+                      value={editUserForm.status}
+                      onChange={e => setEditUserForm({...editUserForm, status: e.target.value})}
+                    >
+                      <option value="Approved">✓ Approved</option>
+                      <option value="Pending">⏳ Pending Approval</option>
+                      <option value="Rejected">✕ Rejected</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="staff-input-group">
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Business Address / Location</label>
+                  <input 
+                    type="text" 
+                    className="staff-input-field" 
+                    placeholder="e.g. Shop No 4, Main Market, Mumbai"
+                    value={editUserForm.businessAddress}
+                    onChange={e => setEditUserForm({...editUserForm, businessAddress: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="staff-modal-footer">
+                <button 
+                  type="button" 
+                  className="staff-modal-cancel-btn"
+                  onClick={() => setIsUserEditModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="staff-modal-save-btn"
+                  style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}
+                >
+                  💾 Save User Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW USER DETAILS MODAL */}
+      {isUserViewModalOpen && selectedUserForModal && (
+        <div className="staff-modal-overlay">
+          <div className="staff-modal-box" style={{ maxWidth: '580px' }}>
+            <div className="staff-modal-header" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="user-avatar" style={{ width: '46px', height: '46px', fontSize: '18px' }}>
+                  {(selectedUserForModal.name || selectedUserForModal.userId || 'U').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                    {selectedUserForModal.name || selectedUserForModal.userId}
+                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                    <span className="user-id-badge">ID: {selectedUserForModal.userId}</span>
+                    {selectedUserForModal.retailerId && (
+                      <span className="user-id-badge" style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}>
+                        {selectedUserForModal.retailerId}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                className="staff-modal-close" 
+                onClick={() => setIsUserViewModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="staff-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              
+              {/* Wallet & Status Quick Ribbon */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '14px' }}>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#166534', fontWeight: 800, letterSpacing: '0.4px' }}>
+                    Current Wallet Balance
+                  </div>
+                  <div style={{ fontSize: '22px', fontWeight: 900, color: '#15803d', marginTop: '4px' }}>
+                    ₹{parseFloat(selectedUserForModal.walletBalance || 0).toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '14px' }}>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, letterSpacing: '0.4px' }}>
+                    Account Status
+                  </div>
+                  <div style={{ marginTop: '6px' }}>
+                    {(selectedUserForModal.status || 'Approved') === 'Pending' ? (
+                      <span className="user-status-pill user-status-pending">⏳ Pending Approval</span>
+                    ) : selectedUserForModal.status === 'Rejected' ? (
+                      <span className="user-status-pill user-status-rejected">✕ Rejected</span>
+                    ) : (
+                      <span className="user-status-pill user-status-approved">✓ Approved</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Profile Details List */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                {[
+                  { label: 'Mobile Number', value: selectedUserForModal.mobile || 'Not provided', icon: '📱' },
+                  { label: 'Email Address', value: selectedUserForModal.email || 'Not provided', icon: '✉️' },
+                  { label: 'Shop / Firm Name', value: selectedUserForModal.shopName || 'Not provided', icon: '🏪' },
+                  { label: 'Business Address', value: selectedUserForModal.businessAddress || 'Not provided', icon: '📍' },
+                  { label: 'Account Role', value: (selectedUserForModal.role || 'customer').toUpperCase(), icon: '🛡️' },
+                  { label: 'Registration Date', value: selectedUserForModal.createdAt ? new Date(selectedUserForModal.createdAt).toLocaleString() : 'Not available', icon: '📅' },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderBottom: i < 5 ? '1px solid #f1f5f9' : 'none', fontSize: '13px' }}>
+                    <span style={{ color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                      <span>{item.icon}</span> {item.label}:
+                    </span>
+                    <strong style={{ color: '#1e293b', textAlign: 'right', maxWidth: '280px', wordBreak: 'break-word' }}>
+                      {item.value}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+
+              {/* Quick Actions Shortcuts */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    setIsUserViewModalOpen(false);
+                    setPanRetailerFilter(selectedUserForModal.userId);
+                    setActiveTab('panSubmissions');
+                  }}
+                  style={{ flex: 1, padding: '10px 14px', background: '#eff6ff', color: '#1d4ed8', border: '1.5px solid #bfdbfe', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  📄 View Retailer Filings &amp; Receipts
+                </button>
+                <button
+                  onClick={() => {
+                    setIsUserViewModalOpen(false);
+                    setSelectedRetailer(selectedUserForModal);
+                    setActiveTab('ledgerHistory');
+                  }}
+                  style={{ flex: 1, padding: '10px 14px', background: '#f0fdf4', color: '#166534', border: '1.5px solid #bbf7d0', borderRadius: '10px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                >
+                  💳 Adjust Wallet Balance
+                </button>
+              </div>
+
+            </div>
+
+            <div className="staff-modal-footer">
+              <button 
+                type="button" 
+                className="staff-modal-cancel-btn"
+                onClick={() => setIsUserViewModalOpen(false)}
+              >
+                Close
+              </button>
+              <button 
+                type="button" 
+                className="staff-modal-save-btn"
+                style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', boxShadow: '0 4px 12px rgba(245,158,11,0.3)' }}
+                onClick={() => {
+                  setIsUserViewModalOpen(false);
+                  handleOpenEditUser(selectedUserForModal);
+                }}
+              >
+                ✏️ Edit Profile
+              </button>
+            </div>
           </div>
         </div>
       )}

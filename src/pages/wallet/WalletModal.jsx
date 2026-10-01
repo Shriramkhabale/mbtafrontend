@@ -28,6 +28,12 @@ const DirectPayIcon = () => (
   </svg>
 );
 
+const PayoutIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+  </svg>
+);
+
 const RequisitionIcon = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
@@ -41,7 +47,6 @@ const BoltIcon = () => (
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
   </svg>
 );
-
 
 const LockIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -90,8 +95,16 @@ const SendIcon = () => (
   </svg>
 );
 
-const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false }) => {
-  const [activeTab, setActiveTab] = useState(initialTab); // 'directPayment', 'requisition'
+const PlusIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'dark' }) => {
+  const [activeTab, setActiveTab] = useState(initialTab); // 'directPayment', 'payout', 'requisition'
+  const currentTheme = theme || localStorage.getItem('appTheme') || 'dark';
 
   useEffect(() => {
     if (initialTab && initialTab !== 'ledger') {
@@ -120,12 +133,56 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
 
   const [isSubmittingReq, setIsSubmittingReq] = useState(false);
 
-  // Direct Payment state
+  // Direct Payment (Pay-In) state
   const [directPaymentAmount, setDirectPaymentAmount] = useState('');
   const [directPaymentMethod, setDirectPaymentMethod] = useState('UPI');
-  const [qrCodeUrl, setQrCodeUrl] = useState(null);
-  const [pendingTxnId, setPendingTxnId] = useState(null);
+  const [checkoutData, setCheckoutData] = useState(null); // { txnId, amount, qrCodeUrl, upiLink, checkoutUrl }
+  const [paymentSuccessData, setPaymentSuccessData] = useState(null);
   const [isProcessingDirect, setIsProcessingDirect] = useState(false);
+  const [isVerifyingNow, setIsVerifyingNow] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(300);
+  const [requiresOnboarding, setRequiresOnboarding] = useState(false);
+  const [isOnboardingGenerating, setIsOnboardingGenerating] = useState(false);
+
+  // Pay-Out (Settlement) state
+  const [beneficiaries, setBeneficiaries] = useState([]);
+  const [selectedBeneId, setSelectedBeneId] = useState('');
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutMode, setPayoutMode] = useState('IMPS');
+  const [isProcessingPayout, setIsProcessingPayout] = useState(false);
+  const [showAddBeneForm, setShowAddBeneForm] = useState(false);
+  const [payoutSuccessData, setPayoutSuccessData] = useState(null);
+
+  // Add Beneficiary Form
+  const [newBeneForm, setNewBeneForm] = useState({
+    beneficiaryName: '',
+    bankName: '',
+    accountNumber: '',
+    confirmAccountNumber: '',
+    ifsc: '',
+    accountType: 'PRIMARY'
+  });
+  const [isAddingBene, setIsAddingBene] = useState(false);
+
+  const handlePaymentSuccess = (amount, txnId, newBal) => {
+    setCheckoutData(null);
+    setDirectPaymentAmount('');
+    if (onBalanceUpdate && newBal !== undefined) {
+      onBalanceUpdate(newBal);
+    }
+    setPaymentSuccessData({
+      amount: parseFloat(amount).toFixed(2),
+      txnId: txnId,
+      walletBalance: parseFloat(newBal || walletBalance).toFixed(2),
+      time: new Date().toLocaleTimeString()
+    });
+    Swal.fire({
+      icon: 'success',
+      title: 'PaySprint Payment Verified!',
+      text: `₹${parseFloat(amount).toFixed(2)} credited to your wallet. Ref: ${txnId}`,
+      confirmButtonColor: '#16a34a'
+    });
+  };
 
   // Sync currentUser with forms and fetch details on mount
   useEffect(() => {
@@ -143,8 +200,72 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
           }
         })
         .catch(err => console.error("Error loading user info:", err));
+
+      // Fetch Beneficiaries for Pay-Out
+      fetch(`${API_URL}/api/payout/beneficiary/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser })
+      })
+        .then(res => res.json())
+        .then(resData => {
+          if (resData.success && Array.isArray(resData.data)) {
+            setBeneficiaries(resData.data);
+            if (resData.data.length > 0 && !selectedBeneId) {
+              setSelectedBeneId(resData.data[0].beneId);
+            }
+          }
+        })
+        .catch(err => console.warn('Error fetching beneficiaries:', err));
     }
   }, [isOpen, currentUser, onBalanceUpdate]);
+
+  // Timer countdown for active checkout
+  useEffect(() => {
+    if (!checkoutData) return;
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [checkoutData]);
+
+  // Polling for PaySprint payment status check
+  useEffect(() => {
+    if (!checkoutData || !checkoutData.txnId) return;
+
+    let isSubscribed = true;
+    const interval = setInterval(async () => {
+      if (!isSubscribed) return;
+      try {
+        const res = await fetch(`${API_URL}/api/direct-payment/check-status/${checkoutData.txnId}`);
+        const data = await res.json();
+        if (data && data.success && data.status === 'Success') {
+          if (!isSubscribed) return;
+          clearInterval(interval);
+          handlePaymentSuccess(checkoutData.amount, checkoutData.txnId, data.walletBalance);
+        }
+      } catch (err) {
+        console.warn('Status poll warning:', err.message);
+      }
+    }, 3000);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [checkoutData, onBalanceUpdate]);
+
+  const formatTime = (secs) => {
+    const mins = Math.floor(secs / 60);
+    const remSecs = secs % 60;
+    return `${String(mins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')}`;
+  };
 
   if (!isOpen) return null;
 
@@ -187,7 +308,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     }
   };
 
-  // Handle Direct Payment Initiate
+  // Handle Direct Payment (Pay-In) Initiate
   const handleDirectPaymentSubmit = async (e) => {
     e.preventDefault();
     if (!directPaymentAmount || Number(directPaymentAmount) <= 0) {
@@ -208,63 +329,212 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
       });
 
       const data = await res.json();
+      setIsProcessingDirect(false);
       if (data.success) {
-        setPendingTxnId(data.txnId);
-        if (data.qrCodeUrl) {
-          setQrCodeUrl(data.qrCodeUrl);
-        }
-        confirmDirectPayment(data.txnId, Number(directPaymentAmount));
+        setCheckoutData({
+          txnId: data.txnId,
+          amount: Number(directPaymentAmount),
+          qrCodeUrl: data.qrCodeUrl,
+          upiLink: data.upiLink,
+          checkoutUrl: data.checkoutUrl,
+          paymentMethod: directPaymentMethod
+        });
+        setTimeLeft(300);
+      } else if (data.message === 'ONBOARDING_REQUIRED') {
+        setRequiresOnboarding(true);
       } else {
         Toast.fire({ icon: 'error', title: data.message || 'Payment initiation failed.' });
-        setIsProcessingDirect(false);
       }
     } catch (err) {
-      Toast.fire({ icon: 'error', title: 'Failed to initiate direct payment.' });
       setIsProcessingDirect(false);
+      Toast.fire({ icon: 'error', title: 'Failed to initiate direct payment.' });
     }
   };
 
-  // Confirm Direct Payment and update balance
-  const confirmDirectPayment = async (txnId, amount) => {
+  // Handle Onboarding Click
+  const handleOnboardClick = async () => {
+    setIsOnboardingGenerating(true);
     try {
-      const res = await fetch(`${API_URL}/api/direct-payment/confirm`, {
+      const res = await fetch(`${API_URL}/api/paysprint/onboard/generate-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser })
+      });
+      const data = await res.json();
+      setIsOnboardingGenerating(false);
+      
+      if (data.success && data.onboardUrl) {
+        window.open(data.onboardUrl, '_blank');
+      } else {
+        Toast.fire({ icon: 'error', title: data.message || 'Failed to generate onboarding URL.' });
+      }
+    } catch (err) {
+      setIsOnboardingGenerating(false);
+      Toast.fire({ icon: 'error', title: 'Network error generating onboarding URL.' });
+    }
+  };
+
+  // Manual Check PaySprint Payment Status
+  const handleManualCheckStatus = async () => {
+    if (!checkoutData || !checkoutData.txnId) return;
+    setIsVerifyingNow(true);
+    try {
+      const statusRes = await fetch(`${API_URL}/api/direct-payment/check-status/${checkoutData.txnId}`);
+      const statusData = await statusRes.json();
+      setIsVerifyingNow(false);
+
+      if (statusData && statusData.success && statusData.status === 'Success') {
+        handlePaymentSuccess(checkoutData.amount, checkoutData.txnId, statusData.walletBalance);
+      } else {
+        Toast.fire({
+          icon: 'info',
+          title: statusData.message || 'Payment awaiting completion. Please scan and authorize in your UPI app.'
+        });
+      }
+    } catch (err) {
+      setIsVerifyingNow(false);
+      Toast.fire({ icon: 'error', title: 'Error checking payment status.' });
+    }
+  };
+
+  // Handle Add Beneficiary
+  const handleAddBeneficiarySubmit = async (e) => {
+    e.preventDefault();
+    if (!newBeneForm.beneficiaryName || !newBeneForm.accountNumber || !newBeneForm.ifsc) {
+      Toast.fire({ icon: 'error', title: 'Please fill in all bank account details.' });
+      return;
+    }
+    if (newBeneForm.accountNumber !== newBeneForm.confirmAccountNumber) {
+      Toast.fire({ icon: 'error', title: 'Account numbers do not match.' });
+      return;
+    }
+
+    setIsAddingBene(true);
+    try {
+      const res = await fetch(`${API_URL}/api/payout/beneficiary/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser,
-          txnId: txnId,
-          amount: amount,
-          paymentMethod: directPaymentMethod
+          beneficiaryName: newBeneForm.beneficiaryName,
+          bankName: newBeneForm.bankName || 'Bank',
+          accountNumber: newBeneForm.accountNumber,
+          ifsc: newBeneForm.ifsc,
+          accountType: newBeneForm.accountType
+        })
+      });
+      const data = await res.json();
+      setIsAddingBene(false);
+
+      if (data.success && data.data) {
+        Toast.fire({ icon: 'success', title: data.message || 'Beneficiary added successfully!' });
+        setBeneficiaries(prev => [data.data, ...prev]);
+        setSelectedBeneId(data.data.beneId);
+        setShowAddBeneForm(false);
+        setNewBeneForm({
+          beneficiaryName: '',
+          bankName: '',
+          accountNumber: '',
+          confirmAccountNumber: '',
+          ifsc: '',
+          accountType: 'PRIMARY'
+        });
+      } else {
+        Toast.fire({ icon: 'error', title: data.message || 'Failed to add beneficiary.' });
+      }
+    } catch (err) {
+      setIsAddingBene(false);
+      Toast.fire({ icon: 'error', title: 'Network error adding beneficiary.' });
+    }
+  };
+
+  // Handle Pay-Out (Disbursement / Bank Transfer)
+  const handlePayoutSubmit = async (e) => {
+    e.preventDefault();
+    const transferAmt = Number(payoutAmount);
+    if (!transferAmt || transferAmt <= 0) {
+      Toast.fire({ icon: 'error', title: 'Please enter a valid payout amount.' });
+      return;
+    }
+    if (!selectedBeneId) {
+      Toast.fire({ icon: 'error', title: 'Please select a beneficiary bank account.' });
+      return;
+    }
+    if (transferAmt > walletBalance) {
+      Toast.fire({ icon: 'error', title: `Insufficient balance! Current: ₹${walletBalance.toFixed(2)}` });
+      return;
+    }
+
+    const selectedBene = beneficiaries.find(b => b.beneId === selectedBeneId);
+
+    const result = await Swal.fire({
+      title: 'Confirm PaySprint Payout',
+      html: `Transfer <strong>₹${transferAmt.toFixed(2)}</strong> via PaySprint <strong>${payoutMode}</strong> to:<br/><br/>
+             <strong>${selectedBene?.beneficiaryName || 'Beneficiary'}</strong><br/>
+             A/C: <code>${selectedBene?.accountNumber || ''}</code> | IFSC: <code>${selectedBene?.ifsc || ''}</code>`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Transfer Now',
+      confirmButtonColor: '#ea580c',
+      cancelButtonColor: '#64748b'
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsProcessingPayout(true);
+    try {
+      const res = await fetch(`${API_URL}/api/payout/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser,
+          beneId: selectedBeneId,
+          amount: transferAmt,
+          mode: payoutMode,
+          pipe: selectedBene?.pipe || 'bank2'
         })
       });
 
       const data = await res.json();
-      setIsProcessingDirect(false);
+      setIsProcessingPayout(false);
+
       if (data.success) {
         if (onBalanceUpdate && data.walletBalance !== undefined) {
           onBalanceUpdate(data.walletBalance);
         }
+        setPayoutSuccessData({
+          amount: transferAmt.toFixed(2),
+          refId: data.refId,
+          ackno: data.ackno || data.refId,
+          mode: payoutMode,
+          beneficiary: selectedBene,
+          walletBalance: data.walletBalance !== undefined ? data.walletBalance.toFixed(2) : (walletBalance - transferAmt).toFixed(2),
+          status: data.status,
+          time: new Date().toLocaleTimeString()
+        });
+        setPayoutAmount('');
         Swal.fire({
           icon: 'success',
-          title: 'Wallet Loaded Successfully!',
-          text: `₹${amount.toFixed(2)} credited to your wallet balance. Ref: ${txnId}`,
-          confirmButtonColor: '#ea580c'
+          title: 'PaySprint Payout Processed!',
+          text: data.message || `₹${transferAmt.toFixed(2)} transfer initiated. Ref: ${data.refId}`,
+          confirmButtonColor: '#16a34a'
         });
-        setDirectPaymentAmount('');
-        setQrCodeUrl(null);
-        setPendingTxnId(null);
-        onClose();
       } else {
-        Toast.fire({ icon: 'error', title: data.message || 'Payment verification failed.' });
+        Swal.fire({
+          icon: 'error',
+          title: 'Payout Failed',
+          text: data.message || 'Unable to complete payout transaction.',
+          confirmButtonColor: '#ef4444'
+        });
       }
     } catch (err) {
-      setIsProcessingDirect(false);
-      Toast.fire({ icon: 'error', title: 'Error confirming payment.' });
+      setIsProcessingPayout(false);
+      Toast.fire({ icon: 'error', title: 'Network error executing payout.' });
     }
   };
 
   const modalContent = (
-    <div className={`wallet-modal-card ${inlineMode ? 'inline-mode' : ''}`}>
+    <div className={`wallet-modal-card ${inlineMode ? 'inline-mode' : ''} theme-${currentTheme}`}>
       
       {/* Modern Ultra-Sleek Header */}
       <div className="wallet-modal-header">
@@ -274,10 +544,11 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
               <WalletIcon />
             </div>
             <div>
-              <h3 className="wallet-modal-title">My Wallet</h3>
+              <h3 className="wallet-modal-title">PaySprint Wallet System</h3>
               <div className="wallet-modal-subtitle">
                 <span>Current Balance:</span>
                 <span className="header-balance-badge">₹{parseFloat(walletBalance || 0).toFixed(2)}</span>
+                <span className="badge-paysprint-live">⚡ PaySprint LIVE</span>
               </div>
             </div>
           </div>
@@ -301,21 +572,38 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         </div>
       </div>
 
-      {/* Segmented Pill Navigation Tabs */}
+      {/* Segmented Pill Navigation Tabs: Pay-In, Pay-Out, Requisition */}
       <div className="wallet-tabs-container">
         <div className="wallet-tabs-bar">
           <button
             type="button"
             className={`wallet-tab-btn ${activeTab === 'directPayment' ? 'active' : ''}`}
-            onClick={() => setActiveTab('directPayment')}
+            onClick={() => {
+              setActiveTab('directPayment');
+              setPaymentSuccessData(null);
+            }}
           >
             <DirectPayIcon />
-            <span>Direct Payment</span>
+            <span>Pay-In (Add Funds)</span>
+          </button>
+          <button
+            type="button"
+            className={`wallet-tab-btn ${activeTab === 'payout' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('payout');
+              setPayoutSuccessData(null);
+            }}
+          >
+            <PayoutIcon />
+            <span>Pay-Out (Bank Transfer)</span>
           </button>
           <button
             type="button"
             className={`wallet-tab-btn ${activeTab === 'requisition' ? 'active' : ''}`}
-            onClick={() => setActiveTab('requisition')}
+            onClick={() => {
+              setActiveTab('requisition');
+              setPaymentSuccessData(null);
+            }}
           >
             <RequisitionIcon />
             <span>Requisition</span>
@@ -326,121 +614,574 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
       {/* Modal Scrollable Content Body */}
       <div className="wallet-modal-body">
         
-        {/* TAB 1: DIRECT PAYMENT */}
+        {/* TAB 1: PAY-IN (DIRECT PAYMENT) */}
         {activeTab === 'directPayment' && (
           <div className="form-card-box">
-            <div className="form-section-header">
-              <div className="section-header-icon">
-                <BoltIcon />
-              </div>
-              <div className="section-header-text">
-                <div className="section-title">Instant Wallet Top-Up</div>
-                <div className="section-desc">Load money instantly using UPI, NetBanking or Cards</div>
-              </div>
-            </div>
+            
+            {/* 1. PAYMENT SUCCESS RECEIPT SCREEN */}
+            {paymentSuccessData ? (
+              <div className="payment-success-card">
+                <div className="success-icon-badge">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </div>
+                <h3 className="success-card-title">PaySprint Transaction Verified!</h3>
+                <div className="success-card-amount">₹{paymentSuccessData.amount}</div>
+                <div className="success-card-badge">✓ Credited to PaySprint Merchant Wallet</div>
 
-            <form onSubmit={handleDirectPaymentSubmit}>
-              
-              {/* Quick Amount Chips */}
-              <div className="form-group-pro">
-                <label className="pro-label">Quick Amount Selection</label>
-                <div className="quick-amounts-row">
-                  {[500, 1000, 2000, 5000].map(amt => (
+                <div className="success-details-list">
+                  <div className="success-detail-row">
+                    <span>Transaction Reference:</span>
+                    <strong>{paymentSuccessData.txnId}</strong>
+                  </div>
+                  <div className="success-detail-row">
+                    <span>Updated Wallet Balance:</span>
+                    <strong className="text-balance-green">₹{paymentSuccessData.walletBalance}</strong>
+                  </div>
+                  <div className="success-detail-row">
+                    <span>Payment Time:</span>
+                    <span>{paymentSuccessData.time}</span>
+                  </div>
+                  <div className="success-detail-row">
+                    <span>Gateway Status:</span>
+                    <span className="badge-confirmed">✓ Recorded on PaySprint Dashboard</span>
+                  </div>
+                </div>
+
+                <div className="success-card-actions">
+                  <button
+                    type="button"
+                    className="btn-success-topup-more"
+                    onClick={() => {
+                      setPaymentSuccessData(null);
+                      setCheckoutData(null);
+                      setDirectPaymentAmount('');
+                    }}
+                  >
+                    + Add More Funds
+                  </button>
+                  {inlineMode && (
                     <button
-                      key={amt}
                       type="button"
-                      className={`quick-amount-btn ${Number(directPaymentAmount) === amt ? 'selected' : ''}`}
-                      onClick={() => setDirectPaymentAmount(String(amt))}
+                      className="btn-success-dashboard"
+                      onClick={onClose}
                     >
-                      + ₹{amt.toLocaleString()}
+                      Back to Dashboard
                     </button>
-                  ))}
+                  )}
                 </div>
               </div>
-
-              {/* Amount Input */}
-              <div className="form-group-pro">
-                <label className="pro-label">Enter Top-Up Amount (₹)</label>
-                <div className="input-with-icon-wrapper">
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    className="form-input-pro amount-input"
-                    placeholder="e.g. 1000"
-                    value={directPaymentAmount}
-                    onChange={e => setDirectPaymentAmount(e.target.value)}
-                  />
+            ) : requiresOnboarding ? (
+              /* ONBOARDING REQUIRED SCREEN */
+              <div className="qr-expired-card" style={{ padding: '30px', textAlign: 'center' }}>
+                <div className="expired-icon-badge" style={{ color: '#ea580c', borderColor: '#ea580c' }}>
+                  <LockIcon />
                 </div>
+                <h3 className="expired-card-title">PaySprint KYC Required</h3>
+                <p className="expired-card-sub" style={{ marginBottom: '20px' }}>
+                  You must complete your PaySprint Merchant Onboarding and e-KYC before you can add funds to your wallet.
+                </p>
+                <button
+                  type="button"
+                  className="form-submit-btn-primary"
+                  onClick={handleOnboardClick}
+                  disabled={isOnboardingGenerating}
+                >
+                  {isOnboardingGenerating ? 'Generating Link...' : 'Complete KYC to Unlock Wallet ↗'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-restart-payment"
+                  style={{ marginTop: '15px' }}
+                  onClick={() => setRequiresOnboarding(false)}
+                >
+                  Cancel
+                </button>
               </div>
-
-              {/* Payment Method Selector */}
-              <div className="form-group-pro">
-                <label className="pro-label">Choose Payment Method</label>
-                <div className="payment-methods-grid">
-                  <div
-                    className={`pm-card ${directPaymentMethod === 'UPI' ? 'selected' : ''}`}
-                    onClick={() => setDirectPaymentMethod('UPI')}
-                  >
-                    <div className="pm-icon"><PhoneIcon /></div>
-                    <div className="pm-info">
-                      <span className="pm-name">UPI / QR</span>
-                      <span className="pm-sub">GPay, PhonePe</span>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`pm-card ${directPaymentMethod === 'NetBanking' ? 'selected' : ''}`}
-                    onClick={() => setDirectPaymentMethod('NetBanking')}
-                  >
-                    <div className="pm-icon"><BankIcon /></div>
-                    <div className="pm-info">
-                      <span className="pm-name">NetBanking</span>
-                      <span className="pm-sub">Instant Bank Pay</span>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`pm-card ${directPaymentMethod === 'Card' ? 'selected' : ''}`}
-                    onClick={() => setDirectPaymentMethod('Card')}
-                  >
-                    <div className="pm-icon"><DirectPayIcon /></div>
-                    <div className="pm-info">
-                      <span className="pm-name">Cards</span>
-                      <span className="pm-sub">Debit & Credit</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {qrCodeUrl && (
-                <div className="qr-preview-box">
-                  <img src={qrCodeUrl} alt="UPI QR Code" className="qr-preview-img" />
-                  <p className="qr-preview-sub">Scan with any UPI app to complete payment{pendingTxnId ? ` (Ref: ${pendingTxnId})` : ''}</p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isProcessingDirect}
-                className="form-submit-btn-primary"
-              >
-                {isProcessingDirect ? (
-                  <span className="btn-loading-state">
-                    <span className="btn-spinner"></span> Processing Top-Up...
-                  </span>
-                ) : (
-                  <>
+            ) : !checkoutData ? (
+              /* 2. TOP-UP AMOUNT INPUT FORM */
+              <>
+                <div className="form-section-header">
+                  <div className="section-header-icon">
                     <BoltIcon />
-                    <span>Pay & Load ₹{directPaymentAmount ? Number(directPaymentAmount).toLocaleString() : '0.00'}</span>
-                  </>
+                  </div>
+                  <div className="section-header-text">
+                    <div className="section-title">Instant Pay-In / UPI Collection</div>
+                    <div className="section-desc">Generate dynamic PaySprint QR code. Transactions reflect in live PaySprint dashboard.</div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleDirectPaymentSubmit}>
+                  {/* Quick Amount Chips */}
+                  <div className="form-group-pro">
+                    <label className="pro-label">Quick Amount Selection</label>
+                    <div className="quick-amounts-row">
+                      {[500, 1000, 2000, 5000].map(amt => (
+                        <button
+                          key={amt}
+                          type="button"
+                          className={`quick-amount-btn ${Number(directPaymentAmount) === amt ? 'selected' : ''}`}
+                          onClick={() => setDirectPaymentAmount(String(amt))}
+                        >
+                          + ₹{amt.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Amount Input */}
+                  <div className="form-group-pro">
+                    <label className="pro-label">Enter Amount (₹)</label>
+                    <div className="input-with-icon-wrapper">
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        className="form-input-pro amount-input"
+                        placeholder="e.g. 1000"
+                        value={directPaymentAmount}
+                        onChange={e => setDirectPaymentAmount(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Payment Method Selector */}
+                  <div className="form-group-pro">
+                    <label className="pro-label">Payment Channel</label>
+                    <div className="payment-methods-grid">
+                      <div
+                        className={`pm-card ${directPaymentMethod === 'UPI' ? 'selected' : ''}`}
+                        onClick={() => setDirectPaymentMethod('UPI')}
+                      >
+                        <div className="pm-icon"><PhoneIcon /></div>
+                        <div className="pm-info">
+                          <span className="pm-name">PaySprint Dynamic UPI</span>
+                          <span className="pm-sub">GPay, PhonePe, Paytm, BHIM</span>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`pm-card ${directPaymentMethod === 'NetBanking' ? 'selected' : ''}`}
+                        onClick={() => setDirectPaymentMethod('NetBanking')}
+                      >
+                        <div className="pm-icon"><BankIcon /></div>
+                        <div className="pm-info">
+                          <span className="pm-name">NetBanking</span>
+                          <span className="pm-sub">Instant Bank Transfer</span>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`pm-card ${directPaymentMethod === 'Card' ? 'selected' : ''}`}
+                        onClick={() => setDirectPaymentMethod('Card')}
+                      >
+                        <div className="pm-icon"><DirectPayIcon /></div>
+                        <div className="pm-info">
+                          <span className="pm-name">Cards</span>
+                          <span className="pm-sub">Debit & Credit</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isProcessingDirect}
+                    className="form-submit-btn-primary"
+                  >
+                    {isProcessingDirect ? (
+                      <span className="btn-loading-state">
+                        <span className="btn-spinner"></span> Generating PaySprint QR...
+                      </span>
+                    ) : (
+                      <>
+                        <BoltIcon />
+                        <span>Generate PaySprint QR (₹{directPaymentAmount ? Number(directPaymentAmount).toLocaleString() : '0.00'})</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </>
+            ) : timeLeft <= 0 ? (
+              /* 3. QR EXPIRED SCREEN */
+              <div className="qr-expired-card">
+                <div className="expired-icon-badge">⏳</div>
+                <h3 className="expired-card-title">QR Session Expired</h3>
+                <p className="expired-card-sub">The 5-minute dynamic payment session has expired. Please initiate a new top-up request.</p>
+                <button
+                  type="button"
+                  className="btn-restart-payment"
+                  onClick={() => {
+                    setCheckoutData(null);
+                    setDirectPaymentAmount('');
+                  }}
+                >
+                  🔄 Start New Payment
+                </button>
+              </div>
+            ) : (
+              /* 4. ACTIVE LIVE PAYSPRINT UPI QR CHECKOUT VIEW */
+              <div className="qr-checkout-container">
+                <div className="qr-checkout-header">
+                  <div className="qr-checkout-badge">
+                    <span>⚡ PaySprint Live UPI Dynamic Collection</span>
+                  </div>
+                  <div className="qr-checkout-amount">
+                    ₹{Number(checkoutData.amount).toFixed(2)}
+                  </div>
+                  <div className="qr-checkout-ref">
+                    Ref ID: <strong>{checkoutData.txnId}</strong>
+                  </div>
+                </div>
+
+                <div className="qr-display-box">
+                  {checkoutData.qrCodeUrl ? (
+                    <img src={checkoutData.qrCodeUrl} alt="PaySprint Dynamic QR Code" className="qr-image" />
+                  ) : checkoutData.checkoutUrl ? (
+                    <div className="qr-placeholder" style={{ padding: '20px' }}>
+                      <p>PaySprint Checkout generated successfully.</p>
+                      <a href={checkoutData.checkoutUrl} target="_blank" rel="noreferrer" className="form-submit-btn-primary" style={{ display: 'inline-block', marginTop: '10px', textDecoration: 'none' }}>
+                        Open PaySprint Checkout ↗
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="qr-placeholder">Generating PaySprint QR...</div>
+                  )}
+                  <div className="qr-scan-hint">
+                    📱 Scan with <strong>Google Pay, PhonePe, Paytm, BHIM</strong> or any UPI App
+                  </div>
+                </div>
+
+                {checkoutData.upiLink && (
+                  <a
+                    href={checkoutData.upiLink}
+                    className="upi-intent-button"
+                  >
+                    <span>📲 Pay Directly via UPI App</span>
+                  </a>
                 )}
-              </button>
-            </form>
+
+                <div className="qr-status-pulse">
+                  <span className="pulse-indicator"></span>
+                  <span>Awaiting PaySprint gateway confirmation ({formatTime(timeLeft)})</span>
+                </div>
+
+                <div className="qr-action-buttons">
+                  <button
+                    type="button"
+                    className="qr-check-status-btn"
+                    onClick={handleManualCheckStatus}
+                    disabled={isVerifyingNow}
+                  >
+                    {isVerifyingNow ? (
+                      <>
+                        <span className="btn-spinner" style={{ width: 14, height: 14 }}></span>
+                        <span>Verifying with PaySprint...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔄</span>
+                        <span>Check PaySprint Status</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="qr-cancel-btn"
+                    onClick={() => setCheckoutData(null)}
+                  >
+                    Cancel & Change Amount
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 2: REQUISITION */}
+        {/* TAB 2: PAY-OUT (BANK TRANSFER / SETTLEMENT) */}
+        {activeTab === 'payout' && (
+          <div className="form-card-box">
+            
+            {payoutSuccessData ? (
+              <div className="payment-success-card">
+                <div className="success-icon-badge">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                </div>
+                <h3 className="success-card-title">PaySprint Payout Processed!</h3>
+                <div className="success-card-amount">₹{payoutSuccessData.amount}</div>
+                <div className="success-card-badge">✓ Transferred via PaySprint {payoutSuccessData.mode}</div>
+
+                <div className="success-details-list">
+                  <div className="success-detail-row">
+                    <span>Reference ID:</span>
+                    <strong>{payoutSuccessData.refId}</strong>
+                  </div>
+                  <div className="success-detail-row">
+                    <span>Bank Ack No / UTR:</span>
+                    <strong>{payoutSuccessData.ackno}</strong>
+                  </div>
+                  <div className="success-detail-row">
+                    <span>Beneficiary:</span>
+                    <span>{payoutSuccessData.beneficiary?.beneficiaryName} ({payoutSuccessData.beneficiary?.accountNumber})</span>
+                  </div>
+                  <div className="success-detail-row">
+                    <span>Remaining Wallet Balance:</span>
+                    <strong className="text-balance-green">₹{payoutSuccessData.walletBalance}</strong>
+                  </div>
+                  <div className="success-detail-row">
+                    <span>Status:</span>
+                    <span className="badge-confirmed">✓ Recorded on PaySprint Dashboard</span>
+                  </div>
+                </div>
+
+                <div className="success-card-actions">
+                  <button
+                    type="button"
+                    className="btn-success-topup-more"
+                    onClick={() => {
+                      setPayoutSuccessData(null);
+                      setPayoutAmount('');
+                    }}
+                  >
+                    + New Payout Transfer
+                  </button>
+                  {inlineMode && (
+                    <button
+                      type="button"
+                      className="btn-success-dashboard"
+                      onClick={onClose}
+                    >
+                      Back to Dashboard
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : showAddBeneForm ? (
+              /* ADD NEW BENEFICIARY FORM */
+              <>
+                <div className="form-section-header">
+                  <div className="section-header-icon">
+                    <BankIcon />
+                  </div>
+                  <div className="section-header-text">
+                    <div className="section-title">Add Bank Beneficiary</div>
+                    <div className="section-desc">Register recipient bank account for instant PaySprint IMPS/NEFT transfers</div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleAddBeneficiarySubmit}>
+                  <div className="form-group-pro">
+                    <label className="pro-label">Account Holder Name</label>
+                    <input
+                      type="text"
+                      required
+                      className="form-input-pro"
+                      placeholder="e.g. Rahul Sharma"
+                      value={newBeneForm.beneficiaryName}
+                      onChange={e => setNewBeneForm({ ...newBeneForm, beneficiaryName: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-grid-two-col">
+                    <div className="form-group-pro">
+                      <label className="pro-label">Bank Name</label>
+                      <input
+                        type="text"
+                        required
+                        className="form-input-pro"
+                        placeholder="e.g. State Bank of India"
+                        value={newBeneForm.bankName}
+                        onChange={e => setNewBeneForm({ ...newBeneForm, bankName: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group-pro">
+                      <label className="pro-label">IFSC Code</label>
+                      <input
+                        type="text"
+                        required
+                        className="form-input-pro"
+                        placeholder="e.g. SBIN0001234"
+                        style={{ textTransform: 'uppercase' }}
+                        value={newBeneForm.ifsc}
+                        onChange={e => setNewBeneForm({ ...newBeneForm, ifsc: e.target.value.toUpperCase() })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-grid-two-col">
+                    <div className="form-group-pro">
+                      <label className="pro-label">Account Number</label>
+                      <input
+                        type="text"
+                        required
+                        className="form-input-pro"
+                        placeholder="Enter account number"
+                        value={newBeneForm.accountNumber}
+                        onChange={e => setNewBeneForm({ ...newBeneForm, accountNumber: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group-pro">
+                      <label className="pro-label">Confirm Account Number</label>
+                      <input
+                        type="text"
+                        required
+                        className="form-input-pro"
+                        placeholder="Re-enter account number"
+                        value={newBeneForm.confirmAccountNumber}
+                        onChange={e => setNewBeneForm({ ...newBeneForm, confirmAccountNumber: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="payout-form-actions">
+                    <button
+                      type="submit"
+                      disabled={isAddingBene}
+                      className="form-submit-btn-primary"
+                    >
+                      {isAddingBene ? 'Saving Beneficiary...' : 'Verify & Add Account'}
+                    </button>
+                    <button
+                      type="button"
+                      className="qr-cancel-btn"
+                      onClick={() => setShowAddBeneForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </>
+            ) : (
+              /* PAYOUT TRANSFER FORM */
+              <>
+                <div className="form-section-header">
+                  <div className="section-header-icon">
+                    <PayoutIcon />
+                  </div>
+                  <div className="section-header-text">
+                    <div className="section-title">PaySprint Bank Pay-Out (Settlement)</div>
+                    <div className="section-desc">Transfer wallet funds directly to your verified bank account via PaySprint IMPS/NEFT</div>
+                  </div>
+                </div>
+
+                <form onSubmit={handlePayoutSubmit}>
+                  {/* Beneficiary Selector */}
+                  <div className="form-group-pro">
+                    <div className="bene-header-row">
+                      <label className="pro-label">Select Beneficiary Bank Account</label>
+                      <button
+                        type="button"
+                        className="btn-add-bene-toggle"
+                        onClick={() => setShowAddBeneForm(true)}
+                      >
+                        <PlusIcon /> Add Bank Account
+                      </button>
+                    </div>
+
+                    {beneficiaries.length === 0 ? (
+                      <div className="no-bene-box" onClick={() => setShowAddBeneForm(true)}>
+                        <p>No saved bank accounts found.</p>
+                        <span className="link-add-bene">+ Click here to add your Bank Account</span>
+                      </div>
+                    ) : (
+                      <div className="bene-cards-list">
+                        {beneficiaries.map(bene => (
+                          <div
+                            key={bene.beneId}
+                            className={`bene-card ${selectedBeneId === bene.beneId ? 'selected' : ''}`}
+                            onClick={() => setSelectedBeneId(bene.beneId)}
+                          >
+                            <div className="bene-card-radio">
+                              <input
+                                type="radio"
+                                name="beneSelect"
+                                checked={selectedBeneId === bene.beneId}
+                                onChange={() => setSelectedBeneId(bene.beneId)}
+                              />
+                            </div>
+                            <div className="bene-card-info">
+                              <div className="bene-card-name">{bene.beneficiaryName}</div>
+                              <div className="bene-card-bank">{bene.bankName} • {bene.accountNumber}</div>
+                              <div className="bene-card-ifsc">IFSC: {bene.ifsc}</div>
+                            </div>
+                            <div className="bene-card-badge">✓ Verified</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Transfer Amount */}
+                  <div className="form-group-pro">
+                    <div className="label-row">
+                      <label className="pro-label">Transfer Amount (₹)</label>
+                      <span className="balance-hint-badge">
+                        Available: ₹{parseFloat(walletBalance || 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="input-with-icon-wrapper">
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        max={walletBalance}
+                        className="form-input-pro amount-input"
+                        placeholder="e.g. 2000"
+                        value={payoutAmount}
+                        onChange={e => setPayoutAmount(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Transfer Mode */}
+                  <div className="form-group-pro">
+                    <label className="pro-label">Transfer Mode</label>
+                    <div className="payout-modes-grid">
+                      <div
+                        className={`payout-mode-card ${payoutMode === 'IMPS' ? 'selected' : ''}`}
+                        onClick={() => setPayoutMode('IMPS')}
+                      >
+                        <div className="pm-mode-title">⚡ IMPS (Instant 24x7)</div>
+                        <div className="pm-mode-sub">Real-time credit to beneficiary account</div>
+                      </div>
+                      <div
+                        className={`payout-mode-card ${payoutMode === 'NEFT' ? 'selected' : ''}`}
+                        onClick={() => setPayoutMode('NEFT')}
+                      >
+                        <div className="pm-mode-title">🏦 NEFT</div>
+                        <div className="pm-mode-sub">Batch processing settlement</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isProcessingPayout || beneficiaries.length === 0 || !payoutAmount || Number(payoutAmount) > walletBalance}
+                    className="form-submit-btn-primary"
+                  >
+                    {isProcessingPayout ? (
+                      <span className="btn-loading-state">
+                        <span className="btn-spinner"></span> Processing PaySprint Transfer...
+                      </span>
+                    ) : (
+                      <>
+                        <PayoutIcon />
+                        <span>Transfer ₹{payoutAmount ? Number(payoutAmount).toLocaleString() : '0.00'} to Bank</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: REQUISITION */}
         {activeTab === 'requisition' && (
           <div className="form-card-box">
             <div className="form-section-header">
@@ -449,7 +1190,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
               </div>
               <div className="section-header-text">
                 <div className="section-title">Submit Payment Requisition</div>
-                <div className="section-desc">Submit offline bank deposit, NEFT/RTGS, or IMPS details for approval</div>
+                <div className="section-desc">Submit offline bank deposit, NEFT/RTGS, or manual slip for approval</div>
               </div>
             </div>
 
@@ -584,14 +1325,14 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
 
   if (inlineMode) {
     return (
-      <div className="wallet-inline-container">
+      <div className={`wallet-inline-container theme-${currentTheme}`}>
         {modalContent}
       </div>
     );
   }
 
   return (
-    <div className="wallet-modal-overlay">
+    <div className={`wallet-modal-overlay theme-${currentTheme}`}>
       {modalContent}
     </div>
   );
