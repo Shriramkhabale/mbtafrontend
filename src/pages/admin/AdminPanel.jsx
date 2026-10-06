@@ -12,7 +12,7 @@ import NotificationBell from '../../context/NotificationBell';
 import { exportSinglePanApplicationToExcel } from '../../utils/exportPanToExcel';
 import logoImg from '../../assets/logo.png';
 
-const showCustomToast = (title, text = '', icon = 'success') => {
+const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
   if (existingContainer) existingContainer.remove();
 
@@ -75,7 +75,7 @@ const showCustomToast = (title, text = '', icon = 'success') => {
   };
 
   toastContainer.onclick = dismiss;
-  timer = setTimeout(dismiss, 1000);
+  timer = setTimeout(dismiss, duration);
 };
 
 const Toast = {
@@ -83,8 +83,35 @@ const Toast = {
     const title = opts.title || opts.text || 'Notification';
     const text = (opts.title && opts.text) ? opts.text : '';
     const icon = opts.icon || 'success';
-    showCustomToast(title, text, icon);
+    const duration = opts.timer || 5000;
+    showCustomToast(title, text, icon, duration);
   }
+};
+
+const cleanApplicantTitle = (nameStr) => {
+  if (!nameStr || typeof nameStr !== 'string') return nameStr || '—';
+  const str = nameStr.trim();
+  const cleaned = str.replace(/^(KUMARI|KUMAR|SHRI|SMT|MR|MRS|MS|DR|MISS)\.?\s+/i, '').trim();
+  return cleaned || str;
+};
+
+const getApplicantDisplayFullName = (app) => {
+  if (!app) return '—';
+  const d = app.details || {};
+  const fName = (d.firstName || app.firstName || '').trim();
+  const mName = (d.middleName || app.middleName || '').trim();
+  const lName = (d.lastName || app.lastName || '').trim();
+
+  if (fName || lName || mName) {
+    const combined = [fName, mName, lName].filter(Boolean).join(' ');
+    if (combined) return cleanApplicantTitle(combined);
+  }
+
+  if (d.entityName || app.entityName) {
+    return (d.entityName || app.entityName).trim();
+  }
+
+  return cleanApplicantTitle(app.applicantName || '—');
 };
 
 const copyApplicationDetailsToClipboard = (app) => {
@@ -2732,11 +2759,19 @@ const AdminPanel = () => {
       return Swal.fire({ icon: 'warning', text: 'Mobile number must be exactly 10 digits', confirmButtonText: 'OK' });
     }
 
+    const payload = { ...editUserForm };
+    if (userRole !== 'admin') {
+      delete payload.password;
+    }
+
     try {
       const response = await fetch(`${API_URL}/api/users/${editUserForm._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editUserForm)
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-role': userRole
+        },
+        body: JSON.stringify(payload)
       });
       const data = await response.json();
       if (response.ok) {
@@ -2761,11 +2796,10 @@ const AdminPanel = () => {
     if (filteredAndSortedUsers.length === 0) {
       return Toast.fire({ icon: 'warning', title: 'No users to export' });
     }
-    const headers = ['S.No', 'User ID', 'Retailer ID', 'Full Name', 'Shop / Business', 'Mobile Number', 'Email Address', 'Role', 'Status', 'Wallet Balance (Rs)', 'Registered Date'];
+    const headers = ['S.No', 'User ID', 'Full Name', 'Shop / Business', 'Mobile Number', 'Email Address', 'Role', 'Status', 'Wallet Balance (Rs)', 'Registered Date'];
     const rows = filteredAndSortedUsers.map((u, i) => [
       i + 1,
       `"${(u.userId || '').replace(/"/g, '""')}"`,
-      `"${(u.retailerId || '').replace(/"/g, '""')}"`,
       `"${(u.name || '').replace(/"/g, '""')}"`,
       `"${(u.shopName || '').replace(/"/g, '""')}"`,
       `"${(u.mobile || '').replace(/"/g, '""')}"`,
@@ -2806,7 +2840,6 @@ const AdminPanel = () => {
           <tr>
             <th>#</th>
             <th>User ID</th>
-            <th>Retailer ID</th>
             <th>Name / Shop</th>
             <th>Mobile</th>
             <th>Email</th>
@@ -2820,7 +2853,6 @@ const AdminPanel = () => {
           ${filteredAndSortedUsers.map((u, i) => `<tr>
             <td>${i + 1}</td>
             <td><strong>${u.userId || '-'}</strong></td>
-            <td>${u.retailerId || '-'}</td>
             <td>${u.name || u.shopName || '-'}</td>
             <td>${u.mobile || '-'}</td>
             <td>${u.email || '-'}</td>
@@ -4202,6 +4234,7 @@ const AdminPanel = () => {
                       (app.ackNumber || '').toLowerCase().includes(q) ||
                       (app.userId || '').toLowerCase().includes(q) ||
                       (app.applicantName || '').toLowerCase().includes(q) ||
+                      getApplicantDisplayFullName(app).toLowerCase().includes(q) ||
                       (app.mobileNumber || '').toLowerCase().includes(q) ||
                       (app.email || '').toLowerCase().includes(q) ||
                       (app.aadhaarNumber || '').toLowerCase().includes(q)
@@ -4228,7 +4261,7 @@ const AdminPanel = () => {
                           <thead>
                             <tr style={{ background: '#f8fafc', color: '#334155', borderBottom: '2px solid #e2e8f0', textAlign: 'left', position: 'sticky', top: 0, zIndex: 10 }}>
                               <th style={{ padding: '10px 12px', fontWeight: 700 }}>Ack Number</th>
-                              <th style={{ padding: '10px 12px', fontWeight: 700 }}>Retailer ID</th>
+                              <th style={{ padding: '10px 12px', fontWeight: 700 }}>User ID</th>
                               <th style={{ padding: '10px 12px', fontWeight: 700 }}>Service Type</th>
                               <th style={{ padding: '10px 12px', fontWeight: 700 }}>Applicant Name</th>
                               <th style={{ padding: '10px 12px', fontWeight: 700 }}>Contact Info</th>
@@ -4279,7 +4312,7 @@ const AdminPanel = () => {
                                     {app.applicationType}
                                   </td>
                                   <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1e293b' }}>
-                                    {app.applicantName}
+                                    {getApplicantDisplayFullName(app)}
                                     {app.dob && <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 400 }}>DOB: {app.dob}</div>}
                                   </td>
                                   <td style={{ padding: '10px 12px', color: '#475569' }}>
@@ -5555,7 +5588,7 @@ const AdminPanel = () => {
                     <input 
                       type="text" 
                       className="user-search-input"
-                      placeholder="Search User ID, Retailer ID, Name, Mobile, Email..."
+                      placeholder="Search User ID, Name, Mobile, Email..."
                       value={userSearch}
                       onChange={(e) => {
                         setUserSearch(e.target.value);
@@ -5598,7 +5631,6 @@ const AdminPanel = () => {
                   >
                     <option value="All">All Roles</option>
                     <option value="retailer">Retailer</option>
-                    <option value="customer">Customer</option>
                     <option value="admin">Admin</option>
                   </select>
 
@@ -5700,7 +5732,7 @@ const AdminPanel = () => {
                       <thead>
                         <tr>
                           <th style={{ width: '50px' }}>#</th>
-                          <th>User &amp; Retailer ID</th>
+                          <th>User ID</th>
                           <th>Name / Shop</th>
                           <th>Contact Details</th>
                           <th>Role</th>
@@ -5724,7 +5756,7 @@ const AdminPanel = () => {
                                 {userStartIndex + index + 1}
                               </td>
 
-                              {/* User ID & Retailer ID */}
+                              {/* User ID */}
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                   <div className="user-avatar" title={u.userId}>
@@ -5733,11 +5765,6 @@ const AdminPanel = () => {
                                   <div>
                                     <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                       {u.userId}
-                                    </div>
-                                    <div style={{ marginTop: '2px' }}>
-                                      <span className="user-id-badge">
-                                        {u.retailerId || 'MBM-Retailer'}
-                                      </span>
                                     </div>
                                   </div>
                                 </div>
@@ -5909,11 +5936,6 @@ const AdminPanel = () => {
                               <div>
                                 <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '15px' }}>
                                   {u.userId}
-                                </div>
-                                <div style={{ marginTop: '2px' }}>
-                                  <span className="user-id-badge">
-                                    {u.retailerId || 'MBM-Retailer'}
-                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -8292,27 +8314,6 @@ const AdminPanel = () => {
                         </button>
                       </div>
                     </div>
-
-                    <div>
-                      <label className="admin-reg-field-label">Retailer ID</label>
-                      <div className="admin-reg-input-wrapper">
-                        <span className="admin-reg-input-icon">
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                            <line x1="16" y1="13" x2="8" y2="13" />
-                            <line x1="16" y1="17" x2="8" y2="17" />
-                            <polyline points="10 9 9 9 8 9" />
-                          </svg>
-                        </span>
-                        <input
-                          type="text"
-                          value={createUserForm.retailerId}
-                          onChange={e => setCreateUserForm({ ...createUserForm, retailerId: e.target.value.toUpperCase() })}
-                          placeholder="e.g. MBM649780"
-                        />
-                      </div>
-                    </div>
                   </div>
 
                   <div className="admin-reg-grid-3col">
@@ -8324,7 +8325,6 @@ const AdminPanel = () => {
                           onChange={e => setCreateUserForm({ ...createUserForm, role: e.target.value })}
                         >
                           <option value="retailer">Retailer</option>
-                          <option value="customer">Customer</option>
                           <option value="admin">Admin</option>
                         </select>
                       </div>
@@ -8400,7 +8400,7 @@ const AdminPanel = () => {
                 <div>
                   <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>Edit User Profile</h3>
                   <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
-                    User ID: <strong>{editUserForm.userId}</strong> {editUserForm.retailerId ? `(${editUserForm.retailerId})` : ''}
+                    User ID: <strong>{editUserForm.userId}</strong>
                   </p>
                 </div>
               </div>
@@ -8415,27 +8415,15 @@ const AdminPanel = () => {
 
             <form onSubmit={handleSaveEditUser}>
               <div className="staff-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
-                <div className="staff-input-row">
-                  <div className="staff-input-group">
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>User ID</label>
-                    <input 
-                      type="text" 
-                      className="staff-input-field" 
-                      value={editUserForm.userId}
-                      disabled
-                      style={{ background: '#f1f5f9', cursor: 'not-allowed' }}
-                    />
-                  </div>
-
-                  <div className="staff-input-group">
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Retailer ID</label>
-                    <input 
-                      type="text" 
-                      className="staff-input-field" 
-                      value={editUserForm.retailerId}
-                      onChange={e => setEditUserForm({...editUserForm, retailerId: e.target.value.toUpperCase()})}
-                    />
-                  </div>
+                <div className="staff-input-group" style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>User ID</label>
+                  <input 
+                    type="text" 
+                    className="staff-input-field" 
+                    value={editUserForm.userId}
+                    disabled
+                    style={{ background: '#f1f5f9', cursor: 'not-allowed' }}
+                  />
                 </div>
 
                 <div className="staff-input-row">
@@ -8489,13 +8477,17 @@ const AdminPanel = () => {
 
                 <div className="staff-input-row">
                   <div className="staff-input-group">
-                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Reset Password (leave blank to keep current)</label>
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: userRole === 'admin' ? '#334155' : '#94a3b8' }}>
+                      Reset Password {userRole !== 'admin' ? '(Admin Only)' : '(leave blank to keep current)'}
+                    </label>
                     <input 
                       type="password" 
                       className="staff-input-field" 
-                      placeholder="Enter new password to change"
+                      placeholder={userRole === 'admin' ? "Enter new password to change" : "Only Admin can reset password"}
                       value={editUserForm.password}
                       onChange={e => setEditUserForm({...editUserForm, password: e.target.value})}
+                      disabled={userRole !== 'admin'}
+                      style={userRole !== 'admin' ? { background: '#f1f5f9', cursor: 'not-allowed', color: '#94a3b8' } : {}}
                     />
                   </div>
 
@@ -8520,7 +8512,6 @@ const AdminPanel = () => {
                       onChange={e => setEditUserForm({...editUserForm, role: e.target.value})}
                     >
                       <option value="retailer">Retailer</option>
-                      <option value="customer">Customer</option>
                       <option value="admin">Admin</option>
                     </select>
                   </div>
@@ -8587,11 +8578,6 @@ const AdminPanel = () => {
                   </h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                     <span className="user-id-badge">ID: {selectedUserForModal.userId}</span>
-                    {selectedUserForModal.retailerId && (
-                      <span className="user-id-badge" style={{ background: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe' }}>
-                        {selectedUserForModal.retailerId}
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>

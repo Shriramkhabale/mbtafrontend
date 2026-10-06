@@ -97,6 +97,32 @@ const downloadReceiptToPc = (url) => {
   }
 };
 
+export const cleanApplicantTitle = (nameStr) => {
+  if (!nameStr || typeof nameStr !== 'string') return nameStr || '—';
+  const str = nameStr.trim();
+  const cleaned = str.replace(/^(KUMARI|KUMAR|SHRI|SMT|MR|MRS|MS|DR|MISS)\.?\s+/i, '').trim();
+  return cleaned || str;
+};
+
+export const getApplicantDisplayFullName = (app) => {
+  if (!app) return '—';
+  const d = app.details || {};
+  const fName = (d.firstName || app.firstName || '').trim();
+  const mName = (d.middleName || app.middleName || '').trim();
+  const lName = (d.lastName || app.lastName || '').trim();
+
+  if (fName || lName || mName) {
+    const combined = [fName, mName, lName].filter(Boolean).join(' ');
+    if (combined) return cleanApplicantTitle(combined);
+  }
+
+  if (d.entityName || app.entityName) {
+    return (d.entityName || app.entityName).trim();
+  }
+
+  return cleanApplicantTitle(app.applicantName || '—');
+};
+
 const copyApplicationDetailsToClipboard = (app) => {
   if (!app) return;
   const d = app.details || {};
@@ -751,9 +777,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
   const searchedList = historyList.filter(app => {
     const q = (searchQuery || '').toLowerCase().trim();
+    const displayName = getApplicantDisplayFullName(app).toLowerCase();
     return !q ||
       (app.ackNumber && app.ackNumber.toLowerCase().includes(q)) ||
       (app.applicantName && app.applicantName.toLowerCase().includes(q)) ||
+      displayName.includes(q) ||
       (app.mobileNumber && app.mobileNumber.toLowerCase().includes(q)) ||
       (app.userId && app.userId.toLowerCase().includes(q)) ||
       (app.aadhaarNumber && app.aadhaarNumber.toLowerCase().includes(q));
@@ -1032,7 +1060,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
     }
 
     const appDisplayName = isIndiv
-      ? (correctionData.nameAsPerAadhaar || `${correctionData.firstName || ''} ${correctionData.lastName || ''}`.trim() || 'Individual Applicant')
+      ? ([correctionData.firstName, correctionData.middleName, correctionData.lastName].filter(Boolean).join(' ') || correctionData.nameAsPerAadhaar || 'Individual Applicant')
       : (correctionData.entityName || correctionData.lastName || 'Non-Individual Entity');
 
     // Pre-open window synchronously to avoid browser pop-up blocker
@@ -2649,7 +2677,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
                               {/* APPLICANT NAME */}
                               <td style={{ padding: '8px 6px', fontSize: '11.5px', fontWeight: '800', color: '#0f172a' }}>
-                                {app.applicantName}
+                                {getApplicantDisplayFullName(app)}
                               </td>
 
                               {/* MOBILE / EMAIL */}

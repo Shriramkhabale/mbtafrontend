@@ -236,16 +236,6 @@ const Dashboard = () => {
                     <input type="number" required value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} placeholder="0.00" />
                   </div>
                   <div className="form-group">
-                    <label>Retailer ID</label>
-                    <input
-                      type="text"
-                      required
-                      value={paymentForm.referenceNumber}
-                      readOnly
-                      style={{ backgroundColor: '#f1f5f9', color: '#1b2559', fontWeight: '600', cursor: 'not-allowed' }}
-                    />
-                  </div>
-                  <div className="form-group">
                     <label>Payment Date</label>
                     <input type="date" required value={paymentForm.paymentDate} onChange={e => setPaymentForm({ ...paymentForm, paymentDate: e.target.value })} />
                   </div>

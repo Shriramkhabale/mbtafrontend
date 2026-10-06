@@ -7,7 +7,7 @@ const Toast = Swal.mixin({
   toast: true,
   position: 'top-end',
   showConfirmButton: false,
-  timer: 3000,
+  timer: 5000,
   timerProgressBar: true
 });
 
@@ -354,13 +354,17 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
   // Handle Onboarding Click
   const handleOnboardClick = async () => {
     setIsOnboardingGenerating(true);
+    const url = `${API_URL}/api/paysprint/onboard/generate-url`;
+    console.log("Hitting URL:", url, "with userId:", currentUser);
     try {
-      const res = await fetch(`${API_URL}/api/paysprint/onboard/generate-url`, {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser })
       });
+      console.log("Response status:", res.status, res.statusText);
       const data = await res.json();
+      console.log("Response data captured:", data);
       setIsOnboardingGenerating(false);
       
       if (data.success && data.onboardUrl) {
@@ -369,6 +373,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         Toast.fire({ icon: 'error', title: data.message || 'Failed to generate onboarding URL.' });
       }
     } catch (err) {
+      console.error("Error during fetch:", err);
       setIsOnboardingGenerating(false);
       Toast.fire({ icon: 'error', title: 'Network error generating onboarding URL.' });
     }
@@ -1196,43 +1201,21 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
 
             <form onSubmit={handleRequisitionSubmit}>
               
-              <div className="form-grid-two-col">
-                {/* User ID */}
-                <div className="form-group-pro">
-                  <div className="label-row">
-                    <label className="pro-label">User ID</label>
-                    <span className="badge-readonly">
-                      <LockIcon /> Auto-filled
-                    </span>
-                  </div>
-                  <div className="input-with-icon-wrapper">
-                    <input
-                      type="text"
-                      required
-                      value={reqForm.userId}
-                      readOnly
-                      className="form-input-pro readonly-input"
-                    />
-                  </div>
+              <div className="form-group-pro" style={{ marginBottom: '16px' }}>
+                <div className="label-row">
+                  <label className="pro-label">User ID</label>
+                  <span className="badge-readonly">
+                    <LockIcon /> Auto-filled
+                  </span>
                 </div>
-
-                {/* Retailer ID / Reference Number */}
-                <div className="form-group-pro">
-                  <div className="label-row">
-                    <label className="pro-label">Retailer Ref ID</label>
-                    <span className="badge-readonly">
-                      <LockIcon /> Auto-filled
-                    </span>
-                  </div>
-                  <div className="input-with-icon-wrapper">
-                    <input
-                      type="text"
-                      required
-                      value={reqForm.referenceNumber}
-                      readOnly
-                      className="form-input-pro readonly-input"
-                    />
-                  </div>
+                <div className="input-with-icon-wrapper">
+                  <input
+                    type="text"
+                    required
+                    value={reqForm.userId}
+                    readOnly
+                    className="form-input-pro readonly-input"
+                  />
                 </div>
               </div>
 

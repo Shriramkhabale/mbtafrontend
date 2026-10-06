@@ -13,7 +13,7 @@ import { ALL_INDIAN_STATES, INDIAN_STATES_DISTRICTS, ALL_INDIAN_DISTRICTS, PROOF
 import { AO_CODES_LIST, getAoCodesForDistrict } from '../../utils/aoCodeData';
 import { API_URL, apiFetch } from '../../utils/apiClient';
 
-const showCustomToast = (title, text = '', icon = 'success') => {
+const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
   if (existingContainer) existingContainer.remove();
 
@@ -76,7 +76,7 @@ const showCustomToast = (title, text = '', icon = 'success') => {
   };
 
   toastContainer.onclick = dismiss;
-  timer = setTimeout(dismiss, 1000);
+  timer = setTimeout(dismiss, duration);
 };
 
 const Toast = {
@@ -84,7 +84,8 @@ const Toast = {
     const title = opts.title || opts.text || 'Notification';
     const text = (opts.title && opts.text) ? opts.text : '';
     const icon = opts.icon || 'success';
-    showCustomToast(title, text, icon);
+    const duration = opts.timer || 5000;
+    showCustomToast(title, text, icon, duration);
   }
 };
 
@@ -97,10 +98,37 @@ const downloadReceiptToPc = (url) => {
   }
 };
 
+export const cleanApplicantTitle = (nameStr) => {
+  if (!nameStr || typeof nameStr !== 'string') return nameStr || '—';
+  const str = nameStr.trim();
+  const cleaned = str.replace(/^(KUMARI|KUMAR|SHRI|SMT|MR|MRS|MS|DR|MISS)\.?\s+/i, '').trim();
+  return cleaned || str;
+};
+
+export const getApplicantDisplayFullName = (app) => {
+  if (!app) return '—';
+  const d = app.details || {};
+  const fName = (d.firstName || app.firstName || '').trim();
+  const mName = (d.middleName || app.middleName || '').trim();
+  const lName = (d.lastName || app.lastName || '').trim();
+
+  if (fName || lName || mName) {
+    const combined = [fName, mName, lName].filter(Boolean).join(' ');
+    if (combined) return cleanApplicantTitle(combined);
+  }
+
+  if (d.entityName || app.entityName) {
+    return (d.entityName || app.entityName).trim();
+  }
+
+  return cleanApplicantTitle(app.applicantName || '—');
+};
+
 const copyApplicationDetailsToClipboard = (app) => {
   if (!app) return;
   const d = app.details || {};
   const catStr = String(d.category || app.category || d.applicantStatus || app.applicantStatus || '').toUpperCase();
+
   const nonIndTypes = ['COMPANY', 'FIRM', 'TRUST', 'HUF', 'HINDU', 'ASSOCIATION', 'AOP', 'BODY', 'BOI', 'LOCAL', 'ARTIFICIAL', 'AJP', 'GOVERNMENT', 'LIMITED', 'LLP'];
   const isNonIndiv = nonIndTypes.some(t => catStr.includes(t)) || (catStr !== '' && catStr !== 'INDIVIDUAL');
 
@@ -492,7 +520,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   // Read initial active tab from URL search parameters if available
   const getInitialTab = () => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || 'new_app_landing';
+    return params.get('tab') || 'services_landing';
   };
 
   const [activeTab, setActiveTab] = useState(getInitialTab);
@@ -804,9 +832,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
   const searchedList = historyList.filter(app => {
     const q = (searchQuery || '').toLowerCase().trim();
+    const displayName = getApplicantDisplayFullName(app).toLowerCase();
     return !q ||
       (app.ackNumber && app.ackNumber.toLowerCase().includes(q)) ||
       (app.applicantName && app.applicantName.toLowerCase().includes(q)) ||
+      displayName.includes(q) ||
       (app.mobileNumber && app.mobileNumber.toLowerCase().includes(q)) ||
       (app.userId && app.userId.toLowerCase().includes(q)) ||
       (app.aadhaarNumber && app.aadhaarNumber.toLowerCase().includes(q));
@@ -1090,7 +1120,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
     }
 
     const appDisplayName = isIndiv
-      ? (correctionData.nameAsPerAadhaar || `${correctionData.firstName || ''} ${correctionData.lastName || ''}`.trim() || 'Individual Applicant')
+      ? ([correctionData.firstName, correctionData.middleName, correctionData.lastName].filter(Boolean).join(' ') || correctionData.nameAsPerAadhaar || 'Individual Applicant')
       : (correctionData.entityName || correctionData.lastName || 'Non-Individual Entity');
 
     // Pre-open window synchronously to avoid browser pop-up blocker
@@ -2337,7 +2367,89 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         </div>
 
         {/* MAIN CONTENT DISPLAY */}
-        {activeTab === 'new_app_landing' ? (
+        {activeTab === 'services_landing' ? (
+          /* OVERVIEW CARDS LANDING PAGE (MATCHING PHOTO 2) */
+          <div className="pan-landing-overview-grid">
+            <div
+              className="pan-overview-card overview-card-emerald"
+              onClick={() => switchTab('new_app_landing')}
+            >
+              <div className="overview-card-header">
+                <div className="overview-icon-badge badge-emerald">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="12" y1="18" x2="12" y2="12" />
+                    <line x1="9" y1="15" x2="15" y2="15" />
+                  </svg>
+                </div>
+                <h4 className="overview-card-title">NEW PAN APPLICATION</h4>
+              </div>
+              <div className="overview-features-list">
+                <div className="overview-feature-pill">
+                  <span className="overview-check check-emerald">✓</span>
+                  <span>Apply for a new PAN card</span>
+                </div>
+                <div className="overview-feature-pill">
+                  <span className="overview-check check-emerald">✓</span>
+                  <span>Manual & Aadhaar OTP support</span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="pan-overview-card overview-card-amber"
+              onClick={() => switchTab('epan_correction')}
+            >
+              <div className="overview-card-header">
+                <div className="overview-icon-badge badge-amber">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <line x1="2" y1="10" x2="22" y2="10" />
+                    <path d="M7 15h3" />
+                    <path d="M14 15l2 2 4-4" />
+                  </svg>
+                </div>
+                <h4 className="overview-card-title">PAN CORRECTION</h4>
+              </div>
+              <div className="overview-features-list">
+                <div className="overview-feature-pill">
+                  <span className="overview-check check-amber">✓</span>
+                  <span>Update or correct existing PAN details</span>
+                </div>
+                <div className="overview-feature-pill">
+                  <span className="overview-check check-amber">✓</span>
+                  <span>Change Photo, Signature, Name, DOB</span>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="pan-overview-card overview-card-blue"
+              onClick={() => switchTab('history')}
+            >
+              <div className="overview-card-header">
+                <div className="overview-icon-badge badge-blue">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </div>
+                <h4 className="overview-card-title">APPLICATIONS HISTORY</h4>
+              </div>
+              <div className="overview-features-list">
+                <div className="overview-feature-pill">
+                  <span className="overview-check check-blue">✓</span>
+                  <span>Track application status</span>
+                </div>
+                <div className="overview-feature-pill">
+                  <span className="overview-check check-blue">✓</span>
+                  <span>Download generated PDFs</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'new_app_landing' ? (
           /* NEW APPLICATION LANDING PAGE (MODERN PORTAL DESIGN) */
           <div className="pan-landing-wrapper">
 
@@ -2549,13 +2661,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         ) : activeTab === 'history' ? (
           <div className="pancard-history-section" style={{ padding: '4px' }}>
             {/* Header & Controls Bar */}
-            <div style={{ background: '#ffffff', border: '1px solid #fed7aa', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', boxShadow: '0 4px 15px rgba(234, 88, 12, 0.06)' }}>
+            <div style={{ background: isLightTheme ? '#ffffff' : '#0f172a', border: isLightTheme ? '1px solid #fed7aa' : '1px solid #334155', borderRadius: '16px', padding: '16px 20px', marginBottom: '20px', boxShadow: isLightTheme ? '0 4px 15px rgba(234, 88, 12, 0.06)' : '0 4px 15px rgba(0, 0, 0, 0.4)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '14px' }}>
                 <div>
-                  <h4 style={{ margin: 0, color: '#ea580c', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h4 style={{ margin: 0, color: isLightTheme ? '#ea580c' : '#fb923c', fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span>📑</span> <span>Submitted PAN Application Requests</span>
                   </h4>
-                  <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '12px' }}>
+                  <p style={{ margin: '4px 0 0 0', color: isLightTheme ? '#64748b' : '#94a3b8', fontSize: '12px' }}>
                     View all submitted Form 49A applications, inspect full form data, download PDFs, and update processing status.
                   </p>
                 </div>
@@ -2565,9 +2677,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     type="button"
                     onClick={() => fetchHistory()}
                     style={{
-                      background: '#fff7ed',
-                      color: '#ea580c',
-                      border: '1px solid #fdba74',
+                      background: isLightTheme ? '#fff7ed' : 'rgba(234, 88, 12, 0.15)',
+                      color: isLightTheme ? '#ea580c' : '#fb923c',
+                      border: isLightTheme ? '1px solid #fdba74' : '1px solid rgba(251, 146, 60, 0.4)',
                       padding: '7px 14px',
                       borderRadius: '10px',
                       fontSize: '12px',
@@ -2576,7 +2688,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
-                      boxShadow: '0 2px 6px rgba(234, 88, 12, 0.08)'
+                      boxShadow: isLightTheme ? '0 2px 6px rgba(234, 88, 12, 0.08)' : '0 2px 6px rgba(0, 0, 0, 0.2)'
                     }}
                   >
                     <span>🔄</span> <span>Refresh</span>
@@ -2587,63 +2699,63 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               {/* Summary Statistics Cards Bar (Accurate matching counts per retailer / search query) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
                 {/* Total Applications Sent */}
-                <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.12)', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
+                <div style={{ background: isLightTheme ? '#f8fafc' : '#1e293b', border: isLightTheme ? '1px solid #cbd5e1' : '1px solid #334155', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: isLightTheme ? 'rgba(2, 132, 199, 0.12)' : 'rgba(56, 189, 248, 0.15)', color: isLightTheme ? '#0284c7' : '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
                     🪪
                   </div>
                   <div>
-                    <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>TOTAL SENT TO ADMIN</div>
-                    <div style={{ fontSize: '19px', color: '#0f172a', fontWeight: '800' }}>{searchedList.length}</div>
+                    <div style={{ fontSize: '10.5px', color: isLightTheme ? '#64748b' : '#94a3b8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>TOTAL SENT TO ADMIN</div>
+                    <div style={{ fontSize: '19px', color: isLightTheme ? '#0f172a' : '#f8fafc', fontWeight: '800' }}>{searchedList.length}</div>
                   </div>
                 </div>
 
                 {/* Approved Applications */}
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ background: isLightTheme ? '#f0fdf4' : 'rgba(16, 185, 129, 0.1)', border: isLightTheme ? '1px solid #bbf7d0' : '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
                     ✅
                   </div>
                   <div>
-                    <div style={{ fontSize: '10.5px', color: '#15803d', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>APPROVED APPLICATIONS</div>
-                    <div style={{ fontSize: '19px', color: '#166534', fontWeight: '800' }}>
+                    <div style={{ fontSize: '10.5px', color: isLightTheme ? '#15803d' : '#4ade80', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>APPROVED APPLICATIONS</div>
+                    <div style={{ fontSize: '19px', color: isLightTheme ? '#166534' : '#4ade80', fontWeight: '800' }}>
                       {searchedList.filter(a => (a.status || '').toLowerCase() === 'approved').length}
                     </div>
                   </div>
                 </div>
 
                 {/* Completed Applications */}
-                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ background: isLightTheme ? '#f0f9ff' : 'rgba(14, 165, 233, 0.1)', border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(14, 165, 233, 0.3)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
                     🎯
                   </div>
                   <div>
-                    <div style={{ fontSize: '10.5px', color: '#0369a1', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>COMPLETED APPLICATIONS</div>
-                    <div style={{ fontSize: '19px', color: '#075985', fontWeight: '800' }}>
+                    <div style={{ fontSize: '10.5px', color: isLightTheme ? '#0369a1' : '#38bdf8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>COMPLETED APPLICATIONS</div>
+                    <div style={{ fontSize: '19px', color: isLightTheme ? '#075985' : '#38bdf8', fontWeight: '800' }}>
                       {searchedList.filter(a => (a.status || '').toLowerCase() === 'completed').length}
                     </div>
                   </div>
                 </div>
 
                 {/* In Progress / Pending */}
-                <div style={{ background: '#fffbe6', border: '1px solid #fde68a', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ background: isLightTheme ? '#fffbe6' : 'rgba(245, 158, 11, 0.1)', border: isLightTheme ? '1px solid #fde68a' : '1px solid rgba(245, 158, 11, 0.3)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
                     ⌛
                   </div>
                   <div>
-                    <div style={{ fontSize: '10.5px', color: '#b45309', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>PENDING / IN PROGRESS</div>
-                    <div style={{ fontSize: '19px', color: '#92400e', fontWeight: '800' }}>
+                    <div style={{ fontSize: '10.5px', color: isLightTheme ? '#b45309' : '#fbbf24', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>PENDING / IN PROGRESS</div>
+                    <div style={{ fontSize: '19px', color: isLightTheme ? '#92400e' : '#fbbf24', fontWeight: '800' }}>
                       {searchedList.filter(a => (a.status || '').toLowerCase() === 'submitted' || (a.status || '').toLowerCase() === 'in progress').length}
                     </div>
                   </div>
                 </div>
 
                 {/* Rejected / Correction */}
-                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
+                <div style={{ background: isLightTheme ? '#fef2f2' : 'rgba(239, 68, 68, 0.1)', border: isLightTheme ? '1px solid #fca5a5' : '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 'bold' }}>
                     ❌
                   </div>
                   <div>
-                    <div style={{ fontSize: '10.5px', color: '#b91c1c', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>REJECTED / CORRECTION</div>
-                    <div style={{ fontSize: '19px', color: '#991b1b', fontWeight: '800' }}>
+                    <div style={{ fontSize: '10.5px', color: isLightTheme ? '#b91c1c' : '#f87171', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.4px' }}>REJECTED / CORRECTION</div>
+                    <div style={{ fontSize: '19px', color: isLightTheme ? '#991b1b' : '#f87171', fontWeight: '800' }}>
                       {searchedList.filter(a => (a.status || '').toLowerCase() === 'rejected').length}
                     </div>
                   </div>
@@ -2658,11 +2770,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   value={searchQuery}
                   onChange={e => { setSearchQuery(e.target.value); setHistoryPage(1); }}
                   style={{
-                    background: '#ffffff',
-                    border: '1px solid #fdba74',
+                    background: isLightTheme ? '#ffffff' : '#1e293b',
+                    border: isLightTheme ? '1px solid #fdba74' : '1px solid #334155',
                     borderRadius: '10px',
                     padding: '9px 14px',
-                    color: '#1e293b',
+                    color: isLightTheme ? '#1e293b' : '#f8fafc',
                     fontSize: '13px',
                     outline: 'none'
                   }}
@@ -2672,56 +2784,56 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   value={statusFilter}
                   onChange={e => { setStatusFilter(e.target.value); setHistoryPage(1); }}
                   style={{
-                    background: '#ffffff',
-                    border: '1px solid #fdba74',
+                    background: isLightTheme ? '#ffffff' : '#1e293b',
+                    border: isLightTheme ? '1px solid #fdba74' : '1px solid #334155',
                     borderRadius: '10px',
                     padding: '9px 12px',
-                    color: '#1e293b',
+                    color: isLightTheme ? '#1e293b' : '#f8fafc',
                     fontSize: '13px',
                     outline: 'none',
                     fontWeight: '600'
                   }}
                 >
-                  <option value="ALL">All Statuses</option>
-                  <option value="Submitted">Submitted</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Rejected">Rejected</option>
+                  <option value="ALL" style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>All Statuses</option>
+                  <option value="Submitted" style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>Submitted</option>
+                  <option value="In Progress" style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>In Progress</option>
+                  <option value="Approved" style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>Approved</option>
+                  <option value="Completed" style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>Completed</option>
+                  <option value="Rejected" style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>Rejected</option>
                 </select>
 
                 <select
                   value={historyPageSize}
                   onChange={e => { setHistoryPageSize(Number(e.target.value)); setHistoryPage(1); }}
                   style={{
-                    background: '#ffffff',
-                    border: '1px solid #fdba74',
+                    background: isLightTheme ? '#ffffff' : '#1e293b',
+                    border: isLightTheme ? '1px solid #fdba74' : '1px solid #334155',
                     borderRadius: '10px',
                     padding: '9px 12px',
-                    color: '#1e293b',
+                    color: isLightTheme ? '#1e293b' : '#f8fafc',
                     fontSize: '13px',
                     outline: 'none',
                     fontWeight: '600'
                   }}
                 >
-                  <option value={10}>10 per page</option>
-                  <option value={25}>25 per page</option>
-                  <option value={50}>50 per page</option>
-                  <option value={100}>100 per page</option>
+                  <option value={10} style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>10 per page</option>
+                  <option value={25} style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>25 per page</option>
+                  <option value={50} style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>50 per page</option>
+                  <option value={100} style={{ background: isLightTheme ? '#ffffff' : '#1e293b', color: isLightTheme ? '#1e293b' : '#f8fafc' }}>100 per page</option>
                 </select>
               </div>
             </div>
 
             {/* Applications Data Table */}
             {loadingHistory ? (
-              <div className="pancard-loading-state" style={{ padding: '40px', textAlign: 'center', background: '#ffffff', borderRadius: '16px', border: '1px solid #fed7aa' }}>
+              <div className="pancard-loading-state" style={{ padding: '40px', textAlign: 'center', background: isLightTheme ? '#ffffff' : '#0f172a', borderRadius: '16px', border: isLightTheme ? '1px solid #fed7aa' : '1px solid #334155' }}>
                 <div className="spinner"></div>
-                <p style={{ marginTop: '12px', color: '#ea580c', fontWeight: '600' }}>Loading PAN application requests...</p>
+                <p style={{ marginTop: '12px', color: isLightTheme ? '#ea580c' : '#fb923c', fontWeight: '600' }}>Loading PAN application requests...</p>
               </div>
             ) : filteredList.length === 0 ? (
-              <div className="pancard-empty-history" style={{ padding: '50px 20px', textAlign: 'center', background: '#fff7ed', borderRadius: '16px', border: '1px dashed #fdba74' }}>
+              <div className="pancard-empty-history" style={{ padding: '50px 20px', textAlign: 'center', background: isLightTheme ? '#fff7ed' : 'rgba(234, 88, 12, 0.1)', borderRadius: '16px', border: isLightTheme ? '1px dashed #fdba74' : '1px dashed rgba(251, 146, 60, 0.4)' }}>
                 <span style={{ fontSize: '36px', display: 'block', marginBottom: '10px' }}>📂</span>
-                <p style={{ color: '#ea580c', margin: 0, fontSize: '14px', fontWeight: '600' }}>
+                <p style={{ color: isLightTheme ? '#ea580c' : '#fb923c', margin: 0, fontSize: '14px', fontWeight: '600' }}>
                   No PAN application requests found matching your filter.
                 </p>
               </div>
@@ -2730,16 +2842,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                 <div className="history-table-wrapper" style={{ width: '100%', overflowX: 'auto' }}>
                   <table className="pancard-history-table" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 6px', tableLayout: 'auto' }}>
                     <thead>
-                      <tr style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)', borderBottom: '2px solid #fed7aa' }}>
-                        <th style={{ padding: '9px 6px', borderRadius: '8px 0 0 8px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
-                        <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
-                        <th style={{ padding: '9px 5px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
-                        <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
-                        <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
-                        <th style={{ padding: '9px 6px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
-                        <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
-                        <th style={{ padding: '9px 4px', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
-                        <th style={{ padding: '9px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', color: '#c2410c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
+                      <tr style={{ background: isLightTheme ? 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderBottom: isLightTheme ? '2px solid #fed7aa' : '2px solid #334155' }}>
+                        <th style={{ padding: '9px 6px', borderRadius: '8px 0 0 8px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ACK NO</th>
+                        <th style={{ padding: '9px 4px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>CATEGORY</th>
+                        <th style={{ padding: '9px 5px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>TYPE</th>
+                        <th style={{ padding: '9px 6px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>APPLICANT NAME</th>
+                        <th style={{ padding: '9px 6px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>MOBILE / EMAIL</th>
+                        <th style={{ padding: '9px 6px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>SUBMITTED DATE</th>
+                        <th style={{ padding: '9px 4px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>STATUS</th>
+                        <th style={{ padding: '9px 4px', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>NSDL RECEIPT</th>
+                        <th style={{ padding: '9px 6px', textAlign: 'center', borderRadius: '0 8px 8px 0', color: isLightTheme ? '#c2410c' : '#fb923c', fontWeight: '800', fontSize: '10.5px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ADMIN ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2753,46 +2865,65 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                             onClick={() => setSelectedAppForModal(app)}
                             title="Click to view full applicant details"
                             style={{
-                              background: '#ffffff',
-                              border: '1px solid #fed7aa',
-                              boxShadow: '0 1px 6px rgba(234, 88, 12, 0.04)',
+                              background: isLightTheme ? '#ffffff' : '#1e293b',
+                              border: isLightTheme ? '1px solid #fed7aa' : '1px solid #334155',
+                              boxShadow: isLightTheme ? '0 1px 6px rgba(234, 88, 12, 0.04)' : '0 1px 6px rgba(0, 0, 0, 0.3)',
                               cursor: 'pointer'
                             }}
                           >
                             {/* ACK NO */}
                             <td className="col-ack" style={{ padding: '8px 6px', borderRadius: '8px 0 0 8px', whiteSpace: 'nowrap' }}>
-                              <span style={{ background: '#fff7ed', color: '#ea580c', border: '1px solid #fdba74', padding: '2px 6px', borderRadius: '5px', fontSize: '11px', fontWeight: '800', fontFamily: 'monospace' }}>
+                              <span style={{
+                                background: isLightTheme ? '#fff7ed' : 'rgba(234, 88, 12, 0.18)',
+                                color: isLightTheme ? '#ea580c' : '#fb923c',
+                                border: isLightTheme ? '1px solid #fdba74' : '1px solid rgba(251, 146, 60, 0.4)',
+                                padding: '2px 6px',
+                                borderRadius: '5px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                fontFamily: 'monospace'
+                              }}>
                                 {app.ackNumber}
                               </span>
                             </td>
 
                             {/* CATEGORY */}
                             <td style={{ padding: '8px 4px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              <span style={{ background: '#f8fafc', color: '#475569', border: '1px solid #cbd5e1', padding: '2px 5px', borderRadius: '5px', fontSize: '9.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                              <span style={{
+                                background: isLightTheme ? '#f8fafc' : '#0f172a',
+                                color: isLightTheme ? '#475569' : '#cbd5e1',
+                                border: isLightTheme ? '1px solid #cbd5e1' : '1px solid #334155',
+                                padding: '2px 5px',
+                                borderRadius: '5px',
+                                fontSize: '9.5px',
+                                fontWeight: '800',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.3px'
+                              }}>
                                 {app.category || app.details?.category || 'INDIVIDUAL'}
                               </span>
                             </td>
 
                             {/* TYPE */}
-                            <td style={{ padding: '8px 5px', fontSize: '11px', color: '#475569', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                            <td style={{ padding: '8px 5px', fontSize: '11px', color: isLightTheme ? '#475569' : '#cbd5e1', fontWeight: '600', whiteSpace: 'nowrap' }}>
                               {app.applicationType}
                             </td>
 
                             {/* APPLICANT NAME */}
-                            <td style={{ padding: '8px 6px', fontSize: '11.5px', fontWeight: '800', color: '#0f172a' }}>
-                              {app.applicantName}
+                            <td style={{ padding: '8px 6px', fontSize: '11.5px', fontWeight: '800', color: isLightTheme ? '#0f172a' : '#f8fafc' }}>
+                              {getApplicantDisplayFullName(app)}
                             </td>
 
                             {/* MOBILE / EMAIL */}
-                            <td style={{ padding: '8px 6px', fontSize: '11px', color: '#334155' }}>
+                            <td style={{ padding: '8px 6px', fontSize: '11px', color: isLightTheme ? '#334155' : '#cbd5e1' }}>
                               <div style={{ fontWeight: '700', whiteSpace: 'nowrap' }}>📞 {app.mobileNumber}</div>
-                              <div style={{ fontSize: '10px', color: '#64748b', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={app.email}>✉️ {app.email}</div>
+                              <div style={{ fontSize: '10px', color: isLightTheme ? '#64748b' : '#94a3b8', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={app.email}>✉️ {app.email}</div>
                             </td>
 
                             {/* SUBMITTED DATE */}
-                            <td style={{ padding: '8px 6px', color: '#475569' }}>
+                            <td style={{ padding: '8px 6px', color: isLightTheme ? '#475569' : '#cbd5e1' }}>
                               <div style={{ fontWeight: '700', fontSize: '11px', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleDateString()}</div>
-                              <div style={{ fontSize: '10px', color: '#64748b', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                              <div style={{ fontSize: '10px', color: isLightTheme ? '#64748b' : '#94a3b8', whiteSpace: 'nowrap' }}>{new Date(app.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                             </td>
 
                             {/* STATUS */}
@@ -2823,9 +2954,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '3px',
-                                    background: '#f0f9ff',
-                                    color: '#0284c7',
-                                    border: '1px solid #7dd3fc',
+                                    background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.2)',
+                                    color: isLightTheme ? '#0284c7' : '#38bdf8',
+                                    border: isLightTheme ? '1px solid #7dd3fc' : '1px solid rgba(56, 189, 248, 0.4)',
                                     padding: '3px 7px',
                                     borderRadius: '6px',
                                     fontSize: '10px',
@@ -2833,7 +2964,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                     fontFamily: 'monospace',
                                     cursor: app.receiptUrl ? 'pointer' : 'default',
                                     textDecoration: 'none',
-                                    boxShadow: '0 1px 3px rgba(2, 132, 199, 0.08)',
+                                    boxShadow: isLightTheme ? '0 1px 3px rgba(2, 132, 199, 0.08)' : '0 1px 3px rgba(0, 0, 0, 0.2)',
                                     transition: 'all 0.15s ease'
                                   }}
                                 >
@@ -2843,7 +2974,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                   </span>
                                 </button>
                               ) : (
-                                <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '600' }}>—</span>
+                                <span style={{ color: isLightTheme ? '#94a3b8' : '#64748b', fontSize: '13px', fontWeight: '600' }}>—</span>
                               )}
                             </td>
 
@@ -2858,9 +2989,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                     setSelectedAppForModal(app);
                                   }}
                                   style={{
-                                    background: '#f0f9ff',
-                                    color: '#0284c7',
-                                    border: '1px solid #bae6fd',
+                                    background: isLightTheme ? '#f0f9ff' : 'rgba(2, 132, 199, 0.2)',
+                                    color: isLightTheme ? '#0284c7' : '#38bdf8',
+                                    border: isLightTheme ? '1px solid #bae6fd' : '1px solid rgba(56, 189, 248, 0.4)',
                                     padding: '4px 7px',
                                     borderRadius: '6px',
                                     fontSize: '10.5px',
@@ -2887,9 +3018,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                     setDocumentName('');
                                   }}
                                   style={{
-                                    background: '#fff7ed',
-                                    color: '#ea580c',
-                                    border: '1px solid #fdba74',
+                                    background: isLightTheme ? '#fff7ed' : 'rgba(234, 88, 12, 0.2)',
+                                    color: isLightTheme ? '#ea580c' : '#fb923c',
+                                    border: isLightTheme ? '1px solid #fdba74' : '1px solid rgba(251, 146, 60, 0.4)',
                                     padding: '4px 7px',
                                     borderRadius: '6px',
                                     fontSize: '10.5px',
@@ -2920,9 +3051,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                     }
                                   }}
                                   style={{
-                                    background: '#ecfdf5',
-                                    color: '#059669',
-                                    border: '1px solid #a7f3d0',
+                                    background: isLightTheme ? '#ecfdf5' : 'rgba(16, 185, 129, 0.2)',
+                                    color: isLightTheme ? '#059669' : '#34d399',
+                                    border: isLightTheme ? '1px solid #a7f3d0' : '1px solid rgba(52, 211, 153, 0.4)',
                                     padding: '4px 7px',
                                     borderRadius: '6px',
                                     fontSize: '10.5px',
@@ -2943,9 +3074,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                 {((app.status || '').toLowerCase() === 'approved' || (app.status || '').toLowerCase() === 'completed') ? (
                                   <span
                                     style={{
-                                      background: '#f1f5f9',
-                                      color: '#94a3b8',
-                                      border: '1px solid #cbd5e1',
+                                      background: isLightTheme ? '#f1f5f9' : '#0f172a',
+                                      color: isLightTheme ? '#94a3b8' : '#64748b',
+                                      border: isLightTheme ? '1px solid #cbd5e1' : '1px solid #334155',
                                       padding: '4px 7px',
                                       borderRadius: '6px',
                                       fontSize: '10.5px',
@@ -2968,9 +3099,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                       handleRetailerDeleteApplication(app);
                                     }}
                                     style={{
-                                      background: '#fef2f2',
-                                      color: '#dc2626',
-                                      border: '1px solid #fca5a5',
+                                      background: isLightTheme ? '#fef2f2' : 'rgba(239, 68, 68, 0.2)',
+                                      color: isLightTheme ? '#dc2626' : '#f87171',
+                                      border: isLightTheme ? '1px solid #fca5a5' : '1px solid rgba(239, 68, 68, 0.4)',
                                       padding: '4px 7px',
                                       borderRadius: '6px',
                                       fontSize: '10.5px',
@@ -2999,17 +3130,17 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                 {/* Pagination Footer Controls */}
                 <div style={{
                   display: 'flex',
-                  justify: 'space-between',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   marginTop: '14px',
                   padding: '12px 18px',
-                  background: '#ffffff',
+                  background: isLightTheme ? '#ffffff' : '#0f172a',
                   borderRadius: '12px',
-                  border: '1px solid #fed7aa',
+                  border: isLightTheme ? '1px solid #fed7aa' : '1px solid #334155',
                   flexWrap: 'wrap',
                   gap: '10px'
                 }}>
-                  <div style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>
+                  <div style={{ fontSize: '13px', color: isLightTheme ? '#475569' : '#cbd5e1', fontWeight: '600' }}>
                     Showing <strong>{filteredList.length === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + historyPageSize, filteredList.length)}</strong> of <strong>{filteredList.length}</strong> applications
                   </div>
 
@@ -3021,9 +3152,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       style={{
                         padding: '6px 14px',
                         borderRadius: '8px',
-                        border: '1px solid #fdba74',
-                        background: currentPage <= 1 ? '#f1f5f9' : '#fff7ed',
-                        color: currentPage <= 1 ? '#94a3b8' : '#ea580c',
+                        border: isLightTheme ? '1px solid #fdba74' : (currentPage <= 1 ? '1px solid #334155' : '1px solid rgba(251, 146, 60, 0.4)'),
+                        background: isLightTheme ? (currentPage <= 1 ? '#f1f5f9' : '#fff7ed') : (currentPage <= 1 ? '#1e293b' : 'rgba(234, 88, 12, 0.2)'),
+                        color: isLightTheme ? (currentPage <= 1 ? '#94a3b8' : '#ea580c') : (currentPage <= 1 ? '#64748b' : '#fb923c'),
                         fontWeight: '700',
                         fontSize: '12px',
                         cursor: currentPage <= 1 ? 'not-allowed' : 'pointer'
@@ -3032,7 +3163,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       ◀ Prev
                     </button>
 
-                    <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#334155', padding: '0 8px' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: '700', color: isLightTheme ? '#334155' : '#cbd5e1', padding: '0 8px' }}>
                       Page {currentPage} of {totalPages}
                     </span>
 
@@ -3043,9 +3174,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                       style={{
                         padding: '6px 14px',
                         borderRadius: '8px',
-                        border: '1px solid #fdba74',
-                        background: currentPage >= totalPages ? '#f1f5f9' : '#fff7ed',
-                        color: currentPage >= totalPages ? '#94a3b8' : '#ea580c',
+                        border: isLightTheme ? '1px solid #fdba74' : (currentPage >= totalPages ? '1px solid #334155' : '1px solid rgba(251, 146, 60, 0.4)'),
+                        background: isLightTheme ? (currentPage >= totalPages ? '#f1f5f9' : '#fff7ed') : (currentPage >= totalPages ? '#1e293b' : 'rgba(234, 88, 12, 0.2)'),
+                        color: isLightTheme ? (currentPage >= totalPages ? '#94a3b8' : '#ea580c') : (currentPage >= totalPages ? '#64748b' : '#fb923c'),
                         fontWeight: '700',
                         fontSize: '12px',
                         cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer'

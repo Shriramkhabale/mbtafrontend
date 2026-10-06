@@ -14,7 +14,7 @@ const Toast = Swal.mixin({
   toast: true,
   position: 'top-end',
   showConfirmButton: false,
-  timer: 3000,
+  timer: 5000,
   timerProgressBar: true
 });
 
@@ -50,13 +50,10 @@ const Dashboard = () => {
   const isLedgerRoute = location.pathname === '/ledger';
   const isWalletRoute = location.pathname === '/wallet';
   const isPanCardRoute = location.pathname === '/pancard' || location.pathname === '/pan-card';
-  const isPanNewAppTab = isPanCardRoute && (location.search.includes('new_app') || (!location.search.includes('epan') && !location.search.includes('history')));
-  const isPanEpanTab = isPanCardRoute && location.search.includes('epan');
   const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute;
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('appTheme') || 'dark';
   });
-
 
   const [actionCardsData, setActionCardsData] = useState([]);
   const [topTabsData, setTopTabsData] = useState([]);
@@ -71,7 +68,6 @@ const Dashboard = () => {
   const [showWallet, setShowWallet] = useState(false);
   const [walletTab, setWalletTab] = useState('directPayment');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isPanSubmenuOpen, setIsPanSubmenuOpen] = useState(true);
 
   // Sync /wallet URL route with showWallet modal state
   useEffect(() => {
@@ -358,88 +354,38 @@ const Dashboard = () => {
             {sidebarMenuData.map((menu) => {
               const menuId = menu._id || menu.id;
               const isPan = menu.label && menu.label.toLowerCase().includes('pan');
-              const isSelected = activeMenuId ? activeMenuId === menuId : menu.isActive;
+              const isDash = menu.label && menu.label.toLowerCase().includes('dash');
+              const isSelected = isPan ? isPanCardRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId);
+
               return (
-                <React.Fragment key={menuId}>
-                  <div
-                    className={`menu-item-new ${isSelected ? 'active' : ''} ${!menu.label ? 'empty' : ''}`}
-                    onClick={() => {
-                      setActiveMenuId(menuId);
-                      if (isPan) {
-                        setIsPanSubmenuOpen(!isPanSubmenuOpen);
+                <div
+                  key={menuId}
+                  className={`menu-item-new ${isSelected ? 'active' : ''} ${!menu.label ? 'empty' : ''}`}
+                  onClick={() => {
+                    setActiveMenuId(menuId);
+                    setIsMobileMenuOpen(false);
+                    if (isPan) {
+                      navigate('/pancard');
+                    } else if (menu.url && menu.url.trim() !== '') {
+                      const targetUrl = menu.url.trim();
+                      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+                        window.open(targetUrl, '_blank');
                       } else {
-                        setIsMobileMenuOpen(false);
-                        if (menu.url && menu.url.trim() !== '') {
-                          const targetUrl = menu.url.trim();
-                          if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
-                            window.open(targetUrl, '_blank');
-                          } else {
-                            navigate(targetUrl);
-                          }
-                        } else if (menu.label && menu.label.toLowerCase().includes('dash')) {
-                          navigate('/dashboard');
-                        } else if (menu.label && (menu.label.toLowerCase().includes('report') || menu.label.toLowerCase().includes('ledger'))) {
-                          navigate('/ledger');
-                        } else if (menu.label && menu.label.toLowerCase().includes('wallet')) {
-                          navigate('/wallet');
-                        }
+                        navigate(targetUrl);
                       }
-                    }}
-                  >
-                    {getMenuIcon(menu.label)}
-                    <span className="menu-label-text">{menu.label}</span>
-                    <span className="active-chevron">{isPan ? (isPanSubmenuOpen ? '▼' : '›') : '›'}</span>
-                  </div>
-
-                  {/* PAN Card Submenu Options - ONLY New Application & PAN Correction */}
-                  {isPan && isPanSubmenuOpen && (
-                    <div className="sidebar-pan-submenu">
-                      <div
-                        className={`pan-submenu-item ${isPanNewAppTab ? 'active' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsMobileMenuOpen(false);
-                          navigate('/pancard?tab=new_app_landing');
-                        }}
-                      >
-                        <div className="pan-submenu-left">
-                          <span className="pan-submenu-icon-badge">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="12" y1="18" x2="12" y2="12" />
-                              <line x1="9" y1="15" x2="15" y2="15" />
-                            </svg>
-                          </span>
-                          <span className="pan-submenu-text">New Application</span>
-                        </div>
-                        <span className="pan-submenu-chevron">›</span>
-                      </div>
-
-                      <div
-                        className={`pan-submenu-item ${isPanEpanTab ? 'active' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsMobileMenuOpen(false);
-                          navigate('/pancard?tab=epan_correction');
-                        }}
-                      >
-                        <div className="pan-submenu-left">
-                          <span className="pan-submenu-icon-badge">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="2" y="5" width="20" height="14" rx="2" />
-                              <line x1="2" y1="10" x2="22" y2="10" />
-                              <path d="M7 15h3" />
-                              <path d="M14 15l2 2 4-4" />
-                            </svg>
-                          </span>
-                          <span className="pan-submenu-text">PAN Correction</span>
-                        </div>
-                        <span className="pan-submenu-chevron">›</span>
-                      </div>
-                    </div>
-                  )}
-                </React.Fragment>
+                    } else if (isDash) {
+                      navigate('/dashboard');
+                    } else if (menu.label && (menu.label.toLowerCase().includes('report') || menu.label.toLowerCase().includes('ledger'))) {
+                      navigate('/ledger');
+                    } else if (menu.label && menu.label.toLowerCase().includes('wallet')) {
+                      navigate('/wallet');
+                    }
+                  }}
+                >
+                  {getMenuIcon(menu.label)}
+                  <span className="menu-label-text">{menu.label}</span>
+                  <span className="active-chevron">›</span>
+                </div>
               );
             })}
           </div>
