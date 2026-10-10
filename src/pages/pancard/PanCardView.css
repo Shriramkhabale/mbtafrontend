@@ -2860,141 +2860,124 @@
   box-shadow: none;
 }
 
-/* Overview Landing Grid (3 Cards View - Matching Photo 2) */
+/* Overview Landing Grid (4 Cards Row Layout) */
 .pan-landing-overview-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-top: 10px;
-  padding: 10px 0;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+  padding: 8px 0;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
+  .pan-landing-overview-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
   .pan-landing-overview-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   .pan-landing-overview-grid {
     grid-template-columns: 1fr;
   }
 }
 
+/* Card Styling - Default (Dark Theme) */
 .pan-overview-card {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
-  padding: 24px 22px;
+  background: #0f172a;
+  border: 1.5px solid rgba(249, 115, 22, 0.28);
+  border-radius: 14px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  position: relative;
   overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .pan-overview-card:hover {
   transform: translateY(-4px);
-  background: rgba(15, 23, 42, 0.85);
-  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.5);
+  border-color: #f97316;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 20px rgba(249, 115, 22, 0.2);
 }
 
-.overview-card-emerald {
-  border-color: rgba(16, 185, 129, 0.2);
-}
-.overview-card-emerald:hover {
-  border-color: rgba(16, 185, 129, 0.6);
-  box-shadow: 0 16px 36px -10px rgba(16, 185, 129, 0.25);
-}
-
-.overview-card-amber {
-  border-color: rgba(249, 115, 22, 0.2);
-}
-.overview-card-amber:hover {
-  border-color: rgba(249, 115, 22, 0.6);
-  box-shadow: 0 16px 36px -10px rgba(249, 115, 22, 0.25);
-}
-
-.overview-card-blue {
-  border-color: rgba(56, 189, 248, 0.2);
-}
-.overview-card-blue:hover {
-  border-color: rgba(56, 189, 248, 0.6);
-  box-shadow: 0 16px 36px -10px rgba(56, 189, 248, 0.25);
-}
-
-.overview-card-header {
+.pan-card-image-wrap {
+  width: 100%;
+  height: 135px;
+  overflow: hidden;
+  background: #090e1a;
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: center;
 }
 
-.overview-icon-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.pan-card-top-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.pan-overview-card:hover .pan-card-top-img {
+  transform: scale(1.04);
+}
+
+.pan-card-bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #0f172a;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pan-card-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(234, 88, 12, 0.16);
+  border: 1px solid rgba(234, 88, 12, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.15);
 }
 
-.badge-emerald {
-  background: rgba(16, 185, 129, 0.15);
-  color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
-.badge-amber {
-  background: rgba(249, 115, 22, 0.15);
-  color: #fb923c;
-  border: 1px solid rgba(249, 115, 22, 0.3);
-}
-
-.badge-blue {
-  background: rgba(56, 189, 248, 0.15);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.3);
-}
-
-.overview-card-title {
-  font-size: 16px;
-  font-weight: 800;
-  color: #ffffff;
-  margin: 0;
-  letter-spacing: -0.2px;
-}
-
-.overview-features-list {
+.pan-card-text-col {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
 }
 
-.overview-feature-pill {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: rgba(30, 41, 59, 0.5);
-  padding: 10px 14px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #cbd5e1;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+.pan-card-title-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+  line-height: 1.25;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.overview-check {
-  font-weight: 800;
-  font-size: 13px;
+.pan-card-accent-line {
+  width: 22px;
+  height: 2.5px;
+  background: #ea580c;
+  border-radius: 3px;
+  display: block;
 }
-
-.check-emerald { color: #34d399; }
-.check-amber { color: #fb923c; }
-.check-blue { color: #38bdf8; }
 
 /* ==========================================================================
    PAN CARD SERVICES - LIGHT MODE COMPLETE THEME OVERRIDES
@@ -3102,34 +3085,104 @@
   box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25) !important;
 }
 
-/* 3 Overview Cards in Light Mode */
+/* 4 Overview Cards in Dark Mode */
+.theme-dark .pan-overview-card,
+.dashboard-container-new.theme-dark .pan-overview-card,
+.pancard-inline-container.theme-dark .pan-overview-card,
+.pancard-card.theme-dark .pan-overview-card {
+  background: #0f172a !important;
+  border: 1.5px solid rgba(249, 115, 22, 0.28) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35) !important;
+}
+
+.theme-dark .pan-overview-card:hover,
+.dashboard-container-new.theme-dark .pan-overview-card:hover,
+.pancard-inline-container.theme-dark .pan-overview-card:hover,
+.pancard-card.theme-dark .pan-overview-card:hover {
+  background: #0f172a !important;
+  border-color: #f97316 !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 20px rgba(249, 115, 22, 0.2) !important;
+}
+
+.theme-dark .pan-card-image-wrap,
+.dashboard-container-new.theme-dark .pan-card-image-wrap,
+.pancard-inline-container.theme-dark .pan-card-image-wrap,
+.pancard-card.theme-dark .pan-card-image-wrap {
+  background: #090e1a !important;
+}
+
+.theme-dark .pan-card-bottom-bar,
+.dashboard-container-new.theme-dark .pan-card-bottom-bar,
+.pancard-inline-container.theme-dark .pan-card-bottom-bar,
+.pancard-card.theme-dark .pan-card-bottom-bar {
+  background: #0f172a !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.theme-dark .pan-card-icon-badge,
+.dashboard-container-new.theme-dark .pan-card-icon-badge,
+.pancard-inline-container.theme-dark .pan-card-icon-badge,
+.pancard-card.theme-dark .pan-card-icon-badge {
+  background: rgba(234, 88, 12, 0.16) !important;
+  border: 1px solid rgba(234, 88, 12, 0.3) !important;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.15) !important;
+}
+
+.theme-dark .pan-card-title-text,
+.dashboard-container-new.theme-dark .pan-card-title-text,
+.pancard-inline-container.theme-dark .pan-card-title-text,
+.pancard-card.theme-dark .pan-card-title-text {
+  color: #f8fafc !important;
+}
+
+/* 4 Overview Cards in Light Mode */
 .theme-light .pan-overview-card,
 .dashboard-container-new.theme-light .pan-overview-card,
-.pancard-inline-container.theme-light .pan-overview-card {
+.pancard-inline-container.theme-light .pan-overview-card,
+.pancard-card.theme-light .pan-overview-card {
   background: #ffffff !important;
-  border: 1.5px solid #e2e8f0 !important;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+  border: 1.5px solid #fed7aa !important;
+  box-shadow: 0 4px 16px rgba(249, 115, 22, 0.08) !important;
 }
 
 .theme-light .pan-overview-card:hover,
 .dashboard-container-new.theme-light .pan-overview-card:hover,
-.pancard-inline-container.theme-light .pan-overview-card:hover {
+.pancard-inline-container.theme-light .pan-overview-card:hover,
+.pancard-card.theme-light .pan-overview-card:hover {
   background: #ffffff !important;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08) !important;
+  border-color: #f97316 !important;
+  box-shadow: 0 12px 26px rgba(249, 115, 22, 0.18) !important;
 }
 
-.theme-light .overview-card-title,
-.dashboard-container-new.theme-light .overview-card-title,
-.pancard-inline-container.theme-light .overview-card-title {
-  color: #0f172a !important;
-}
-
-.theme-light .overview-feature-pill,
-.dashboard-container-new.theme-light .overview-feature-pill,
-.pancard-inline-container.theme-light .overview-feature-pill {
+.theme-light .pan-card-image-wrap,
+.dashboard-container-new.theme-light .pan-card-image-wrap,
+.pancard-inline-container.theme-light .pan-card-image-wrap,
+.pancard-card.theme-light .pan-card-image-wrap {
   background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
-  color: #334155 !important;
+}
+
+.theme-light .pan-card-bottom-bar,
+.dashboard-container-new.theme-light .pan-card-bottom-bar,
+.pancard-inline-container.theme-light .pan-card-bottom-bar,
+.pancard-card.theme-light .pan-card-bottom-bar {
+  background: #ffffff !important;
+  border-top: 1px solid #ffedd5 !important;
+}
+
+.theme-light .pan-card-icon-badge,
+.dashboard-container-new.theme-light .pan-card-icon-badge,
+.pancard-inline-container.theme-light .pan-card-icon-badge,
+.pancard-card.theme-light .pan-card-icon-badge {
+  background: #fff0e6 !important;
+  border: 1px solid #fed7aa !important;
+  box-shadow: 0 2px 8px rgba(234, 88, 12, 0.12) !important;
+}
+
+.theme-light .pan-card-title-text,
+.dashboard-container-new.theme-light .pan-card-title-text,
+.pancard-inline-container.theme-light .pan-card-title-text,
+.pancard-card.theme-light .pan-card-title-text {
+  color: #0f172a !important;
 }
 
 /* Portal Subhead & Service Cards in Light Mode */

@@ -6,6 +6,7 @@ import logoImg from '../../assets/logo.png';
 import WalletModal from '../wallet/WalletModal';
 import LedgerView from '../ledger/LedgerView';
 import PanCardView from '../pancard/PanCardView';
+import QuickLinksView from '../quicklinks/QuickLinksView';
 import NotificationBell from '../../context/NotificationBell';
 import { API_URL } from '../../utils/apiClient';
 
@@ -25,6 +26,7 @@ const getMenuIcon = (label) => {
   if (l.includes('adhar') || l.includes('aadhaar')) return <span className="icon-badge icon-purple">ID</span>;
   if (l.includes('pan')) return <span className="icon-badge icon-amber">💳</span>;
   if (l.includes('report') || l.includes('history')) return <span className="icon-badge icon-blue">📑</span>;
+  if (l.includes('link') || l.includes('quick')) return <span className="icon-badge icon-teal">🔗</span>;
   if (l.includes('user') || l.includes('profile')) return <span className="icon-badge icon-teal">👤</span>;
   if (l.includes('setting')) return <span className="icon-badge icon-slate">⚙️</span>;
   return <span className="icon-badge icon-orange">⚡</span>;
@@ -50,7 +52,8 @@ const Dashboard = () => {
   const isLedgerRoute = location.pathname === '/ledger';
   const isWalletRoute = location.pathname === '/wallet';
   const isPanCardRoute = location.pathname === '/pancard' || location.pathname === '/pan-card';
-  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute;
+  const isQuickLinksRoute = location.pathname === '/quick-links' || location.pathname === '/view-links';
+  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute;
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('appTheme') || 'dark';
   });
@@ -141,6 +144,11 @@ const Dashboard = () => {
           const l = m.label.toLowerCase();
           return !l.includes('wallet') && !l.includes('ledger') && !l.includes('report');
         }) : [];
+
+        if (!menus.some(m => m.label && (m.label.toLowerCase().includes('link') || m.label.toLowerCase().includes('quick')))) {
+          menus.push({ _id: 'menu_view_links', label: 'View Links', url: '/quick-links', isActive: true });
+        }
+
         setSidebarMenuData(menus);
         const activeItem = menus.find(m => m.isActive) || menus[0];
         if (activeItem) {
@@ -355,7 +363,8 @@ const Dashboard = () => {
               const menuId = menu._id || menu.id;
               const isPan = menu.label && menu.label.toLowerCase().includes('pan');
               const isDash = menu.label && menu.label.toLowerCase().includes('dash');
-              const isSelected = isPan ? isPanCardRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId);
+              const isQuick = menu.label && (menu.label.toLowerCase().includes('link') || menu.label.toLowerCase().includes('quick'));
+              const isSelected = isPan ? isPanCardRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId));
 
               return (
                 <div
@@ -366,6 +375,8 @@ const Dashboard = () => {
                     setIsMobileMenuOpen(false);
                     if (isPan) {
                       navigate('/pancard');
+                    } else if (isQuick) {
+                      navigate('/quick-links');
                     } else if (menu.url && menu.url.trim() !== '') {
                       const targetUrl = menu.url.trim();
                       if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
@@ -523,6 +534,8 @@ const Dashboard = () => {
               onClose={() => navigate('/dashboard')}
               theme={theme}
             />
+          ) : isQuickLinksRoute ? (
+            <QuickLinksView theme={theme} />
           ) : (
             bannersData.length > 0 && (
               <div className={`banner-area-new ${activeBannerId ? 'active' : ''}`}>

@@ -2202,23 +2202,25 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         {/* Header Bar */}
         <div className="pancard-header">
           <div className="pancard-header-left">
-            <div className="pancard-brand-row">
-              <div className="pancard-title-badge">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="5" width="20" height="14" rx="3" />
-                  <line x1="2" y1="10" x2="22" y2="10" />
-                  <line x1="6" y1="15" x2="10" y2="15" />
-                </svg>
-              </div>
-              <div className="pancard-title-wrap">
-                <div className="pancard-title-with-tag">
-                  <h3 className="pancard-title">PAN Card Services</h3>
+            {activeTab !== 'services_landing' && (
+              <div className="pancard-brand-row">
+                <div className="pancard-title-badge">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="3" />
+                    <line x1="2" y1="10" x2="22" y2="10" />
+                    <line x1="6" y1="15" x2="10" y2="15" />
+                  </svg>
                 </div>
-                <div className="pancard-subtitle">
-                  Instant E-PAN Application, Form 49A Physical, Correction & Biometric e-KYC
+                <div className="pancard-title-wrap">
+                  <div className="pancard-title-with-tag">
+                    <h3 className="pancard-title">PAN Card Services</h3>
+                  </div>
+                  <div className="pancard-subtitle">
+                    Instant E-PAN Application, Form 49A Physical, Correction & Biometric e-KYC
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
           <div className="pancard-header-right">
             {walletBalance !== undefined && (
@@ -2253,48 +2255,50 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         </div>
 
         {/* Dynamic Sub-Tabs Bar (Clean Official Navigation) */}
-        <div className="pancard-tabs-bar">
-          <button
-            type="button"
-            className={`pancard-tab-btn ${(activeTab === 'new_app_landing' || activeTab === 'manual_new_pan' || activeTab === 'epan_kyc') ? 'active' : ''}`}
-            onClick={() => switchTab('new_app_landing')}
-          >
-            <span className="tab-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-              </svg>
-            </span>
-            <span>New Application</span>
-          </button>
-          <button
-            type="button"
-            className={`pancard-tab-btn ${activeTab === 'epan_correction' ? 'active' : ''}`}
-            onClick={() => switchTab('epan_correction')}
-          >
-            <span className="tab-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </span>
-            <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
-          </button>
-          <button
-            type="button"
-            className={`pancard-tab-btn history-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => switchTab('history')}
-          >
-            <span className="tab-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-              </svg>
-            </span>
-            <span>Applications History</span>
-          </button>
-        </div>
+        {activeTab !== 'services_landing' && (
+          <div className="pancard-tabs-bar">
+            <button
+              type="button"
+              className={`pancard-tab-btn ${(activeTab === 'new_app_landing' || activeTab === 'manual_new_pan' || activeTab === 'epan_kyc') ? 'active' : ''}`}
+              onClick={() => switchTab('new_app_landing')}
+            >
+              <span className="tab-btn-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+              </span>
+              <span>New Application</span>
+            </button>
+            <button
+              type="button"
+              className={`pancard-tab-btn ${activeTab === 'epan_correction' ? 'active' : ''}`}
+              onClick={() => switchTab('epan_correction')}
+            >
+              <span className="tab-btn-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </span>
+              <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
+            </button>
+            <button
+              type="button"
+              className={`pancard-tab-btn history-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => switchTab('history')}
+            >
+              <span className="tab-btn-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </span>
+              <span>Applications History</span>
+            </button>
+          </div>
+        )}
 
         {/* MAIN CONTENT DISPLAY */}
         {activeTab === 'new_app_landing' ? (

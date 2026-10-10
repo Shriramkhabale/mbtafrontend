@@ -25,8 +25,8 @@
 
 /* Modal Master Card */
 .wallet-modal-card {
-  width: 100%;
-  max-width: 650px;
+  width: 95vw;
+  max-width: 850px;
   max-height: 92vh;
   background: #181b20;
   border-radius: 24px;
@@ -201,11 +201,18 @@
   border-radius: 14px;
   padding: 4px;
   gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wallet-tabs-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .wallet-tab-btn {
-  flex: 1;
-  padding: 10px 18px;
+  flex: 1 0 auto;
+  white-space: nowrap;
+  padding: 10px 14px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -649,7 +656,7 @@
 /* Inline Route View Container for /wallet */
 .wallet-inline-container {
   width: 100%;
-  max-width: 720px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 8px 16px 40px;
   box-sizing: border-box;
@@ -1639,4 +1646,347 @@
   gap: 10px;
   margin-top: 14px;
 }
+
+/* ==========================================================================
+   PAY-IN AND PAY-OUT HISTORY TABLE & FILTER STYLES
+   ========================================================================== */
+
+.history-filter-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.history-search-input {
+  flex: 1;
+}
+
+.history-refresh-btn {
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.history-refresh-btn:hover {
+  background: rgba(234, 88, 12, 0.18);
+  border-color: rgba(234, 88, 12, 0.45);
+  color: #ffffff;
+}
+
+.history-loading-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.history-empty-box {
+  text-align: center;
+  padding: 45px 20px;
+  background: rgba(15, 17, 22, 0.4);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+.history-empty-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+}
+
+.history-empty-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.history-empty-sub {
+  font-size: 12.5px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.history-table-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(18, 20, 26, 0.8);
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.history-table th {
+  background: rgba(15, 17, 22, 0.9);
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.history-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.history-table tr:last-child td {
+  border-bottom: none;
+}
+
+.history-table tr:hover td {
+  background: rgba(234, 88, 12, 0.04);
+}
+
+.tx-date-main {
+  font-weight: 700;
+  color: #f8fafc;
+  font-size: 12.5px;
+}
+
+.tx-time-sub {
+  font-size: 10.5px;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.tx-desc-title {
+  font-weight: 700;
+  color: #e2e8f0;
+  font-size: 13px;
+}
+
+.tx-ref-code {
+  font-size: 11px;
+  color: #64748b;
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.badge-credit-pill {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.badge-debit-pill {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tx-amount-green {
+  color: #22c55e;
+  font-weight: 800;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.tx-amount-red {
+  color: #ef4444;
+  font-weight: 800;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.tx-bal-code {
+  font-weight: 700;
+  color: #cbd5e1;
+  font-size: 13px;
+}
+
+.tx-status-pill {
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.tx-status-pill.status-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.tx-status-pill.status-pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.tx-status-pill.status-failed {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Light Theme Overrides */
+.wallet-modal-card.theme-light .history-refresh-btn,
+.wallet-inline-container.theme-light .history-refresh-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.wallet-modal-card.theme-light .history-empty-box,
+.wallet-inline-container.theme-light .history-empty-box {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.wallet-modal-card.theme-light .history-empty-title,
+.wallet-inline-container.theme-light .history-empty-title {
+  color: #0f172a;
+}
+
+.wallet-modal-card.theme-light .history-table-container,
+.wallet-inline-container.theme-light .history-table-container {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.wallet-modal-card.theme-light .history-table th,
+.wallet-inline-container.theme-light .history-table th {
+  background: #f1f5f9;
+  color: #475569;
+  border-bottom-color: #e2e8f0;
+}
+
+.wallet-modal-card.theme-light .history-table td,
+.wallet-inline-container.theme-light .history-table td {
+  border-bottom-color: #f1f5f9;
+}
+
+.wallet-modal-card.theme-light .tx-date-main,
+.wallet-inline-container.theme-light .tx-date-main {
+  color: #0f172a;
+}
+
+.wallet-modal-card.theme-light .tx-desc-title,
+.wallet-inline-container.theme-light .tx-desc-title {
+  color: #1e293b;
+}
+
+.wallet-modal-card.theme-light .tx-bal-code,
+.wallet-inline-container.theme-light .tx-bal-code {
+  color: #334155;
+}
+
+/* History Sub-tabs (Pay-In & Pay-Out inside History) */
+.history-subtabs-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+  width: 100%;
+}
+
+.history-subtab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  background: rgba(18, 20, 26, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.history-subtab-btn .subtab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-subtab-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+.history-subtab-btn.active-payin {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.22) 0%, rgba(22, 163, 74, 0.12) 100%);
+  border-color: #22c55e;
+  color: #4ade80;
+  font-weight: 800;
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.25);
+}
+
+.history-subtab-btn.active-payout {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.22) 0%, rgba(220, 38, 38, 0.12) 100%);
+  border-color: #ef4444;
+  color: #f87171;
+  font-weight: 800;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
+}
+
+/* Light theme overrides for history sub-tabs */
+.wallet-modal-card.theme-light .history-subtab-btn,
+.wallet-inline-container.theme-light .history-subtab-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
+.wallet-modal-card.theme-light .history-subtab-btn:hover,
+.wallet-inline-container.theme-light .history-subtab-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.wallet-modal-card.theme-light .history-subtab-btn.active-payin,
+.wallet-inline-container.theme-light .history-subtab-btn.active-payin {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  border-color: #16a34a;
+  color: #15803d;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.2);
+}
+
+.wallet-modal-card.theme-light .history-subtab-btn.active-payout,
+.wallet-inline-container.theme-light .history-subtab-btn.active-payout {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+  border-color: #dc2626;
+  color: #b91c1c;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.2);
+}
+
+
 

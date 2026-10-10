@@ -42,6 +42,13 @@ const RequisitionIcon = () => (
   </svg>
 );
 
+const HistoryIcon = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 8v4l3 3" />
+    <circle cx="12" cy="12" r="9" />
+  </svg>
+);
+
 const BoltIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -114,6 +121,16 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     }
   }, [initialTab]);
 
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const kycParam = urlParams.get('kyc');
+    if (kycParam === 'success') {
+      setRequiresOnboarding(false);
+      Toast.fire({ icon: 'success', title: 'PaySprint KYC verified! You can now add funds.' });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   // Requisition Form state
   const getTodayDate = () => {
     const today = new Date();
@@ -163,6 +180,12 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     accountType: 'PRIMARY'
   });
   const [isAddingBene, setIsAddingBene] = useState(false);
+
+  // Pay-In & Pay-Out Transaction History State
+  const [userTransactions, setUserTransactions] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historySubTab, setHistorySubTab] = useState('payIn'); // 'payIn' or 'payOut'
 
   const handlePaymentSuccess = (amount, txnId, newBal) => {
     setCheckoutData(null);
@@ -219,6 +242,27 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         .catch(err => console.warn('Error fetching beneficiaries:', err));
     }
   }, [isOpen, currentUser, onBalanceUpdate]);
+
+  // Fetch user transaction history when History tab is activated
+  useEffect(() => {
+    if (isOpen && currentUser && (activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory')) {
+      setLoadingHistory(true);
+      fetch(`${API_URL}/api/wallet-transactions/user/${encodeURIComponent(currentUser)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (Array.isArray(data)) {
+            setUserTransactions(data);
+          } else {
+            setUserTransactions([]);
+          }
+          setLoadingHistory(false);
+        })
+        .catch(err => {
+          console.error("Error loading user transactions:", err);
+          setLoadingHistory(false);
+        });
+    }
+  }, [isOpen, currentUser, activeTab]);
 
   // Timer countdown for active checkout
   useEffect(() => {
@@ -369,6 +413,9 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
       
       if (data.success && data.onboardUrl) {
         window.open(data.onboardUrl, '_blank');
+      } else if (data.success || data.message === 'User is already onboarded.') {
+        setRequiresOnboarding(false);
+        Toast.fire({ icon: 'success', title: 'PaySprint KYC verified! Wallet unlocked.' });
       } else {
         Toast.fire({ icon: 'error', title: data.message || 'Failed to generate onboarding URL.' });
       }
@@ -612,6 +659,17 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
           >
             <RequisitionIcon />
             <span>Requisition</span>
+          </button>
+          <button
+            type="button"
+            className={`wallet-tab-btn ${(activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('history');
+              setPaymentSuccessData(null);
+            }}
+          >
+            <HistoryIcon />
+            <span>History</span>
           </button>
         </div>
       </div>
@@ -1299,6 +1357,150 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                 )}
               </button>
             </form>
+          </div>
+        )}
+
+        {/* TAB 4: HISTORY (WITH PAY-IN AND PAY-OUT SUB-TOGGLE OPTIONS) */}
+        {(activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') && (
+          <div className="form-card-box">
+            <div className="form-section-header" style={{ marginBottom: '16px' }}>
+              <div className="section-header-icon" style={{ background: historySubTab === 'payIn' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)', borderColor: historySubTab === 'payIn' ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)', color: historySubTab === 'payIn' ? '#22c55e' : '#ef4444' }}>
+                <HistoryIcon />
+              </div>
+              <div className="section-header-text">
+                <div className="section-title">Wallet Transaction History</div>
+                <div className="section-desc">View complete history of your Pay-In top-ups and Pay-Out bank transfers</div>
+              </div>
+            </div>
+
+            {/* Sub-toggle buttons for Pay-In History and Pay-Out History */}
+            <div className="history-subtabs-row">
+              <button
+                type="button"
+                className={`history-subtab-btn ${historySubTab === 'payIn' ? 'active-payin' : ''}`}
+                onClick={() => setHistorySubTab('payIn')}
+              >
+                <span className="subtab-icon"><BoltIcon /></span>
+                <span>Pay-In History</span>
+              </button>
+              <button
+                type="button"
+                className={`history-subtab-btn ${historySubTab === 'payOut' ? 'active-payout' : ''}`}
+                onClick={() => setHistorySubTab('payOut')}
+              >
+                <span className="subtab-icon"><PayoutIcon /></span>
+                <span>Pay-Out History</span>
+              </button>
+            </div>
+
+            <div className="history-filter-bar">
+              <input
+                type="text"
+                className="form-input-pro history-search-input"
+                placeholder={`Search ${historySubTab === 'payIn' ? 'Pay-In' : 'Pay-Out'} reference, description...`}
+                value={historySearch}
+                onChange={e => setHistorySearch(e.target.value)}
+              />
+              <button
+                type="button"
+                className="history-refresh-btn"
+                onClick={() => {
+                  if (currentUser) {
+                    setLoadingHistory(true);
+                    fetch(`${API_URL}/api/wallet-transactions/user/${encodeURIComponent(currentUser)}`)
+                      .then(res => res.json())
+                      .then(data => {
+                        if (Array.isArray(data)) setUserTransactions(data);
+                        setLoadingHistory(false);
+                      })
+                      .catch(() => setLoadingHistory(false));
+                  }
+                }}
+              >
+                🔄 Refresh
+              </button>
+            </div>
+
+            {loadingHistory ? (
+              <div className="history-loading-box">
+                <span className="btn-spinner" style={{ width: 22, height: 22, borderColor: 'rgba(234, 88, 12, 0.3)', borderTopColor: '#ea580c' }}></span>
+                <span>Loading transaction history...</span>
+              </div>
+            ) : (() => {
+              const targetType = historySubTab === 'payIn' ? 'Credit' : 'Debit';
+              const filteredTxs = userTransactions.filter(tx => tx.transactionType === targetType).filter(tx => {
+                if (!historySearch) return true;
+                const q = historySearch.toLowerCase();
+                return (tx.description || '').toLowerCase().includes(q) ||
+                       (tx.referenceNumber || '').toLowerCase().includes(q) ||
+                       (tx.amount != null && tx.amount.toString().includes(q)) ||
+                       (tx.status || '').toLowerCase().includes(q);
+              });
+
+              if (filteredTxs.length === 0) {
+                return (
+                  <div className="history-empty-box">
+                    <div className="history-empty-icon">{historySubTab === 'payIn' ? '📥' : '📤'}</div>
+                    <div className="history-empty-title">No {historySubTab === 'payIn' ? 'Pay-In' : 'Pay-Out'} Transactions Found</div>
+                    <div className="history-empty-sub">
+                      {historySubTab === 'payIn' ? 'Top-up your wallet using Pay-In to see credited transactions here' : 'Transfer funds to bank accounts using Pay-Out to see debited transactions here'}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="history-table-container">
+                  <table className="history-table">
+                    <thead>
+                      <tr>
+                        <th>Date & Time</th>
+                        <th>Description / Ref</th>
+                        <th>Type</th>
+                        <th>Amount (₹)</th>
+                        <th>Balance After</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTxs.map((tx, idx) => {
+                        const isCredit = tx.transactionType === 'Credit';
+                        return (
+                          <tr key={tx._id || idx}>
+                            <td>
+                              <div className="tx-date-main">{new Date(tx.createdAt).toLocaleDateString()}</div>
+                              <div className="tx-time-sub">{new Date(tx.createdAt).toLocaleTimeString()}</div>
+                            </td>
+                            <td>
+                              <div className="tx-desc-title">{tx.description || (isCredit ? 'Pay-In Wallet Top-up' : 'Pay-Out Bank Transfer')}</div>
+                              <div className="tx-ref-code">Ref: {tx.referenceNumber || 'N/A'}</div>
+                            </td>
+                            <td>
+                              <span className={isCredit ? 'badge-credit-pill' : 'badge-debit-pill'}>
+                                {isCredit ? '+ CREDIT' : '- DEBIT'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={isCredit ? 'tx-amount-green' : 'tx-amount-red'}>
+                                {isCredit ? '+' : '-'} ₹{parseFloat(tx.amount || 0).toFixed(2)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="tx-bal-code">₹{parseFloat(tx.balanceAfter || 0).toFixed(2)}</span>
+                            </td>
+                            <td>
+                              <span className={`tx-status-pill ${tx.status === 'Success' ? 'status-success' : tx.status === 'Pending' ? 'status-pending' : 'status-failed'}`}>
+                                {tx.status === 'Success' ? '✓ SUCCESS' : tx.status === 'Pending' ? '⏳ PENDING' : (tx.status || 'FAILED')}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
           </div>
         )}
 

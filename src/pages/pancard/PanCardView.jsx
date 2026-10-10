@@ -551,11 +551,21 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
     navigate(`/pancard?tab=${tabName}`);
   };
 
+  const handleBackStep = () => {
+    if (activeTab === 'manual_new_pan' || activeTab === 'epan_kyc' || (activeTab !== 'services_landing' && activeTab !== 'new_app_landing' && activeTab !== 'epan_correction' && activeTab !== 'history')) {
+      switchTab('new_app_landing');
+    } else if (activeTab === 'new_app_landing' || activeTab === 'epan_correction' || activeTab === 'history') {
+      switchTab('services_landing');
+    } else {
+      if (onClose) onClose();
+    }
+  };
+
   // Sync tab state when URL changes
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const tabFromUrl = params.get('tab');
-    if (tabFromUrl && tabFromUrl !== activeTab) {
+    const tabFromUrl = params.get('tab') || 'services_landing';
+    if (tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
   }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2272,44 +2282,32 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         {/* Header Bar */}
         <div className="pancard-header">
           <div className="pancard-header-left">
-            <div className="pancard-brand-row">
-              <div className="pancard-title-badge">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="5" width="20" height="14" rx="3" />
-                  <line x1="2" y1="10" x2="22" y2="10" />
-                  <line x1="6" y1="15" x2="10" y2="15" />
-                </svg>
-              </div>
-              <div className="pancard-title-wrap">
-                <div className="pancard-title-with-tag">
-                  <h3 className="pancard-title">PAN Card Services</h3>
-                </div>
-                <div className="pancard-subtitle">
-                  Instant E-PAN Application, Form 49A Physical, Correction & Biometric e-KYC
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="pancard-header-right">
-            {walletBalance !== undefined && (
-              <div className="pancard-balance-badge">
-                <span className="pancard-balance-coin">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M12 6v12M15 9.5a3.5 3.5 0 0 0-7 0c0 2 1.5 3 3.5 3.5s3.5 1.5 3.5 3.5a3.5 3.5 0 0 1-7 0" />
+            {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing') && (
+              <div className="pancard-brand-row">
+                <div className="pancard-title-badge">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="3" />
+                    <line x1="2" y1="10" x2="22" y2="10" />
+                    <line x1="6" y1="15" x2="10" y2="15" />
                   </svg>
-                </span>
-                <div className="pancard-balance-details">
-                  <span className="balance-label">WALLET BALANCE</span>
-                  <span className="balance-amount">₹{parseFloat(walletBalance).toFixed(2)}</span>
+                </div>
+                <div className="pancard-title-wrap">
+                  <div className="pancard-title-with-tag">
+                    <h3 className="pancard-title">PAN Card Services</h3>
+                  </div>
+                  <div className="pancard-subtitle">
+                    Instant E-PAN Application, Form 49A Physical, Correction & Biometric e-KYC
+                  </div>
                 </div>
               </div>
             )}
+          </div>
+          <div className="pancard-header-right">
             {onClose && (
               <button
                 type="button"
                 className="pancard-back-btn"
-                onClick={onClose}
+                onClick={handleBackStep}
                 title="Back to Dashboard"
               >
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -2323,128 +2321,137 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         </div>
 
         {/* Dynamic Sub-Tabs Bar (Clean Official Navigation) */}
-        <div className="pancard-tabs-bar">
-          <button
-            type="button"
-            className={`pancard-tab-btn ${(activeTab === 'new_app_landing' || activeTab === 'manual_new_pan' || activeTab === 'epan_kyc' || (!['epan_correction', 'history'].includes(activeTab) && tabs.some(t => t.id === activeTab))) ? 'active' : ''}`}
-            onClick={() => switchTab('new_app_landing')}
-          >
-            <span className="tab-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
-            </span>
-            <span>New Application</span>
-          </button>
-          <button
-            type="button"
-            className={`pancard-tab-btn ${activeTab === 'epan_correction' ? 'active' : ''}`}
-            onClick={() => switchTab('epan_correction')}
-          >
-            <span className="tab-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </span>
-            <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
-          </button>
-          <button
-            type="button"
-            className={`pancard-tab-btn history-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => switchTab('history')}
-          >
-            <span className="tab-btn-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-              </svg>
-            </span>
-            <span>Applications History</span>
-          </button>
-        </div>
+        {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing') && (
+          <div className="pancard-tabs-bar">
+            {(activeTab === 'manual_new_pan' || activeTab === 'epan_kyc' || (!['epan_correction', 'history'].includes(activeTab) && tabs.some(t => t.id === activeTab))) && (
+              <button
+                type="button"
+                className="pancard-tab-btn active"
+                onClick={() => switchTab('new_app_landing')}
+              >
+                <span className="tab-btn-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                </span>
+                <span>New Application</span>
+              </button>
+            )}
+            {(activeTab === 'epan_correction' || activeTab === 'manual_pan_correction') && (
+              <button
+                type="button"
+                className="pancard-tab-btn active"
+                onClick={() => switchTab('epan_correction')}
+              >
+                <span className="tab-btn-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </span>
+                <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
+              </button>
+            )}
+            {activeTab === 'history' && (
+              <button
+                type="button"
+                className="pancard-tab-btn history-tab-btn active"
+                onClick={() => switchTab('history')}
+              >
+                <span className="tab-btn-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </span>
+                <span>Applications History</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* MAIN CONTENT DISPLAY */}
         {activeTab === 'services_landing' ? (
           /* OVERVIEW CARDS LANDING PAGE (MATCHING PHOTO 2) */
           <div className="pan-landing-overview-grid">
             <div
-              className="pan-overview-card overview-card-emerald"
+              className="pan-overview-card"
               onClick={() => switchTab('new_app_landing')}
             >
-              <div className="overview-card-header">
-                <div className="overview-icon-badge badge-emerald">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="12" y1="18" x2="12" y2="12" />
-                    <line x1="9" y1="15" x2="15" y2="15" />
+              <div className="pan-card-image-wrap">
+                <img
+                  src="/pan-card-banner.jpg"
+                  alt="New PAN Application"
+                  className="pan-card-top-img"
+                />
+              </div>
+              <div className="pan-card-bottom-bar">
+                <div className="pan-card-icon-badge">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h7" />
+                    <path d="M14 2v6h6" />
+                    <line x1="8" y1="13" x2="14" y2="13" />
+                    <line x1="8" y1="17" x2="11" y2="17" />
+                    <circle cx="18" cy="18" r="4" stroke="#ea580c" strokeWidth="2" />
+                    <line x1="18" y1="16" x2="18" y2="20" stroke="#ea580c" strokeWidth="2" />
+                    <line x1="16" y1="18" x2="20" y2="18" stroke="#ea580c" strokeWidth="2" />
                   </svg>
                 </div>
-                <h4 className="overview-card-title">NEW PAN APPLICATION</h4>
-              </div>
-              <div className="overview-features-list">
-                <div className="overview-feature-pill">
-                  <span className="overview-check check-emerald">✓</span>
-                  <span>Apply for a new PAN card</span>
-                </div>
-                <div className="overview-feature-pill">
-                  <span className="overview-check check-emerald">✓</span>
-                  <span>Manual & Aadhaar OTP support</span>
+                <div className="pan-card-text-col">
+                  <h4 className="pan-card-title-text">New PAN Application</h4>
+                  <span className="pan-card-accent-line" />
                 </div>
               </div>
             </div>
 
             <div
-              className="pan-overview-card overview-card-amber"
+              className="pan-overview-card"
               onClick={() => switchTab('epan_correction')}
             >
-              <div className="overview-card-header">
-                <div className="overview-icon-badge badge-amber">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="5" width="20" height="14" rx="2" />
-                    <line x1="2" y1="10" x2="22" y2="10" />
-                    <path d="M7 15h3" />
-                    <path d="M14 15l2 2 4-4" />
+              <div className="pan-card-image-wrap">
+                <img
+                  src="/pan-correction-banner.jpg"
+                  alt="PAN Correction"
+                  className="pan-card-top-img"
+                />
+              </div>
+              <div className="pan-card-bottom-bar">
+                <div className="pan-card-icon-badge">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
                   </svg>
                 </div>
-                <h4 className="overview-card-title">PAN CORRECTION</h4>
-              </div>
-              <div className="overview-features-list">
-                <div className="overview-feature-pill">
-                  <span className="overview-check check-amber">✓</span>
-                  <span>Update or correct existing PAN details</span>
-                </div>
-                <div className="overview-feature-pill">
-                  <span className="overview-check check-amber">✓</span>
-                  <span>Change Photo, Signature, Name, DOB</span>
+                <div className="pan-card-text-col">
+                  <h4 className="pan-card-title-text">PAN Correction</h4>
+                  <span className="pan-card-accent-line" />
                 </div>
               </div>
             </div>
 
             <div
-              className="pan-overview-card overview-card-blue"
+              className="pan-overview-card"
               onClick={() => switchTab('history')}
             >
-              <div className="overview-card-header">
-                <div className="overview-icon-badge badge-blue">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
+              <div className="pan-card-image-wrap">
+                <img
+                  src="/pan-history-banner.jpg"
+                  alt="Application History"
+                  className="pan-card-top-img"
+                />
+              </div>
+              <div className="pan-card-bottom-bar">
+                <div className="pan-card-icon-badge">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                    <polyline points="12 7 12 12 15 15" />
                   </svg>
                 </div>
-                <h4 className="overview-card-title">APPLICATIONS HISTORY</h4>
-              </div>
-              <div className="overview-features-list">
-                <div className="overview-feature-pill">
-                  <span className="overview-check check-blue">✓</span>
-                  <span>Track application status</span>
-                </div>
-                <div className="overview-feature-pill">
-                  <span className="overview-check check-blue">✓</span>
-                  <span>Download generated PDFs</span>
+                <div className="pan-card-text-col">
+                  <h4 className="pan-card-title-text">Application History</h4>
+                  <span className="pan-card-accent-line" />
                 </div>
               </div>
             </div>
@@ -2452,33 +2459,6 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         ) : activeTab === 'new_app_landing' ? (
           /* NEW APPLICATION LANDING PAGE (MODERN PORTAL DESIGN) */
           <div className="pan-landing-wrapper">
-
-            {/* Portal Banner Header */}
-            <div className="pan-portal-subhead">
-              <div className="pan-portal-subhead-title">
-                <div className="pan-portal-icon-glow">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M3 21h18M3 10h18M5 10v11M19 10v11M9 10v11M15 10v11M12 2l10 8H2l10-8z" />
-                  </svg>
-                </div>
-                <div>
-                  <div className="pan-portal-title-row">
-                    <h3 className="pan-portal-h3">NEW PAN APPLICATION PORTAL</h3>
-                  </div>
-                  <div className="pan-portal-desc">
-                    Income Tax Department of India • NSDL / UTIITSL e-Governance Infrastructure
-                  </div>
-                </div>
-              </div>
-              <div className="pan-breadcrumb">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                </svg>
-                <span>Home</span>
-                <span className="breadcrumb-separator">›</span>
-                <span className="pan-breadcrumb-active">New PAN Application</span>
-              </div>
-            </div>
 
             {/* Service Options Cards Grid (Dynamically rendered from tabs config) */}
             <div className="pan-services-grid">

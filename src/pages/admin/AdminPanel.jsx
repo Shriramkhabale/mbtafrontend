@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './AdminPanel.css';
@@ -253,6 +253,22 @@ const FeesLedgerTab = ({ title, icon, color, applicationType, transactions = [],
   const [endDate, setEndDate] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(15);
+  const [currentTheme, setCurrentTheme] = React.useState(() => localStorage.getItem('appTheme') || 'light');
+
+  React.useEffect(() => {
+    const handleStorage = () => {
+      const saved = localStorage.getItem('appTheme') || 'light';
+      setCurrentTheme(saved);
+    };
+    window.addEventListener('storage', handleStorage);
+    const interval = setInterval(handleStorage, 500);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const isDark = currentTheme === 'dark' || (typeof document !== 'undefined' && (document.body.classList.contains('dark-theme') || document.documentElement.classList.contains('dark')));
 
   const filtered = React.useMemo(() => {
     return (transactions || []).filter(tx => {
@@ -367,13 +383,13 @@ const FeesLedgerTab = ({ title, icon, color, applicationType, transactions = [],
             {icon}
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#1e293b' }}>{title}</h3>
-            <p style={{ margin: '2px 0 0', fontSize: '13px', color: '#64748b' }}>Live Credit (+) &amp; Debit (-) Ledger History from Retailer Wallets</p>
+            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: isDark ? '#f8fafc' : '#1e293b' }}>{title}</h3>
+            <p style={{ margin: '2px 0 0', fontSize: '13px', color: isDark ? '#cbd5e1' : '#64748b' }}>Live Credit (+) &amp; Debit (-) Ledger History from Retailer Wallets</p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           {onRefresh && (
-            <button onClick={onRefresh} style={{ padding: '8px 16px', background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button onClick={onRefresh} style={{ padding: '8px 16px', background: isDark ? '#334155' : '#f1f5f9', color: isDark ? '#f8fafc' : '#334155', border: isDark ? '1px solid #475569' : '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
               🔄 Refresh
             </button>
           )}
@@ -393,39 +409,39 @@ const FeesLedgerTab = ({ title, icon, color, applicationType, transactions = [],
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
         {[
-          { label: 'Total Transactions', value: totalTransactions, bg: '#eff6ff', border: '#bfdbfe', textColor: '#1d4ed8', icon: '📋' },
-          { label: 'Total Debit (Fee Deductions)', value: `₹${totalDebit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bg: '#fef2f2', border: '#fecaca', textColor: '#dc2626', icon: '📉' },
-          { label: 'Total Credit (Refunds / Add)', value: `₹${totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bg: '#f0fdf4', border: '#bbf7d0', textColor: '#15803d', icon: '📈' },
-          { label: 'Net Fees Collected', value: `₹${netFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bg: '#faf5ff', border: '#e9d5ff', textColor: '#7c3aed', icon: '💰' },
+          { label: 'Total Transactions', value: totalTransactions, bg: isDark ? 'rgba(59, 130, 246, 0.15)' : '#eff6ff', border: isDark ? 'rgba(59, 130, 246, 0.3)' : '#bfdbfe', textColor: isDark ? '#60a5fa' : '#1d4ed8', icon: '📋' },
+          { label: 'Total Debit (Fee Deductions)', value: `₹${totalDebit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bg: isDark ? 'rgba(239, 68, 68, 0.15)' : '#fef2f2', border: isDark ? 'rgba(239, 68, 68, 0.3)' : '#fecaca', textColor: isDark ? '#f87171' : '#dc2626', icon: '📉' },
+          { label: 'Total Credit (Refunds / Add)', value: `₹${totalCredit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bg: isDark ? 'rgba(16, 185, 129, 0.15)' : '#f0fdf4', border: isDark ? 'rgba(16, 185, 129, 0.3)' : '#bbf7d0', textColor: isDark ? '#34d399' : '#15803d', icon: '📈' },
+          { label: 'Net Fees Collected', value: `₹${netFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, bg: isDark ? 'rgba(168, 85, 247, 0.15)' : '#faf5ff', border: isDark ? 'rgba(168, 85, 247, 0.3)' : '#e9d5ff', textColor: isDark ? '#c084fc' : '#7c3aed', icon: '💰' },
         ].map((card, i) => (
           <div key={i} style={{ background: card.bg, border: `1.5px solid ${card.border}`, borderRadius: '12px', padding: '16px 18px' }}>
             <div style={{ fontSize: '22px', marginBottom: '6px' }}>{card.icon}</div>
-            <div style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>{card.label}</div>
+            <div style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#64748b', fontWeight: 600 }}>{card.label}</div>
             <div style={{ fontSize: '20px', fontWeight: 900, color: card.textColor, marginTop: '4px' }}>{card.value}</div>
           </div>
         ))}
       </div>
 
       {/* Filters */}
-      <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end' }}>
+      <div style={{ background: isDark ? '#1e293b' : '#f8fafc', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', borderRadius: '12px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'flex-end' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 160px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>🔍 Search</label>
+          <label style={{ fontSize: '12px', fontWeight: 700, color: isDark ? '#cbd5e1' : '#475569' }}>🔍 Search</label>
           <input type="text" placeholder="Retailer / Desc / Ref..." value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
-            style={{ padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+            style={{ padding: '8px 12px', border: isDark ? '1.5px solid #475569' : '1.5px solid #cbd5e1', background: isDark ? '#0f172a' : '#ffffff', color: isDark ? '#f8fafc' : '#0f172a', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 130px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Tx Type</label>
+          <label style={{ fontSize: '12px', fontWeight: 700, color: isDark ? '#cbd5e1' : '#475569' }}>Tx Type</label>
           <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setCurrentPage(1); }}
-            style={{ padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', outline: 'none' }}>
+            style={{ padding: '8px 12px', border: isDark ? '1.5px solid #475569' : '1.5px solid #cbd5e1', background: isDark ? '#0f172a' : '#ffffff', color: isDark ? '#f8fafc' : '#0f172a', borderRadius: '8px', fontSize: '13px', outline: 'none' }}>
             <option value="All">All Types</option>
             <option value="Debit">Debit (-)</option>
             <option value="Credit">Credit (+)</option>
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 130px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>Status</label>
+          <label style={{ fontSize: '12px', fontWeight: 700, color: isDark ? '#cbd5e1' : '#475569' }}>Status</label>
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-            style={{ padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', outline: 'none' }}>
+            style={{ padding: '8px 12px', border: isDark ? '1.5px solid #475569' : '1.5px solid #cbd5e1', background: isDark ? '#0f172a' : '#ffffff', color: isDark ? '#f8fafc' : '#0f172a', borderRadius: '8px', fontSize: '13px', outline: 'none' }}>
             <option value="All">All Statuses</option>
             <option value="Success">Success</option>
             <option value="Pending">Pending</option>
@@ -433,17 +449,17 @@ const FeesLedgerTab = ({ title, icon, color, applicationType, transactions = [],
           </select>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 140px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>From Date</label>
+          <label style={{ fontSize: '12px', fontWeight: 700, color: isDark ? '#cbd5e1' : '#475569' }}>From Date</label>
           <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setCurrentPage(1); }}
-            style={{ padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+            style={{ padding: '8px 12px', border: isDark ? '1.5px solid #475569' : '1.5px solid #cbd5e1', background: isDark ? '#0f172a' : '#ffffff', color: isDark ? '#f8fafc' : '#0f172a', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 140px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569' }}>To Date</label>
+          <label style={{ fontSize: '12px', fontWeight: 700, color: isDark ? '#cbd5e1' : '#475569' }}>To Date</label>
           <input type="date" value={endDate} onChange={e => { setEndDate(e.target.value); setCurrentPage(1); }}
-            style={{ padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+            style={{ padding: '8px 12px', border: isDark ? '1.5px solid #475569' : '1.5px solid #cbd5e1', background: isDark ? '#0f172a' : '#ffffff', color: isDark ? '#f8fafc' : '#0f172a', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
         <button onClick={() => { setSearch(''); setTypeFilter('All'); setStatusFilter('All'); setStartDate(''); setEndDate(''); setCurrentPage(1); }}
-          style={{ padding: '8px 16px', background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-end' }}>
+          style={{ padding: '8px 16px', background: isDark ? '#334155' : '#f1f5f9', color: isDark ? '#f8fafc' : '#475569', border: isDark ? '1px solid #475569' : '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-end' }}>
           ↺ Reset
         </button>
       </div>
@@ -462,12 +478,12 @@ const FeesLedgerTab = ({ title, icon, color, applicationType, transactions = [],
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+          <div style={{ overflowX: 'auto', borderRadius: '12px', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
-                <tr style={{ background: '#f1f5f9' }}>
+                <tr style={{ background: isDark ? '#1e293b' : '#f1f5f9' }}>
                   {['S.No', 'Date & Time', 'Retailer ID', 'Type', 'Amount (₹)', 'Balance Before', 'Balance After', 'Description', 'Reference No', 'Status'].map(h => (
-                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 800, color: '#334155', borderBottom: '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
+                    <th key={h} style={{ padding: '11px 14px', textAlign: 'left', fontWeight: 800, color: isDark ? '#f8fafc' : '#334155', borderBottom: isDark ? '2px solid #334155' : '2px solid #e2e8f0', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -475,20 +491,22 @@ const FeesLedgerTab = ({ title, icon, color, applicationType, transactions = [],
                 {paginatedTransactions.map((tx, i) => {
                   const isCredit = tx.transactionType === 'Credit';
                   const status = tx.status || 'Success';
-                  const statusColors = { Success: { bg: '#f0fdf4', color: '#15803d' }, Failed: { bg: '#fef2f2', color: '#dc2626' }, Pending: { bg: '#fefce8', color: '#b45309' } };
-                  const sc = statusColors[status] || { bg: '#f8fafc', color: '#475569' };
+                  const statusColors = { Success: { bg: isDark ? 'rgba(16, 185, 129, 0.2)' : '#f0fdf4', color: isDark ? '#34d399' : '#15803d' }, Failed: { bg: isDark ? 'rgba(239, 68, 68, 0.2)' : '#fef2f2', color: isDark ? '#f87171' : '#dc2626' }, Pending: { bg: isDark ? 'rgba(245, 158, 11, 0.2)' : '#fefce8', color: isDark ? '#fbbf24' : '#b45309' } };
+                  const sc = statusColors[status] || { bg: isDark ? '#1e293b' : '#f8fafc', color: isDark ? '#cbd5e1' : '#475569' };
+                  const rowBg = i % 2 === 0 ? (isDark ? '#0f172a' : '#ffffff') : (isDark ? '#1e293b' : '#f8fafc');
+                  const hoverBg = isDark ? '#334155' : '#f0f9ff';
                   return (
-                    <tr key={tx._id || i} style={{ borderBottom: '1px solid #f1f5f9', background: i % 2 === 0 ? '#ffffff' : '#f8fafc' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#f0f9ff'}
-                      onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#ffffff' : '#f8fafc'}>
-                      <td style={{ padding: '10px 14px', color: '#64748b', fontWeight: 600 }}>{startIndex + i + 1}</td>
-                      <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontSize: '12.5px' }}>{tx.createdAt ? new Date(tx.createdAt).toLocaleString() : '-'}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#1e293b' }}>{tx.userId || '-'}</td>
+                    <tr key={tx._id || i} style={{ borderBottom: isDark ? '1px solid #1e293b' : '1px solid #f1f5f9', background: rowBg }}
+                      onMouseEnter={e => e.currentTarget.style.background = hoverBg}
+                      onMouseLeave={e => e.currentTarget.style.background = rowBg}>
+                      <td style={{ padding: '10px 14px', color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}>{startIndex + i + 1}</td>
+                      <td style={{ padding: '10px 14px', whiteSpace: 'nowrap', fontSize: '12.5px', fontWeight: 600, color: isDark ? '#f1f5f9' : '#1e293b' }}>{tx.createdAt ? new Date(tx.createdAt).toLocaleString() : '-'}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b' }}>{tx.userId || '-'}</td>
                       <td style={{ padding: '10px 14px' }}>
                         <span style={{
-                          background: isCredit ? '#f0fdf4' : '#fef2f2',
-                          color: isCredit ? '#15803d' : '#dc2626',
-                          border: `1px solid ${isCredit ? '#bbf7d0' : '#fecaca'}`,
+                          background: isCredit ? (isDark ? 'rgba(16, 185, 129, 0.2)' : '#f0fdf4') : (isDark ? 'rgba(239, 68, 68, 0.2)' : '#fef2f2'),
+                          color: isCredit ? (isDark ? '#34d399' : '#15803d') : (isDark ? '#f87171' : '#dc2626'),
+                          border: `1px solid ${isCredit ? (isDark ? 'rgba(16, 185, 129, 0.4)' : '#bbf7d0') : (isDark ? 'rgba(239, 68, 68, 0.4)' : '#fecaca')}`,
                           padding: '3px 8px',
                           borderRadius: '6px',
                           fontSize: '11.5px',
@@ -497,14 +515,14 @@ const FeesLedgerTab = ({ title, icon, color, applicationType, transactions = [],
                           {isCredit ? '+ CREDIT' : '- DEBIT'}
                         </span>
                       </td>
-                      <td style={{ padding: '10px 14px', fontWeight: 800, color: isCredit ? '#15803d' : '#dc2626', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '10px 14px', fontWeight: 800, color: isCredit ? (isDark ? '#34d399' : '#15803d') : (isDark ? '#f87171' : '#dc2626'), whiteSpace: 'nowrap' }}>
                         {isCredit ? '+' : '-'} ₹{parseFloat(tx.amount || 0).toFixed(2)}
                       </td>
-                      <td style={{ padding: '10px 14px', color: '#64748b' }}>₹{parseFloat(tx.balanceBefore || 0).toFixed(2)}</td>
-                      <td style={{ padding: '10px 14px', fontWeight: 700, color: '#334155' }}>₹{parseFloat(tx.balanceAfter || 0).toFixed(2)}</td>
-                      <td style={{ padding: '10px 14px', maxWidth: '260px', wordBreak: 'break-word', fontSize: '12.5px' }}>{tx.description || '-'}</td>
-                      <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '12px', color: '#475569' }}>
-                        <span style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '10px 14px', color: isDark ? '#94a3b8' : '#64748b' }}>₹{parseFloat(tx.balanceBefore || 0).toFixed(2)}</td>
+                      <td style={{ padding: '10px 14px', fontWeight: 700, color: isDark ? '#e2e8f0' : '#334155' }}>₹{parseFloat(tx.balanceAfter || 0).toFixed(2)}</td>
+                      <td style={{ padding: '10px 14px', maxWidth: '280px', wordBreak: 'break-word', fontSize: '12.5px', fontWeight: 600, color: isDark ? '#e2e8f0' : '#334155' }}>{tx.description || '-'}</td>
+                      <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' }}>
+                        <span style={{ background: isDark ? '#1e293b' : '#f1f5f9', padding: '2px 6px', borderRadius: '4px', border: isDark ? '1px solid #334155' : '1px solid #e2e8f0', color: isDark ? '#f8fafc' : '#475569' }}>
                           {tx.referenceNumber || '-'}
                         </span>
                       </td>
@@ -654,10 +672,15 @@ const AdminPanel = () => {
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     sessionStorage.setItem('adminPanelActiveTab', tabId);
+    if (tabId === 'quickLinks') {
+      apiFetch('/api/quick-links').then(res => res.json()).then(data => {
+        if (Array.isArray(data)) setQuickLinks(data);
+      }).catch(err => console.error('Failed to load quick links:', err));
+    }
   };
 
   const [isUiSubmenuOpen, setIsUiSubmenuOpen] = useState(() => {
-    return ['actionCards', 'topTabs', 'sidebarMenus', 'banners', 'newsImages'].includes(activeTab);
+    return ['actionCards', 'topTabs', 'sidebarMenus', 'banners', 'newsImages', 'quickLinks'].includes(activeTab);
   });
   const [isPanSubmenuOpen, setIsPanSubmenuOpen] = useState(() => {
     return ['panSubmissions', 'panForms'].includes(activeTab);
@@ -665,9 +688,12 @@ const AdminPanel = () => {
   const [isFeesSubmenuOpen, setIsFeesSubmenuOpen] = useState(() => {
     return ['feesNewApplication', 'feesCorrection'].includes(activeTab);
   });
+  const [isLedgerSubmenuOpen, setIsLedgerSubmenuOpen] = useState(() => {
+    return ['ledgerHistory', 'payInPayOutHistory', 'payInHistory', 'payOutHistory'].includes(activeTab);
+  });
 
   useEffect(() => {
-    if (['actionCards', 'topTabs', 'sidebarMenus', 'banners', 'newsImages'].includes(activeTab)) {
+    if (['actionCards', 'topTabs', 'sidebarMenus', 'banners', 'newsImages', 'quickLinks'].includes(activeTab)) {
       setIsUiSubmenuOpen(true);
     }
     if (['panSubmissions', 'panForms'].includes(activeTab)) {
@@ -675,6 +701,9 @@ const AdminPanel = () => {
     }
     if (['feesNewApplication', 'feesCorrection'].includes(activeTab)) {
       setIsFeesSubmenuOpen(true);
+    }
+    if (['ledgerHistory', 'payInPayOutHistory', 'payInHistory', 'payOutHistory'].includes(activeTab)) {
+      setIsLedgerSubmenuOpen(true);
     }
   }, [activeTab]);
 
@@ -771,6 +800,16 @@ const AdminPanel = () => {
       ]
     },
     {
+      id: 'quickLinks',
+      label: 'Quick Links',
+      icon: '🔗',
+      subPermissions: [
+        { id: 'quickLinks.add', label: 'Add Quick Link', icon: '➕' },
+        { id: 'quickLinks.edit', label: 'Edit Quick Link', icon: '✏️' },
+        { id: 'quickLinks.delete', label: 'Delete Quick Link', icon: '🗑️' },
+      ]
+    },
+    {
       id: 'panSubmissions',
       label: 'Retailer PAN Submissions',
       icon: '📇',
@@ -844,6 +883,24 @@ const AdminPanel = () => {
         { id: 'feesCorrection.export', label: 'Export CSV & Print PDF', icon: '📥' },
       ]
     },
+    {
+      id: 'payInHistory',
+      label: 'Pay-In History',
+      icon: '📥',
+      subPermissions: [
+        { id: 'payInHistory.view', label: 'View Pay-In Ledger', icon: '👁️' },
+        { id: 'payInHistory.export', label: 'Export CSV & Print PDF', icon: '📥' },
+      ]
+    },
+    {
+      id: 'payOutHistory',
+      label: 'Pay-Out History',
+      icon: '📤',
+      subPermissions: [
+        { id: 'payOutHistory.view', label: 'View Pay-Out Ledger', icon: '👁️' },
+        { id: 'payOutHistory.export', label: 'Export CSV & Print PDF', icon: '📥' },
+      ]
+    },
   ];
 
   const fetchStaffList = async () => {
@@ -876,7 +933,7 @@ const AdminPanel = () => {
       password: '',
       email: '',
       mobile: '',
-      permissions: ['panSubmissions', 'panForms'],
+      permissions: [],
       isActive: true
     });
     setIsStaffModalOpen(true);
@@ -900,11 +957,11 @@ const AdminPanel = () => {
   const handleSaveStaff = async (e) => {
     e.preventDefault();
     const cleanName = staffFormData.name ? staffFormData.name.trim() : '';
-    const cleanUsername = staffFormData.username ? staffFormData.username.trim().toLowerCase() : '';
+    const cleanUsername = staffFormData.username ? staffFormData.username.trim() : '';
     const cleanPassword = staffFormData.password ? staffFormData.password.trim() : '';
 
-    if (!cleanName || !cleanUsername) {
-      Toast.fire({ icon: 'warning', title: 'Name and Username are required' });
+    if (!cleanName) {
+      Toast.fire({ icon: 'warning', title: 'Full Name is required' });
       return;
     }
     if (!editingStaffId && !cleanPassword) {
@@ -1350,6 +1407,7 @@ const AdminPanel = () => {
   const [sidebarMenus, setSidebarMenus] = useState([]);
   const [banners, setBanners] = useState([]);
   const [newsImages, setNewsImages] = useState([]);
+  const [quickLinks, setQuickLinks] = useState([]);
   const [users, setUsers] = useState([]);
   const [marqueeInput, setMarqueeInput] = useState('WELCOME TO MB MITRA');
 
@@ -1543,6 +1601,11 @@ const AdminPanel = () => {
   const [menuForm, setMenuForm] = useState({ label: '', url: '', isActive: false, order: 0 });
   const [bannerForm, setBannerForm] = useState({ imgFile: null, fallbackIcon: '', fallbackPerson: '' });
   const [newsImageForm, setNewsImageForm] = useState({ imgFile: null });
+  const [quickLinkForm, setQuickLinkForm] = useState({ title: '', url: '', category: 'link', icon: '🔗', imgFile: null });
+  const [quickLinkPreview, setQuickLinkPreview] = useState(null);
+  const [quickLinkSubmitting, setQuickLinkSubmitting] = useState(false);
+  const quickLinkFileInputRef = useRef(null);
+  const [editingQuickLinkId, setEditingQuickLinkId] = useState(null);
   const [paymentRequisitions, setPaymentRequisitions] = useState([]);
   const [upiConfig, setUpiConfig] = useState(null); // eslint-disable-line no-unused-vars
   const [upiForm, setUpiForm] = useState({ upiId: '', qrCodeImgFile: null });
@@ -1940,7 +2003,7 @@ const AdminPanel = () => {
   };
 
   useEffect(() => {
-    if (activeTab === 'ledgerHistory' || activeTab === 'feesNewApplication' || activeTab === 'feesCorrection') {
+    if (activeTab === 'ledgerHistory' || activeTab === 'payInHistory' || activeTab === 'payOutHistory' || activeTab === 'feesNewApplication' || activeTab === 'feesCorrection') {
       fetchLedgerTransactions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2376,6 +2439,7 @@ const AdminPanel = () => {
     load('/api/sidebar-menus', setSidebarMenus);
     load('/api/banners', setBanners);
     load('/api/news-images', setNewsImages);
+    load('/api/quick-links', setQuickLinks);
     load('/api/users', setUsers);
     load('/api/payment-requisitions', setPaymentRequisitions);
     load('/api/wallet-transactions/report', data => {
@@ -2583,6 +2647,91 @@ const AdminPanel = () => {
     Swal.fire({ icon: 'success', text: `${files.length} News Image(s) Uploaded Successfully!`, confirmButtonText: 'OK' });
   };
 
+  const addQuickLink = async () => {
+    if (!quickLinkForm.title.trim()) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter a title for the Quick Link.' });
+    }
+    if (!quickLinkForm.url.trim()) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter a URL (e.g. website link or video link).' });
+    }
+
+    const formData = new FormData();
+    formData.append('title', quickLinkForm.title.trim());
+    formData.append('url', quickLinkForm.url.trim());
+    formData.append('category', quickLinkForm.category || 'link');
+    formData.append('icon', quickLinkForm.icon || '🔗');
+    if (quickLinkForm.imgFile) formData.append('image', quickLinkForm.imgFile);
+
+    setQuickLinkSubmitting(true);
+    try {
+      let res;
+      if (editingQuickLinkId) {
+        res = await fetch(`${API_URL}/api/quick-links/${editingQuickLinkId}`, {
+          method: 'PUT',
+          body: formData
+        });
+      } else {
+        res = await fetch(`${API_URL}/api/quick-links`, {
+          method: 'POST',
+          body: formData
+        });
+      }
+
+      const responseText = await res.text();
+      let data = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        if (!res.ok) {
+          throw new Error(`Server returned status ${res.status}: ${res.statusText}`);
+        }
+      }
+      if (!res.ok) {
+        throw new Error(data.message || 'Server error while saving Quick Link.');
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: editingQuickLinkId ? 'Quick Link Updated!' : 'Quick Link Added!',
+        text: `"${data.title}" has been saved successfully with square photo icon.`,
+        timer: 1800,
+        showConfirmButton: false
+      });
+
+      setQuickLinkForm({ title: '', url: '', category: 'link', icon: '🔗', imgFile: null });
+      setQuickLinkPreview(null);
+      if (quickLinkFileInputRef.current) {
+        quickLinkFileInputRef.current.value = '';
+      }
+      setEditingQuickLinkId(null);
+      fetchAll();
+    } catch (err) {
+      console.error('Quick link save error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Upload Failed',
+        text: err.message || 'Failed to save Quick Link or upload image.'
+      });
+    } finally {
+      setQuickLinkSubmitting(false);
+    }
+  };
+
+  const startEditQuickLink = (link) => {
+    setEditingQuickLinkId(link._id);
+    setQuickLinkForm({
+      title: link.title || '',
+      url: link.url || '',
+      category: link.category || 'link',
+      icon: link.icon || '🔗',
+      imgFile: null
+    });
+    setQuickLinkPreview(link.img || null);
+    if (quickLinkFileInputRef.current) {
+      quickLinkFileInputRef.current.value = '';
+    }
+  };
+
   const updateUpiConfig = async () => {
     const formData = new FormData();
     formData.append('upiId', upiForm.upiId);
@@ -2642,7 +2791,6 @@ const AdminPanel = () => {
   const paginatedUsers = filteredAndSortedUsers.slice(userStartIndex, userStartIndex + userPageSize);
 
   const handleOpenCreateUser = () => {
-    const randomRetailerId = 'MBM' + Math.floor(100000 + Math.random() * 900000);
     setCreateUserForm({
       fullName: '',
       name: '',
@@ -2652,8 +2800,6 @@ const AdminPanel = () => {
       businessAddress: '',
       password: '',
       confirmPassword: '',
-      userId: '',
-      retailerId: randomRetailerId,
       role: 'retailer',
       status: 'Approved',
       walletBalance: 0
@@ -2687,15 +2833,8 @@ const AdminPanel = () => {
       return Swal.fire({ icon: 'warning', text: 'Passwords do not match!', confirmButtonText: 'OK' });
     }
 
-    let finalUserId = (createUserForm.userId || '').trim();
-    if (!finalUserId) {
-      finalUserId = name.toLowerCase().replace(/[^a-z0-9]/g, '') + mob.slice(-4);
-    }
-
     try {
       const payload = {
-        userId: finalUserId,
-        retailerId: createUserForm.retailerId || ('MBM' + Math.floor(100000 + Math.random() * 900000)),
         name: name,
         fullName: name,
         mobile: mob,
@@ -2718,7 +2857,7 @@ const AdminPanel = () => {
         Swal.fire({
           icon: 'success',
           title: 'User Account Created!',
-          text: `User ${payload.userId} has been created successfully with ${payload.status} status.`,
+          text: `Retailer ${data.userId || data.retailerId || 'Account'} has been created successfully with ${payload.status} status.`,
           confirmButtonText: 'OK',
           confirmButtonColor: '#10b981'
         });
@@ -3252,10 +3391,14 @@ const AdminPanel = () => {
     { id: 'sidebarMenus', label: 'Sidebar Menus', icon: '☰' },
     { id: 'banners', label: 'Banners', icon: '🖼️' },
     { id: 'newsImages', label: 'Login News Images', icon: '📰' },
+    { id: 'quickLinks', label: 'Quick Links', icon: '🔗' },
     { id: 'panSubmissions', label: 'Retailer PAN Submissions', icon: '📇' },
     { id: 'panForms', label: 'PAN Form Manager', icon: '📝' },
     { id: 'walletRequests', label: 'Wallet Requests', icon: '💼' },
+    { id: 'payInHistory', label: 'Pay-In History', icon: '📥' },
+    { id: 'payOutHistory', label: 'Pay-Out History', icon: '📤' },
     { id: 'ledgerHistory', label: 'Ledger History', icon: '📒' },
+    { id: 'payInPayOutHistory', label: 'Pay-In / Pay-Out History', icon: '⇄' },
     { id: 'feesNewApplication', label: 'Fees – PAN New Application', icon: '💰' },
     { id: 'feesCorrection', label: 'Fees – PAN Correction', icon: '💰' },
     { id: 'users', label: 'User Management', icon: '👥' },
@@ -3295,6 +3438,7 @@ const AdminPanel = () => {
     { id: 'sidebarMenus', label: 'Sidebar Menus', icon: '☰' },
     { id: 'banners', label: 'Banners', icon: '🖼️' },
     { id: 'newsImages', label: 'Login News Images', icon: '📰' },
+    { id: 'quickLinks', label: 'Quick Links', icon: '🔗' },
   ].filter(item => hasStaffModuleAccess(item.id));
 
   const panSubmenuItems = [
@@ -3304,7 +3448,6 @@ const AdminPanel = () => {
 
   const standaloneItems = [
     { id: 'walletRequests', label: 'Wallet Requests', icon: '💼' },
-    { id: 'ledgerHistory', label: 'Ledger History', icon: '📒' },
     { id: 'users', label: 'User Management', icon: '👥' },
     { id: 'staffMembers', label: 'Staff Management', icon: '👔', adminOnly: true },
   ].filter(item => {
@@ -3318,11 +3461,16 @@ const AdminPanel = () => {
     { id: 'feesCorrection', label: 'PAN Correction', icon: '✏️' },
   ].filter(item => hasStaffModuleAccess(item.id));
 
+  const ledgerSubmenuItems = [
+    { id: 'ledgerHistory', label: 'All Ledger Transactions', icon: '📋' },
+    { id: 'payInPayOutHistory', label: 'Pay-In / Pay-Out History', icon: '⇄' },
+  ].filter(item => hasStaffModuleAccess(item.id) || hasStaffModuleAccess('ledgerHistory') || hasStaffModuleAccess('payInHistory') || hasStaffModuleAccess('payOutHistory'));
+
   // Filter ledger transactions for PAN New Application
   const newPanTransactions = React.useMemo(() => {
     const isCorrectionApp = (a) => {
       const t = (a.applicationType || a.type || a.serviceType || '').toLowerCase();
-      return t.includes('correct') || t.includes('cr') || t.includes('update') || t.includes('change');
+      return t.includes('correct') || t.includes('cr') || t.includes('update') || t.includes('change') || t.includes('already pan') || t.includes('already_pan') || t.includes('already-pan') || t.includes('scope3') || t.includes('scope4') || t.includes('csf');
     };
 
     const correctionAckSet = new Set();
@@ -3344,7 +3492,7 @@ const AdminPanel = () => {
       if (correctionAckSet.has(ref)) return false;
       if (newPanAckSet.has(ref)) return true;
 
-      const isCorrectionDesc = desc.includes('correct') || desc.includes('cr form') || desc.includes('pan cr') || desc.includes('49cr') || desc.includes('manual_pan_correction') || desc.includes('pan update') || desc.includes('card update');
+      const isCorrectionDesc = desc.includes('correct') || desc.includes('cr form') || desc.includes('pan cr') || desc.includes('49cr') || desc.includes('manual_pan_correction') || desc.includes('epan_correction') || desc.includes('pan update') || desc.includes('card update') || desc.includes('pan correction') || desc.includes('already pan') || desc.includes('already_pan') || desc.includes('already-pan') || desc.includes('pan application fee - pan correction') || desc.includes('pan application fee - correction') || desc.includes('pan application fee - manual_pan_correction') || desc.includes('pan application fee - already pan');
       if (isCorrectionDesc) return false;
 
       const isNewPanDesc = desc.includes('new pan') || desc.includes('form 49a') || desc.includes('manual_new_pan') || desc.includes('manual new pan') || desc.includes('pan application fee - new') || desc.includes('pan application fee - manual_new_pan') || desc.includes('pan 49a');
@@ -3363,7 +3511,7 @@ const AdminPanel = () => {
   const panCorrectionTransactions = React.useMemo(() => {
     const isCorrectionApp = (a) => {
       const t = (a.applicationType || a.type || a.serviceType || '').toLowerCase();
-      return t.includes('correct') || t.includes('cr') || t.includes('update') || t.includes('change');
+      return t.includes('correct') || t.includes('cr') || t.includes('update') || t.includes('change') || t.includes('already pan') || t.includes('already_pan') || t.includes('already-pan') || t.includes('scope3') || t.includes('scope4') || t.includes('csf');
     };
 
     const correctionAckSet = new Set();
@@ -3380,12 +3528,35 @@ const AdminPanel = () => {
 
       if (correctionAckSet.has(ref)) return true;
 
-      const isCorrectionDesc = desc.includes('correct') || desc.includes('cr form') || desc.includes('pan cr') || desc.includes('49cr') || desc.includes('manual_pan_correction') || desc.includes('epan_correction') || desc.includes('pan update') || desc.includes('card update') || desc.includes('pan correction') || desc.includes('pan application fee - pan correction') || desc.includes('pan application fee - correction') || desc.includes('pan application fee - manual_pan_correction');
+      const isCorrectionDesc = desc.includes('correct') || desc.includes('cr form') || desc.includes('pan cr') || desc.includes('49cr') || desc.includes('manual_pan_correction') || desc.includes('epan_correction') || desc.includes('pan update') || desc.includes('card update') || desc.includes('pan correction') || desc.includes('already pan') || desc.includes('already_pan') || desc.includes('already-pan') || desc.includes('pan application fee - pan correction') || desc.includes('pan application fee - correction') || desc.includes('pan application fee - manual_pan_correction') || desc.includes('pan application fee - already pan');
       if (isCorrectionDesc) return true;
+
+      if (desc.includes('refund') && (desc.includes('correct') || desc.includes('already pan') || desc.includes('cr') || desc.includes('update'))) {
+        return true;
+      }
 
       return false;
     });
   }, [ledgerTransactions, panSubmissionsData.applications]);
+
+  // Filter transactions for Pay-In (Credit) and Pay-Out (Debit) sorted by Date/Time
+  const payInTransactions = React.useMemo(() => {
+    return (ledgerTransactions || [])
+      .filter(tx => tx.transactionType === 'Credit')
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [ledgerTransactions]);
+
+  const payOutTransactions = React.useMemo(() => {
+    return (ledgerTransactions || [])
+      .filter(tx => tx.transactionType === 'Debit')
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [ledgerTransactions]);
+
+  const payInPayOutTransactions = React.useMemo(() => {
+    return (ledgerTransactions || [])
+      .filter(tx => tx.transactionType === 'Credit' || tx.transactionType === 'Debit')
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }, [ledgerTransactions]);
 
   return (
     <div className="admin-layout">
@@ -3476,6 +3647,38 @@ const AdminPanel = () => {
               {isFeesSubmenuOpen && (
                 <div className="admin-submenu-items">
                   {feesSubmenuItems.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`admin-nav-sub-btn ${activeTab === item.id ? 'active' : ''}`}
+                      onClick={() => handleTabChange(item.id)}
+                    >
+                      <span className="nav-icon" style={{ fontSize: '15px', marginRight: '8px' }}>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Submenu 4: Ledger History */}
+          {ledgerSubmenuItems.length > 0 && (
+            <div className="admin-submenu-group">
+              <button
+                type="button"
+                className={`admin-nav-parent-btn ${ledgerSubmenuItems.some(i => i.id === activeTab) ? 'active-group' : ''}`}
+                onClick={() => setIsLedgerSubmenuOpen(!isLedgerSubmenuOpen)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span className="nav-icon">📒</span>
+                  <span>Ledger History</span>
+                </div>
+                <span className={`submenu-arrow ${isLedgerSubmenuOpen ? 'open' : ''}`}>▼</span>
+              </button>
+              {isLedgerSubmenuOpen && (
+                <div className="admin-submenu-items">
+                  {ledgerSubmenuItems.map(item => (
                     <button
                       key={item.id}
                       type="button"
@@ -3829,6 +4032,252 @@ const AdminPanel = () => {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Links Tab */}
+          {activeTab === 'quickLinks' && (
+            <div className="admin-panel-grid" style={{ gridTemplateColumns: hasStaffActionAccess('quickLinks.add') ? undefined : '1fr' }}>
+              {hasStaffActionAccess('quickLinks.add') && (
+                <div className="admin-card form-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#0284c7' }}>
+                      🔗
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>{editingQuickLinkId ? 'Edit Quick Link' : 'Add Quick Link / Video'}</h3>
+                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>Configure dynamic links and tutorial videos for user panel</p>
+                    </div>
+                  </div>
+                  <div className="modern-form">
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Title / Display Name *</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. NEW PANCARD FORM 93 or Video Guide" 
+                        value={quickLinkForm.title} 
+                        onChange={e => setQuickLinkForm({ ...quickLinkForm, title: e.target.value })} 
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Category / Type</label>
+                      <select 
+                        value={quickLinkForm.category} 
+                        onChange={e => setQuickLinkForm({ ...quickLinkForm, category: e.target.value })}
+                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#f8fafc', fontWeight: 600, fontSize: '13px' }}
+                      >
+                        <option value="link">🔗 Web Link / External Form Portal</option>
+                        <option value="video">🎥 Video Guide / Tutorial</option>
+                        <option value="service">⚙️ Internal Service / Tool</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Link / Video URL *</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. https://tin.tin.nsdl.com or https://youtube.com/..." 
+                        value={quickLinkForm.url} 
+                        onChange={e => setQuickLinkForm({ ...quickLinkForm, url: e.target.value })} 
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Emoji / Fallback Icon Symbol</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. 🔄 or 📄 or 🎥 or 🔗" 
+                        value={quickLinkForm.icon} 
+                        onChange={e => setQuickLinkForm({ ...quickLinkForm, icon: e.target.value })} 
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Square Icon Photo / Logo (Square Shape)</label>
+                      <div className="file-upload-wrapper">
+                        <input 
+                          ref={quickLinkFileInputRef}
+                          type="file" 
+                          accept="image/*, .png, .jpg, .jpeg, .webp, .svg, .gif, .avif, .bmp, .ico, .tiff, .tif, .heic, .heif" 
+                          onChange={e => {
+                            const file = e.target.files && e.target.files[0];
+                            setQuickLinkForm({ ...quickLinkForm, imgFile: file || null });
+                            if (file) {
+                              setQuickLinkPreview(URL.createObjectURL(file));
+                            } else {
+                              setQuickLinkPreview(null);
+                            }
+                          }} 
+                        />
+                      </div>
+                      <small style={{ color: '#64748b', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                        Square icon photo will display in the square box on User Panel (Available links).
+                      </small>
+
+                      {/* Square Photo Preview Box */}
+                      {quickLinkPreview && (
+                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '14px', background: '#f8fafc', padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #cbd5e1' }}>
+                          <div style={{ width: '64px', height: '64px', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #0284c7', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.2)', flexShrink: 0, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img src={quickLinkPreview} alt="Square Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>✓ Square Photo Selected</div>
+                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>This square photo will appear on the User Panel icon card.</div>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setQuickLinkForm({ ...quickLinkForm, imgFile: null });
+                                setQuickLinkPreview(null);
+                                if (quickLinkFileInputRef.current) quickLinkFileInputRef.current.value = '';
+                              }}
+                              style={{ marginTop: '6px', background: '#fee2e2', color: '#dc2626', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              ✕ Remove Photo
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <button 
+                      className="modern-submit-btn" 
+                      onClick={addQuickLink} 
+                      disabled={quickLinkSubmitting}
+                      style={{ 
+                        marginTop: '12px', 
+                        padding: '12px', 
+                        fontWeight: 800,
+                        opacity: quickLinkSubmitting ? 0.7 : 1,
+                        cursor: quickLinkSubmitting ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {quickLinkSubmitting 
+                        ? '⏳ Uploading Photo & Saving...' 
+                        : (editingQuickLinkId ? '💾 Update Quick Link' : '➕ Add Quick Link')}
+                    </button>
+                    {editingQuickLinkId && (
+                      <button 
+                        className="modern-submit-btn" 
+                        style={{ background: '#64748b', marginTop: '6px' }} 
+                        onClick={() => {
+                          setEditingQuickLinkId(null);
+                          setQuickLinkForm({ title: '', url: '', category: 'link', icon: '🔗', imgFile: null });
+                          setQuickLinkPreview(null);
+                          if (quickLinkFileInputRef.current) quickLinkFileInputRef.current.value = '';
+                        }}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="admin-card list-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h3 style={{ margin: 0 }}>Available Quick Links</h3>
+                    <span style={{ background: '#0284c7', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                      {quickLinks.length}
+                    </span>
+                  </div>
+                  <small style={{ color: '#64748b', fontWeight: 600 }}>Drag ☰ to reorder</small>
+                </div>
+                <div className="modern-list">
+                  {quickLinks.length === 0 ? (
+                    <div style={{ padding: '50px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '10px' }}>🔗</div>
+                      <div style={{ fontWeight: 700, fontSize: '15px' }}>No Quick Links Added Yet</div>
+                      <div style={{ fontSize: '12px', marginTop: '4px' }}>Add links and videos from the form on the left.</div>
+                    </div>
+                  ) : (
+                    quickLinks.map((link, index) => (
+                      <div 
+                        className="list-item" 
+                        key={link._id}
+                        draggable
+                        onDragStart={() => handleDragStart(index)}
+                        onDragEnter={(e) => handleDragEnter(e, index, quickLinks, setQuickLinks)}
+                        onDragEnd={() => handleDragEnd('quick-links', quickLinks)}
+                        onDragOver={(e) => e.preventDefault()}
+                        style={{ cursor: 'grab', display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px' }}
+                      >
+                        <div style={{ color: '#9ca3af', fontSize: '18px', cursor: 'grab' }} title="Drag to reorder">☰</div>
+                        
+                        {/* Square Thumbnail Preview matching User Panel */}
+                        <div style={{
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '12px',
+                          background: 'linear-gradient(145deg, #f8fafc, #e2e8f0)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                          border: '2px solid #cbd5e1',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                          flexShrink: 0
+                        }}>
+                          {link.img ? (
+                            <img src={link.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ fontSize: '24px' }}>{link.icon || '🔗'}</span>
+                          )}
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {link.title}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              background: link.category === 'video' ? '#fef2f2' : link.category === 'service' ? '#f5f3ff' : '#f0fdf4',
+                              color: link.category === 'video' ? '#dc2626' : link.category === 'service' ? '#7c3aed' : '#15803d',
+                              border: `1px solid ${link.category === 'video' ? '#fca5a5' : link.category === 'service' ? '#ddd6fe' : '#bbf7d0'}`
+                            }}>
+                              {link.category === 'video' ? '🎥 VIDEO' : link.category === 'service' ? '⚙️ SERVICE' : '🔗 LINK'}
+                            </span>
+                            <a 
+                              href={link.url} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              style={{ fontSize: '12px', color: '#0284c7', textDecoration: 'none', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}
+                              title={link.url}
+                            >
+                              {link.url}
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="item-actions" style={{ display: 'flex', gap: '8px' }}>
+                          {hasStaffActionAccess('quickLinks.edit') && (
+                            <button 
+                              className="modern-edit-btn" 
+                              onClick={() => startEditQuickLink(link)} 
+                              style={{ background: '#0284c7', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {hasStaffActionAccess('quickLinks.delete') && (
+                            <button 
+                              className="modern-delete-btn" 
+                              onClick={() => deleteItem(`${API_URL}/api/quick-links`, link._id)}
+                              style={{ background: '#ef4444', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -5455,6 +5904,34 @@ const AdminPanel = () => {
             />
           )}
 
+          {/* Combined Pay-In / Pay-Out History Tab */}
+          {(activeTab === 'payInPayOutHistory' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') && (
+            <FeesLedgerTab
+              title="Pay-In / Pay-Out History (Credit & Debit Ledger)"
+              icon="⇄"
+              color="#ea580c"
+              applicationType="pay_in_out"
+              transactions={payInPayOutTransactions}
+              loading={ledgerLoading}
+              onRefresh={fetchLedgerTransactions}
+              canExport={hasStaffActionAccess('payInHistory.export') || hasStaffActionAccess('payOutHistory.export')}
+            />
+          )}
+
+          {/* All Ledger Transactions Tab */}
+          {activeTab === 'ledgerHistory' && (
+            <FeesLedgerTab
+              title="All Ledger History & Transactions"
+              icon="📋"
+              color="#2563eb"
+              applicationType="all"
+              transactions={ledgerTransactions}
+              loading={ledgerLoading}
+              onRefresh={fetchLedgerTransactions}
+              canExport={hasStaffActionAccess('ledgerHistory.export')}
+            />
+          )}
+
           {/* User Management Tab (Redesigned for 100+ Users with Pagination, Filtering, and Table/Grid Views) */}
           {activeTab === 'users' && (
             <div className="user-mgmt-container">
@@ -6632,7 +7109,7 @@ const AdminPanel = () => {
                           ) : (
                             paginatedLedger.map(tx => (
                               <tr key={tx._id}>
-                                <td style={{ whiteSpace: 'nowrap', padding: '12px', fontSize: '13px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
+                                <td style={{ whiteSpace: 'nowrap', padding: '12px', fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>{new Date(tx.createdAt).toLocaleString()}</td>
                                 <td style={{ padding: '12px', fontSize: '13px' }}><strong>{tx.userId}</strong></td>
                                 <td style={{ padding: '12px', fontSize: '13px' }}>
                                   <span className={`status-badge ${tx.transactionType === 'Credit' ? 'status-approved' : 'status-rejected'}`} style={{ padding: '4px 8px', fontSize: '11px' }}>
@@ -6642,7 +7119,7 @@ const AdminPanel = () => {
                                 <td style={{ padding: '12px', fontSize: '13px' }}><strong style={{ color: tx.transactionType === 'Credit' ? '#10b981' : '#ef4444' }}>{tx.transactionType === 'Credit' ? '+' : '-'} ₹{parseFloat(tx.amount).toFixed(2)}</strong></td>
                                 <td style={{ color: '#64748b', padding: '12px', fontSize: '13px' }}>₹{parseFloat(tx.balanceBefore).toFixed(2)}</td>
                                 <td style={{ fontWeight: 600, padding: '12px', fontSize: '13px' }}>₹{parseFloat(tx.balanceAfter).toFixed(2)}</td>
-                                <td style={{ padding: '12px', fontSize: '13px' }}>{tx.description}</td>
+                                <td style={{ padding: '12px', fontSize: '13px', color: '#334155', fontWeight: 600 }}>{tx.description}</td>
                                 <td style={{ fontFamily: 'monospace', fontSize: '11px', padding: '12px' }}>{tx.referenceNumber}</td>
                                 <td style={{ padding: '12px', fontSize: '13px' }}>
                                   <span className={`status-badge ${tx.status === 'Success' ? 'status-approved' : tx.status === 'Pending' ? 'status-pending' : 'status-rejected'}`} style={{ padding: '4px 8px', fontSize: '11px' }}>
@@ -6991,14 +7468,12 @@ const AdminPanel = () => {
                               <th style={{ padding: '12px 14px', fontWeight: 800, fontSize: '12px', letterSpacing: '0.5px' }}>STAFF MEMBER</th>
                               <th style={{ padding: '12px 14px', fontWeight: 800, fontSize: '12px', letterSpacing: '0.5px' }}>CONTACT DETAILS</th>
                               <th style={{ padding: '12px 14px', fontWeight: 800, fontSize: '12px', letterSpacing: '0.5px' }}>STATUS</th>
-                              <th style={{ padding: '12px 14px', fontWeight: 800, fontSize: '12px', letterSpacing: '0.5px' }}>ASSIGNED MODULE PERMISSIONS</th>
                               <th style={{ padding: '12px 14px', fontWeight: 800, fontSize: '12px', letterSpacing: '0.5px', textAlign: 'right' }}>ACTIONS</th>
                             </tr>
                           </thead>
                           <tbody>
                             {filteredStaffList.map(staff => {
                               const isStaffActive = staff.isActive !== false;
-                              const perms = staff.permissions || [];
                               return (
                                 <tr key={staff._id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                   <td style={{ padding: '14px' }}>
@@ -7033,24 +7508,6 @@ const AdminPanel = () => {
                                     >
                                       {isStaffActive ? '● Active' : '○ Suspended'}
                                     </button>
-                                  </td>
-                                  <td style={{ padding: '14px' }}>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', maxWidth: '400px' }}>
-                                      {perms.length === 0 ? (
-                                        <span style={{ fontSize: '11.5px', color: '#dc2626', fontStyle: 'italic', background: '#fef2f2', padding: '3px 8px', borderRadius: '6px' }}>⚠️ No modules assigned</span>
-                                      ) : (
-                                        perms.map(permId => {
-                                          const mod = AVAILABLE_STAFF_MODULES.find(m => m.id === permId);
-                                          const sub = !mod && permId.includes('.') ? AVAILABLE_STAFF_MODULES.flatMap(m => m.subPermissions || []).find(s => s.id === permId) : null;
-                                          return (
-                                            <span key={permId} style={{ background: '#f8fafc', border: '1px solid #cbd5e1', color: '#1e293b', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                              <span>{mod?.icon || sub?.icon || '🔹'}</span>
-                                              <span>{mod?.label || sub?.label || permId}</span>
-                                            </span>
-                                          );
-                                        })
-                                      )}
-                                    </div>
                                   </td>
                                   <td style={{ padding: '14px', textAlign: 'right' }}>
                                     <div style={{ display: 'inline-flex', gap: '8px' }}>
@@ -7787,7 +8244,7 @@ const AdminPanel = () => {
         <div className="staff-modal-overlay">
           <div className="staff-modal-box">
             <div className="staff-modal-header">
-              <h3>{editingStaffId ? '✏️ Edit Staff & Permissions' : '➕ Add New Staff Member'}</h3>
+              <h3>{editingStaffId ? (staffFormData.username ? `✏️ Edit Staff & Permissions (${staffFormData.username})` : '✏️ Edit Staff & Permissions') : '➕ Add New Staff Member'}</h3>
               <button 
                 type="button"
                 className="staff-modal-close" 
@@ -7812,20 +8269,6 @@ const AdminPanel = () => {
                     />
                   </div>
                   <div className="staff-input-group">
-                    <label>Login Username / ID *</label>
-                    <input 
-                      type="text" 
-                      className="staff-input-field" 
-                      placeholder="e.g. rahul01"
-                      value={staffFormData.username}
-                      onChange={e => setStaffFormData({...staffFormData, username: e.target.value.toLowerCase().replace(/\s+/g, '')})}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="staff-input-row">
-                  <div className="staff-input-group">
                     <label>{editingStaffId ? 'New Password (leave blank to keep current)' : 'Login Password *'}</label>
                     <input 
                       type="password" 
@@ -7836,6 +8279,9 @@ const AdminPanel = () => {
                       required={!editingStaffId}
                     />
                   </div>
+                </div>
+
+                <div className="staff-input-row">
                   <div className="staff-input-group">
                     <label>Mobile Number</label>
                     <input 
@@ -7846,17 +8292,16 @@ const AdminPanel = () => {
                       onChange={e => setStaffFormData({...staffFormData, mobile: e.target.value})}
                     />
                   </div>
-                </div>
-
-                <div className="staff-input-group">
-                  <label>Email Address</label>
-                  <input 
-                    type="email" 
-                    className="staff-input-field" 
-                    placeholder="e.g. rahul@example.com"
-                    value={staffFormData.email}
-                    onChange={e => setStaffFormData({...staffFormData, email: e.target.value})}
-                  />
+                  <div className="staff-input-group">
+                    <label>Email Address</label>
+                    <input 
+                      type="email" 
+                      className="staff-input-field" 
+                      placeholder="e.g. rahul@example.com"
+                      value={staffFormData.email}
+                      onChange={e => setStaffFormData({...staffFormData, email: e.target.value})}
+                    />
+                  </div>
                 </div>
 
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', marginTop: '6px' }}>
@@ -8088,13 +8533,7 @@ const AdminPanel = () => {
                         <input
                           type="text"
                           value={createUserForm.fullName}
-                          onChange={e => {
-                            const val = e.target.value;
-                            setCreateUserForm(prev => {
-                              const autoUserId = prev.userId ? prev.userId : (val ? val.toLowerCase().replace(/[^a-z0-9]/g, '') + (prev.mobile ? prev.mobile.slice(-4) : '') : '');
-                              return { ...prev, fullName: val, name: val, userId: prev.userId || autoUserId };
-                            });
-                          }}
+                          onChange={e => setCreateUserForm({ ...createUserForm, fullName: e.target.value, name: e.target.value })}
                           placeholder="Enter your full name"
                           required
                         />
@@ -8113,15 +8552,7 @@ const AdminPanel = () => {
                           type="tel"
                           maxLength="10"
                           value={createUserForm.mobile}
-                          onChange={e => {
-                            const cleanMob = e.target.value.replace(/\D/g, '');
-                            setCreateUserForm(prev => {
-                              const autoUserId = (!prev.userId || prev.userId.startsWith('user_')) 
-                                ? (prev.fullName ? prev.fullName.toLowerCase().replace(/[^a-z0-9]/g, '') + cleanMob.slice(-4) : 'user_' + cleanMob.slice(-4)) 
-                                : prev.userId;
-                              return { ...prev, mobile: cleanMob, userId: autoUserId };
-                            });
-                          }}
+                          onChange={e => setCreateUserForm({ ...createUserForm, mobile: e.target.value.replace(/\D/g, '') })}
                           placeholder="Enter 10 digit mobile number"
                           required
                         />
@@ -8281,40 +8712,6 @@ const AdminPanel = () => {
                     <strong className="admin-reg-section-title">3. Account Configuration &amp; Role</strong>
                   </div>
 
-                  <div className="admin-reg-grid-2col">
-                    <div>
-                      <label className="admin-reg-field-label">User ID / Username</label>
-                      <div className="admin-reg-input-wrapper">
-                        <span className="admin-reg-input-icon">
-                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <rect x="3" y="4" width="18" height="16" rx="2" />
-                            <circle cx="9" cy="10" r="2" />
-                            <line x1="15" y1="8" x2="17" y2="8" />
-                            <line x1="15" y1="12" x2="17" y2="12" />
-                            <line x1="7" y1="16" x2="17" y2="16" />
-                          </svg>
-                        </span>
-                        <input
-                          type="text"
-                          value={createUserForm.userId}
-                          onChange={e => setCreateUserForm({ ...createUserForm, userId: e.target.value.trim() })}
-                          placeholder="Auto-generated or custom"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const namePart = createUserForm.fullName ? createUserForm.fullName.toLowerCase().replace(/[^a-z0-9]/g, '') : 'user';
-                            const mobPart = createUserForm.mobile ? createUserForm.mobile.slice(-4) : Math.floor(1000 + Math.random() * 9000);
-                            setCreateUserForm(prev => ({ ...prev, userId: `${namePart}${mobPart}` }));
-                          }}
-                          style={{ border: 'none', background: '#FFEDD5', color: '#C2410C', padding: '4px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          title="Generate User ID"
-                        >
-                          ⚡ Auto
-                        </button>
-                      </div>
-                    </div>
-                  </div>
 
                   <div className="admin-reg-grid-3col">
                     <div>

@@ -120,10 +120,18 @@ const Login = () => {
       });
       const data = await response.json();
       if (response.ok) {
+        const canonicalUserId = (data.user && data.user.userId) ? data.user.userId : userId;
         if (userId === 'admin' || (data.user && data.user.role === 'admin')) {
-          localStorage.setItem('currentUser', userId);
+          localStorage.setItem('currentUser', canonicalUserId);
           navigate('/admin-login');
           return;
+        }
+
+        // Store canonical user ID so all features (Pay-In, Ledger, Wallet) have the canonical ID
+        setUserId(canonicalUserId);
+        localStorage.setItem('currentUser', canonicalUserId);
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
         }
 
         const targetMobile = (data.user && data.user.mobile) ? data.user.mobile : mobile;
@@ -178,8 +186,9 @@ const Login = () => {
       const data = await response.json();
       if (response.ok) {
         Swal.close();
-        localStorage.setItem('currentUser', userId);
-        if (role === 'admin' || userId === 'admin') {
+        const storedUser = localStorage.getItem('currentUser') || (data.user && data.user.userId) || userId;
+        localStorage.setItem('currentUser', storedUser);
+        if (role === 'admin' || storedUser === 'admin') {
           navigate('/admin-login');
         } else {
           navigate('/dashboard');

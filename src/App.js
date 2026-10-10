@@ -20,6 +20,8 @@ function App() {
             <Route path="/wallet" element={<Dashboard />} />
             <Route path="/pancard" element={<Dashboard />} />
             <Route path="/pan-card" element={<Dashboard />} />
+            <Route path="/quick-links" element={<Dashboard />} />
+            <Route path="/view-links" element={<Dashboard />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/admin-panel" element={<AdminPanel />} />
             <Route path="/admin" element={<Navigate to="/admin-login" />} />
