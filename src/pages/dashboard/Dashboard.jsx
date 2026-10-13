@@ -9,6 +9,7 @@ import PanCardView from '../pancard/PanCardView';
 import QuickLinksView from '../quicklinks/QuickLinksView';
 import NotificationBell from '../../context/NotificationBell';
 import { API_URL } from '../../utils/apiClient';
+import { DYNAMIC_LINK_MENUS, findDynamicMenu, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
 
 // eslint-disable-next-line no-unused-vars
 const Toast = Swal.mixin({
@@ -19,8 +20,23 @@ const Toast = Swal.mixin({
   timerProgressBar: true
 });
 
-const getMenuIcon = (label) => {
-  if (!label) return null;
+const getMenuIcon = (label, url) => {
+  if (!label && !url) return null;
+  const dyn = (url ? findDynamicMenu(url) : null) || findDynamicMenu(label);
+  if (dyn) {
+    let colorClass = 'icon-teal';
+    if (dyn.key === 'servicesLink') colorClass = 'icon-orange';
+    else if (dyn.key === 'jobLinks') colorClass = 'icon-blue';
+    else if (dyn.key === 'admitCard') colorClass = 'icon-purple';
+    else if (dyn.key === 'formLinks') colorClass = 'icon-teal';
+    else if (dyn.key === 'vedioLink') colorClass = 'icon-orange';
+    else if (dyn.key === 'trainingLinks') colorClass = 'icon-blue';
+    else if (dyn.key === 'productLinks') colorClass = 'icon-amber';
+    else if (dyn.key === 'govtLinks') colorClass = 'icon-purple';
+    else if (dyn.key === 'print') colorClass = 'icon-slate';
+    else if (dyn.key === 'schorshipLinks') colorClass = 'icon-teal';
+    return <span className={`icon-badge ${colorClass}`}>{dyn.icon}</span>;
+  }
   const l = label.toLowerCase();
   if (l.includes('dash')) return <span className="icon-badge icon-orange">📊</span>;
   if (l.includes('adhar') || l.includes('aadhaar')) return <span className="icon-badge icon-purple">ID</span>;
@@ -53,9 +69,12 @@ const Dashboard = () => {
   const isWalletRoute = location.pathname === '/wallet';
   const isPanCardRoute = location.pathname === '/pancard' || location.pathname === '/pan-card';
   const isQuickLinksRoute = location.pathname === '/quick-links' || location.pathname === '/view-links';
-  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute;
+  const activeDynLinkMenu = findDynamicMenu(location.pathname);
+  const isDynLinkMenuRoute = Boolean(activeDynLinkMenu);
+  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute;
+
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('appTheme') || 'dark';
+    return localStorage.getItem('appTheme') || 'light';
   });
 
   const [actionCardsData, setActionCardsData] = useState([]);
@@ -145,12 +164,78 @@ const Dashboard = () => {
           return !l.includes('wallet') && !l.includes('ledger') && !l.includes('report');
         }) : [];
 
-        if (!menus.some(m => m.label && (m.label.toLowerCase().includes('link') || m.label.toLowerCase().includes('quick')))) {
-          menus.push({ _id: 'menu_view_links', label: 'View Links', url: '/quick-links', isActive: true });
+        // Ensure Quick Links is present in the sidebar
+        const hasQuick = menus.some(m => {
+          if (!m.label) return false;
+          const matched = getDynamicMenuForSidebarItem(m);
+          if (matched) return false;
+          const l = m.label.toLowerCase();
+          const u = (m.url || '').toLowerCase();
+          return l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+        });
+
+        if (!hasQuick) {
+          const panIdx = menus.findIndex(m => m.label && m.label.toLowerCase().includes('pan'));
+          const quickMenuItem = { _id: 'menu_quick_links', label: 'QUICK LINKS', url: '/quick-links', isActive: false };
+          if (panIdx >= 0) {
+            menus.splice(panIdx + 1, 0, quickMenuItem);
+          } else {
+            menus.push(quickMenuItem);
+          }
         }
 
-        setSidebarMenuData(menus);
-        const activeItem = menus.find(m => m.isActive) || menus[0];
+        // Ensure all 10 dynamic link menus are present (without duplicating)
+        DYNAMIC_LINK_MENUS.forEach(dyn => {
+          const exists = menus.some(m => {
+            const matched = getDynamicMenuForSidebarItem(m);
+            return matched && matched.key === dyn.key;
+          });
+          if (!exists) {
+            menus.push({
+              _id: `dyn_menu_${dyn.key}`,
+              label: dyn.label,
+              url: dyn.route,
+              isActive: false
+            });
+          }
+        });
+
+        // Deduplicate any menus that match the same dynamic menu or quick links
+        const seenKeys = new Set();
+        const dedupedMenus = [];
+        menus.forEach(m => {
+          const matchedDyn = getDynamicMenuForSidebarItem(m);
+          if (matchedDyn) {
+            if (!seenKeys.has(matchedDyn.key)) {
+              seenKeys.add(matchedDyn.key);
+              dedupedMenus.push({
+                ...m,
+                label: (m.label && m.label.trim()) ? m.label.trim() : matchedDyn.label,
+                url: matchedDyn.route,
+                isActive: m.isActive !== undefined ? Boolean(m.isActive) : true
+              });
+            }
+          } else {
+            const l = (m.label || '').toLowerCase();
+            const u = (m.url || '').toLowerCase();
+            const isQuickItem = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+            if (isQuickItem) {
+              if (!seenKeys.has('quickLinks')) {
+                seenKeys.add('quickLinks');
+                dedupedMenus.push({
+                  ...m,
+                  label: (m.label && m.label.trim()) ? m.label.trim() : 'QUICK LINKS',
+                  url: '/quick-links'
+                });
+              }
+            } else {
+              dedupedMenus.push(m);
+            }
+          }
+        });
+
+        setSidebarMenuData(dedupedMenus);
+        const activeItem = dedupedMenus.find(m => m.isActive) || dedupedMenus[0];
         if (activeItem) {
           setActiveMenuId(activeItem._id || activeItem.id);
         }
@@ -359,12 +444,24 @@ const Dashboard = () => {
           </div>
 
           <div className="sidebar-menu-new">
-            {sidebarMenuData.map((menu) => {
+            {sidebarMenuData.filter((menu) => {
+              const matchedDyn = getDynamicMenuForSidebarItem(menu) || findDynamicMenu(menu.url || menu.label);
+              if (matchedDyn) {
+                return Boolean(menu.isActive);
+              }
+              return true;
+            }).map((menu) => {
               const menuId = menu._id || menu.id;
               const isPan = menu.label && menu.label.toLowerCase().includes('pan');
               const isDash = menu.label && menu.label.toLowerCase().includes('dash');
-              const isQuick = menu.label && (menu.label.toLowerCase().includes('link') || menu.label.toLowerCase().includes('quick'));
-              const isSelected = isPan ? isPanCardRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId));
+              const matchedDyn = getDynamicMenuForSidebarItem(menu) || findDynamicMenu(menu.url || menu.label);
+              const isQuick = !matchedDyn && (
+                menu.url === '/quick-links' ||
+                menu.url === '/view-links' ||
+                (menu.label && (menu.label.toLowerCase().includes('quick') || menu.label.toLowerCase() === 'view links'))
+              );
+              const isDynSelected = matchedDyn && activeDynLinkMenu && matchedDyn.key === activeDynLinkMenu.key;
+              const isSelected = isDynSelected ? true : (isPan ? isPanCardRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId)));
 
               return (
                 <div
@@ -373,7 +470,9 @@ const Dashboard = () => {
                   onClick={() => {
                     setActiveMenuId(menuId);
                     setIsMobileMenuOpen(false);
-                    if (isPan) {
+                    if (matchedDyn) {
+                      navigate(matchedDyn.route);
+                    } else if (isPan) {
                       navigate('/pancard');
                     } else if (isQuick) {
                       navigate('/quick-links');
@@ -393,7 +492,7 @@ const Dashboard = () => {
                     }
                   }}
                 >
-                  {getMenuIcon(menu.label)}
+                  {getMenuIcon(menu.label, menu.url)}
                   <span className="menu-label-text">{menu.label}</span>
                   <span className="active-chevron">›</span>
                 </div>
@@ -534,9 +633,66 @@ const Dashboard = () => {
               onClose={() => navigate('/dashboard')}
               theme={theme}
             />
-          ) : isQuickLinksRoute ? (
-            <QuickLinksView theme={theme} />
-          ) : (
+          ) : isQuickLinksRoute ? (() => {
+            const quickItem = (sidebarMenuData || []).find(m => {
+              const d = getDynamicMenuForSidebarItem(m);
+              if (d) return false;
+              const l = (m.label || '').toLowerCase();
+              const u = (m.url || '').toLowerCase();
+              return l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+            });
+            const quickTitle = (quickItem && quickItem.label && quickItem.label.trim()) || 'Available links';
+            return (
+              <QuickLinksView 
+                menuKey="quickLinks"
+                pageTitle={quickTitle}
+                pageSubtitle="Access important form links, video guides and portals instantly"
+                theme={theme} 
+                currentUser={localStorage.getItem('currentUser')}
+                walletBalance={walletBalance}
+                onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+              />
+            );
+          })() : isDynLinkMenuRoute ? (() => {
+            const currentDynItem = (sidebarMenuData || []).find(m => {
+              const d = getDynamicMenuForSidebarItem(m);
+              return d && d.key === activeDynLinkMenu.key;
+            });
+            const isMenuOff = currentDynItem && currentDynItem.isActive === false;
+            const dynTitle = (currentDynItem && currentDynItem.label && currentDynItem.label.trim()) || activeDynLinkMenu.label;
+
+            if (isMenuOff) {
+              return (
+                <div style={{ padding: '60px 20px', textAlign: 'center', background: '#ffffff', borderRadius: '16px', margin: '20px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '14px' }}>🔒</div>
+                  <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#1e293b', marginBottom: '8px' }}>
+                    {dynTitle} is Currently Inactive
+                  </h2>
+                  <p style={{ color: '#64748b', fontSize: '14px', maxWidth: '420px', margin: '0 auto 20px' }}>
+                    This menu section has been turned OFF by the administrator.
+                  </p>
+                  <button 
+                    onClick={() => navigate('/dashboard')}
+                    style={{ padding: '10px 24px', borderRadius: '8px', background: '#3b82f6', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Go to Dashboard
+                  </button>
+                </div>
+              );
+            }
+
+            return (
+              <QuickLinksView 
+                menuKey={activeDynLinkMenu.key}
+                pageTitle={dynTitle}
+                pageSubtitle={`Available dynamic links and portals for ${dynTitle}`}
+                theme={theme} 
+                currentUser={localStorage.getItem('currentUser')}
+                walletBalance={walletBalance}
+                onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+              />
+            );
+          })() : (
             bannersData.length > 0 && (
               <div className={`banner-area-new ${activeBannerId ? 'active' : ''}`}>
                 {bannersData.map((banner) => {

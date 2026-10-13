@@ -20,11 +20,14 @@ body {
   flex-direction: column;
   box-shadow: 4px 0 10px rgba(0,0,0,0.1);
   z-index: 10;
+  max-height: 100vh;
+  overflow: hidden;
 }
 
 .admin-brand {
   padding: 20px 24px;
   border-bottom: 1px solid #374151;
+  flex-shrink: 0;
 }
 
 .admin-brand h2 {
@@ -37,10 +40,34 @@ body {
 
 .admin-nav-vertical {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px 0;
   display: flex;
   flex-direction: column;
   gap: 5px;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 transparent;
+}
+
+.admin-nav-vertical::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-nav-vertical::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-nav-vertical::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.admin-nav-vertical::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }
 
 .admin-nav-btn {
@@ -56,6 +83,7 @@ body {
   text-align: left;
   transition: all 0.2s;
   width: 100%;
+  flex-shrink: 0;
 }
 
 .admin-nav-btn:hover {
@@ -72,6 +100,7 @@ body {
 /* Admin Submenu Accordion Styles */
 .admin-submenu-group {
   margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .admin-nav-parent-btn {

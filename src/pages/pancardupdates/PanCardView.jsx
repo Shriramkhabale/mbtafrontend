@@ -440,7 +440,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   const location = useLocation();
   const [tabs, setTabs] = useState([]);
 
-  const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'dark');
+  const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'light');
   const isLightTheme = currentTheme === 'light';
 
   useEffect(() => {
@@ -451,7 +451,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
   useEffect(() => {
     const handleStorage = () => {
-      const saved = localStorage.getItem('appTheme') || 'dark';
+      const saved = localStorage.getItem('appTheme') || 'light';
       setCurrentTheme(saved);
     };
     window.addEventListener('storage', handleStorage);

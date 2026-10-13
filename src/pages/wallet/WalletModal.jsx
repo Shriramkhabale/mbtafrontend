@@ -109,9 +109,9 @@ const PlusIcon = () => (
   </svg>
 );
 
-const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'dark' }) => {
+const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'light' }) => {
   const [activeTab, setActiveTab] = useState(initialTab); // 'directPayment', 'payout', 'requisition'
-  const currentTheme = theme || localStorage.getItem('appTheme') || 'dark';
+  const currentTheme = theme || localStorage.getItem('appTheme') || 'light';
 
   useEffect(() => {
     if (initialTab && initialTab !== 'ledger') {

@@ -11,6 +11,7 @@ import { API_URL, apiFetch } from '../../utils/apiClient';
 import NotificationBell from '../../context/NotificationBell';
 import { exportSinglePanApplicationToExcel } from '../../utils/exportPanToExcel';
 import logoImg from '../../assets/logo.png';
+import { DYNAMIC_LINK_MENUS, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -672,40 +673,20 @@ const AdminPanel = () => {
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     sessionStorage.setItem('adminPanelActiveTab', tabId);
-    if (tabId === 'quickLinks') {
-      apiFetch('/api/quick-links').then(res => res.json()).then(data => {
+    const isLinkTab = tabId === 'quickLinks' || DYNAMIC_LINK_MENUS.some(m => m.key === tabId);
+    if (isLinkTab) {
+      apiFetch(`/api/quick-links?menuKey=${tabId}`).then(res => res.json()).then(data => {
         if (Array.isArray(data)) setQuickLinks(data);
-      }).catch(err => console.error('Failed to load quick links:', err));
+      }).catch(err => console.error('Failed to load links:', err));
     }
   };
 
-  const [isUiSubmenuOpen, setIsUiSubmenuOpen] = useState(() => {
-    return ['actionCards', 'topTabs', 'sidebarMenus', 'banners', 'newsImages', 'quickLinks'].includes(activeTab);
-  });
-  const [isPanSubmenuOpen, setIsPanSubmenuOpen] = useState(() => {
-    return ['panSubmissions', 'panForms'].includes(activeTab);
-  });
-  const [isFeesSubmenuOpen, setIsFeesSubmenuOpen] = useState(() => {
-    return ['feesNewApplication', 'feesCorrection'].includes(activeTab);
-  });
-  const [isLedgerSubmenuOpen, setIsLedgerSubmenuOpen] = useState(() => {
-    return ['ledgerHistory', 'payInPayOutHistory', 'payInHistory', 'payOutHistory'].includes(activeTab);
-  });
+  const [isUiSubmenuOpen, setIsUiSubmenuOpen] = useState(false);
+  const [isDynamicMenusOpen, setIsDynamicMenusOpen] = useState(false);
+  const [isPanSubmenuOpen, setIsPanSubmenuOpen] = useState(false);
+  const [isFeesSubmenuOpen, setIsFeesSubmenuOpen] = useState(false);
+  const [isLedgerSubmenuOpen, setIsLedgerSubmenuOpen] = useState(false);
 
-  useEffect(() => {
-    if (['actionCards', 'topTabs', 'sidebarMenus', 'banners', 'newsImages', 'quickLinks'].includes(activeTab)) {
-      setIsUiSubmenuOpen(true);
-    }
-    if (['panSubmissions', 'panForms'].includes(activeTab)) {
-      setIsPanSubmenuOpen(true);
-    }
-    if (['feesNewApplication', 'feesCorrection'].includes(activeTab)) {
-      setIsFeesSubmenuOpen(true);
-    }
-    if (['ledgerHistory', 'payInPayOutHistory', 'payInHistory', 'payOutHistory'].includes(activeTab)) {
-      setIsLedgerSubmenuOpen(true);
-    }
-  }, [activeTab]);
 
   // Protect Admin Panel - redirect unauthenticated users to Admin Login
   useEffect(() => {
@@ -1405,6 +1386,37 @@ const AdminPanel = () => {
   const [cards, setCards] = useState([]);
   const [topTabs, setTopTabs] = useState([]);
   const [sidebarMenus, setSidebarMenus] = useState([]);
+
+  // Derive dynamic menus with up-to-date labels and active status from sidebarMenus
+  const dynamicLinkMenusList = useMemo(() => {
+    return DYNAMIC_LINK_MENUS.map(dyn => {
+      const matched = (sidebarMenus || []).find(sm => {
+        const d = getDynamicMenuForSidebarItem(sm);
+        return d && d.key === dyn.key;
+      });
+      return {
+        ...dyn,
+        _id: matched ? matched._id : null,
+        label: (matched && matched.label && matched.label.trim()) ? matched.label.trim() : dyn.label,
+        isActive: matched ? Boolean(matched.isActive) : true
+      };
+    });
+  }, [sidebarMenus]);
+
+  const allLinkMenusList = useMemo(() => {
+    const quickMenu = (sidebarMenus || []).find(sm => {
+      const d = getDynamicMenuForSidebarItem(sm);
+      if (d) return false;
+      const l = (sm.label || '').toLowerCase();
+      const u = (sm.url || '').toLowerCase();
+      return l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+    });
+    const quickLabel = (quickMenu && quickMenu.label && quickMenu.label.trim()) ? quickMenu.label.trim() : 'Quick Links';
+    return [
+      { key: 'quickLinks', label: quickLabel, icon: '🔗', route: '/quick-links', isActive: quickMenu ? Boolean(quickMenu.isActive) : true },
+      ...dynamicLinkMenusList
+    ];
+  }, [sidebarMenus, dynamicLinkMenusList]);
   const [banners, setBanners] = useState([]);
   const [newsImages, setNewsImages] = useState([]);
   const [quickLinks, setQuickLinks] = useState([]);
@@ -1503,10 +1515,10 @@ const AdminPanel = () => {
     },
     {
       id: 'epan_kyc',
-      label: 'Aadhaar OTP New PAN',
+      label: 'E-Pan Kyc',
       icon: '📲',
       fee: 107,
-      badge: 'Instant E-KYC Mode',
+      badge: 'PAN CARD Service Documents Upload',
       badgeClass: '',
       description: 'Instant E-KYC application using Aadhaar OTP / Biometric verification.',
       fields: [
@@ -1588,7 +1600,36 @@ const AdminPanel = () => {
         { name: 'proofOfIdentityUrl', label: 'UPLOAD IDENTITY PROOF', type: 'file', required: false, formType: 'Both' },
         { name: 'proofOfAddressUrl', label: 'UPLOAD ADDRESS PROOF', type: 'file', required: false, formType: 'Both' }
       ]
-
+    },
+    {
+      id: 'epan_correction_otp',
+      label: 'E-Pan Correction',
+      icon: '⚡',
+      fee: 107,
+      badge: 'PAPER LESS E-Pan Correction OTP Base',
+      badgeClass: '',
+      description: 'Paperless E-Pan Correction OTP Base application.',
+      fields: []
+    },
+    {
+      id: 'epan_sign_photo',
+      label: 'EPan (Sign&Photo)',
+      icon: '📸',
+      fee: 107,
+      badge: 'PAPER LESS E- Pan Card Upload photo And Sign',
+      badgeClass: '',
+      description: 'Paperless E-Pan Card with photo and sign upload.',
+      fields: []
+    },
+    {
+      id: 'epan_correction_sign_photo',
+      label: 'E Pan Correction photo with sign',
+      icon: '✍️',
+      fee: 107,
+      badge: 'PAPER LESS E-Pan Correction photo with sign',
+      badgeClass: '',
+      description: 'Paperless E-Pan Correction with photo and sign.',
+      fields: []
     }
   ];
 
@@ -1600,11 +1641,23 @@ const AdminPanel = () => {
   const [editingMenuId, setEditingMenuId] = useState(null);
   const [menuForm, setMenuForm] = useState({ label: '', url: '', isActive: false, order: 0 });
   const [bannerForm, setBannerForm] = useState({ imgFile: null, fallbackIcon: '', fallbackPerson: '' });
-  const [newsImageForm, setNewsImageForm] = useState({ imgFile: null });
-  const [quickLinkForm, setQuickLinkForm] = useState({ title: '', url: '', category: 'link', icon: '🔗', imgFile: null });
+  const [newsImageForm, setNewsImageForm] = useState({ imgFile: null, imgFiles: null });
+  const [quickLinkForm, setQuickLinkForm] = useState({ 
+    title: '', 
+    url: '', 
+    category: 'link', 
+    icon: '🔗', 
+    fee: '', 
+    imgFile: null,
+    videoSource: 'url',
+    videoFile: null,
+    existingVideoUrl: ''
+  });
   const [quickLinkPreview, setQuickLinkPreview] = useState(null);
+  const [quickLinkVideoPreview, setQuickLinkVideoPreview] = useState(null);
   const [quickLinkSubmitting, setQuickLinkSubmitting] = useState(false);
   const quickLinkFileInputRef = useRef(null);
+  const quickLinkVideoFileInputRef = useRef(null);
   const [editingQuickLinkId, setEditingQuickLinkId] = useState(null);
   const [paymentRequisitions, setPaymentRequisitions] = useState([]);
   const [upiConfig, setUpiConfig] = useState(null); // eslint-disable-line no-unused-vars
@@ -2439,7 +2492,8 @@ const AdminPanel = () => {
     load('/api/sidebar-menus', setSidebarMenus);
     load('/api/banners', setBanners);
     load('/api/news-images', setNewsImages);
-    load('/api/quick-links', setQuickLinks);
+    const activeLinkMenuKey = DYNAMIC_LINK_MENUS.some(m => m.key === activeTab) ? activeTab : 'quickLinks';
+    load(`/api/quick-links?menuKey=${activeLinkMenuKey}`, setQuickLinks);
     load('/api/users', setUsers);
     load('/api/payment-requisitions', setPaymentRequisitions);
     load('/api/wallet-transactions/report', data => {
@@ -2648,19 +2702,43 @@ const AdminPanel = () => {
   };
 
   const addQuickLink = async () => {
+    const currentMenuKey = dynamicLinkMenusList.some(m => m.key === activeTab) ? activeTab : 'quickLinks';
+    const currentMenuObj = allLinkMenusList.find(m => m.key === currentMenuKey) || { label: 'Quick Link' };
+    const isVideoMenu = currentMenuKey === 'vedioLink';
+
     if (!quickLinkForm.title.trim()) {
-      return Swal.fire({ icon: 'warning', text: 'Please enter a title for the Quick Link.' });
+      return Swal.fire({ icon: 'warning', text: `Please enter a title for the ${currentMenuObj.label}.` });
     }
-    if (!quickLinkForm.url.trim()) {
-      return Swal.fire({ icon: 'warning', text: 'Please enter a URL (e.g. website link or video link).' });
+
+    if (isVideoMenu && quickLinkForm.videoSource === 'device') {
+      if (!quickLinkForm.videoFile && !quickLinkForm.existingVideoUrl) {
+        return Swal.fire({ icon: 'warning', text: 'Please choose a video file to upload from your device.' });
+      }
+    } else {
+      if (!quickLinkForm.url.trim()) {
+        return Swal.fire({ icon: 'warning', text: isVideoMenu ? 'Please enter a video URL.' : 'Please enter a URL (e.g. website link or video link).' });
+      }
     }
 
     const formData = new FormData();
     formData.append('title', quickLinkForm.title.trim());
-    formData.append('url', quickLinkForm.url.trim());
-    formData.append('category', quickLinkForm.category || 'link');
-    formData.append('icon', quickLinkForm.icon || '🔗');
+    formData.append(
+      'url', 
+      (isVideoMenu && quickLinkForm.videoSource === 'device' && !quickLinkForm.url.trim()) 
+        ? (quickLinkForm.existingVideoUrl || 'device-video') 
+        : quickLinkForm.url.trim()
+    );
+    formData.append('category', quickLinkForm.category || (isVideoMenu ? 'video' : 'link'));
+    formData.append('icon', quickLinkForm.icon || (isVideoMenu ? '🎥' : '🔗'));
+    formData.append('fee', quickLinkForm.fee !== undefined && quickLinkForm.fee !== '' ? Number(quickLinkForm.fee) : 0);
+    formData.append('menuKey', currentMenuKey);
+    formData.append('videoSource', isVideoMenu ? (quickLinkForm.videoSource || 'url') : 'url');
+
     if (quickLinkForm.imgFile) formData.append('image', quickLinkForm.imgFile);
+    if (isVideoMenu && quickLinkForm.videoFile) formData.append('videoFile', quickLinkForm.videoFile);
+    if (isVideoMenu && !quickLinkForm.videoFile && quickLinkForm.existingVideoUrl) {
+      formData.append('videoFile', quickLinkForm.existingVideoUrl);
+    }
 
     setQuickLinkSubmitting(true);
     try {
@@ -2687,21 +2765,35 @@ const AdminPanel = () => {
         }
       }
       if (!res.ok) {
-        throw new Error(data.message || 'Server error while saving Quick Link.');
+        throw new Error(data.message || `Server error while saving ${currentMenuObj.label}.`);
       }
 
       Swal.fire({
         icon: 'success',
-        title: editingQuickLinkId ? 'Quick Link Updated!' : 'Quick Link Added!',
-        text: `"${data.title}" has been saved successfully with square photo icon.`,
+        title: editingQuickLinkId ? `${currentMenuObj.label} Updated!` : `${currentMenuObj.label} Added!`,
+        text: `"${data.title}" has been saved successfully.`,
         timer: 1800,
         showConfirmButton: false
       });
 
-      setQuickLinkForm({ title: '', url: '', category: 'link', icon: '🔗', imgFile: null });
+      setQuickLinkForm({ 
+        title: '', 
+        url: '', 
+        category: isVideoMenu ? 'video' : 'link', 
+        icon: isVideoMenu ? '🎥' : '🔗', 
+        fee: '', 
+        imgFile: null,
+        videoSource: 'url',
+        videoFile: null,
+        existingVideoUrl: ''
+      });
       setQuickLinkPreview(null);
+      setQuickLinkVideoPreview(null);
       if (quickLinkFileInputRef.current) {
         quickLinkFileInputRef.current.value = '';
+      }
+      if (quickLinkVideoFileInputRef.current) {
+        quickLinkVideoFileInputRef.current.value = '';
       }
       setEditingQuickLinkId(null);
       fetchAll();
@@ -2710,7 +2802,7 @@ const AdminPanel = () => {
       Swal.fire({
         icon: 'error',
         title: 'Upload Failed',
-        text: err.message || 'Failed to save Quick Link or upload image.'
+        text: err.message || `Failed to save ${currentMenuObj.label} or upload video/photo.`
       });
     } finally {
       setQuickLinkSubmitting(false);
@@ -2719,16 +2811,25 @@ const AdminPanel = () => {
 
   const startEditQuickLink = (link) => {
     setEditingQuickLinkId(link._id);
+    const isVideo = link.menuKey === 'vedioLink' || link.videoSource === 'device' || Boolean(link.videoFile);
     setQuickLinkForm({
       title: link.title || '',
       url: link.url || '',
-      category: link.category || 'link',
-      icon: link.icon || '🔗',
-      imgFile: null
+      category: link.category || (isVideo ? 'video' : 'link'),
+      icon: link.icon || (isVideo ? '🎥' : '🔗'),
+      fee: link.fee !== undefined ? link.fee : '',
+      imgFile: null,
+      videoSource: (link.videoSource === 'device' || link.videoFile) ? 'device' : 'url',
+      videoFile: null,
+      existingVideoUrl: link.videoFile || (isVideo && link.url && link.url.includes('/uploads/videos/') ? link.url : '')
     });
     setQuickLinkPreview(link.img || null);
+    setQuickLinkVideoPreview(null);
     if (quickLinkFileInputRef.current) {
       quickLinkFileInputRef.current.value = '';
+    }
+    if (quickLinkVideoFileInputRef.current) {
+      quickLinkVideoFileInputRef.current.value = '';
     }
   };
 
@@ -3352,6 +3453,43 @@ const AdminPanel = () => {
     fetchAll();
   };
 
+  const toggleSidebarMenuStatus = async (menuItem) => {
+    if (!menuItem) return;
+    const currentActive = menuItem.isActive !== undefined ? Boolean(menuItem.isActive) : false;
+    const newStatus = !currentActive;
+    try {
+      if (menuItem._id) {
+        await fetch(`${API_URL}/api/sidebar-menus/${menuItem._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: newStatus })
+        });
+      } else {
+        const dyn = DYNAMIC_LINK_MENUS.find(d => d.key === menuItem.key);
+        await fetch(`${API_URL}/api/sidebar-menus`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            label: menuItem.label || (dyn ? dyn.label : 'Menu'),
+            url: menuItem.route || (dyn ? dyn.route : ''),
+            isActive: newStatus,
+            order: sidebarMenus.length
+          })
+        });
+      }
+      fetchAll();
+      showCustomToast(
+        `${menuItem.label || 'Menu'} is now ${newStatus ? 'ON (Visible)' : 'OFF (Hidden)'}`,
+        newStatus ? 'This menu is now visible in the user panel.' : 'This menu is now hidden from the user panel.',
+        newStatus ? 'success' : 'warning',
+        2500
+      );
+    } catch (err) {
+      console.error('Failed to toggle sidebar menu status:', err);
+      Swal.fire({ icon: 'error', text: 'Failed to update menu status.' });
+    }
+  };
+
   const startEditTab = (tab) => {
     setEditingTabId(tab._id);
     setTabForm({
@@ -3407,6 +3545,11 @@ const AdminPanel = () => {
 
   const hasStaffModuleAccess = (modId) => {
     if (userRole === 'admin') return true;
+    if (DYNAMIC_LINK_MENUS.some(d => d.key === modId)) {
+      if (staffPermissions && (staffPermissions.includes(modId) || staffPermissions.includes('quickLinks') || staffPermissions.some(p => p.startsWith('quickLinks.')))) {
+        return true;
+      }
+    }
     if (!staffPermissions || !Array.isArray(staffPermissions) || staffPermissions.length === 0) return false;
     return staffPermissions.includes(modId) || staffPermissions.some(p => p === modId || p.startsWith(modId + '.'));
   };
@@ -3438,7 +3581,7 @@ const AdminPanel = () => {
     { id: 'sidebarMenus', label: 'Sidebar Menus', icon: '☰' },
     { id: 'banners', label: 'Banners', icon: '🖼️' },
     { id: 'newsImages', label: 'Login News Images', icon: '📰' },
-    { id: 'quickLinks', label: 'Quick Links', icon: '🔗' },
+    { id: 'quickLinks', label: (allLinkMenusList.find(m => m.key === 'quickLinks') || {}).label || 'Quick Links', icon: '🔗' },
   ].filter(item => hasStaffModuleAccess(item.id));
 
   const panSubmenuItems = [
@@ -3598,6 +3741,50 @@ const AdminPanel = () => {
             </div>
           )}
 
+          {/* Submenu: Dynamic Menus (Link Portals) */}
+          <div className="admin-submenu-group">
+            <button
+              type="button"
+              className={`admin-nav-parent-btn ${dynamicLinkMenusList.some(i => i.key === activeTab) ? 'active-group' : ''}`}
+              onClick={() => setIsDynamicMenusOpen(!isDynamicMenusOpen)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="nav-icon">🌐</span>
+                <span>Dynamic Menus ({dynamicLinkMenusList.length})</span>
+              </div>
+              <span className={`submenu-arrow ${isDynamicMenusOpen ? 'open' : ''}`}>▼</span>
+            </button>
+            {isDynamicMenusOpen && (
+              <div className="admin-submenu-items">
+                {dynamicLinkMenusList.map(item => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`admin-nav-sub-btn ${activeTab === item.key ? 'active' : ''}`}
+                    onClick={() => handleTabChange(item.key)}
+                    style={{ display: 'flex', alignItems: 'center' }}
+                  >
+                    <span className="nav-icon" style={{ fontSize: '15px', marginRight: '8px' }}>{item.icon}</span>
+                    <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                    <span style={{
+                      fontSize: '9.5px',
+                      padding: '2px 6px',
+                      borderRadius: '8px',
+                      fontWeight: 800,
+                      letterSpacing: '0.4px',
+                      background: item.isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                      color: item.isActive ? '#10b981' : '#ef4444',
+                      marginLeft: '6px',
+                      flexShrink: 0
+                    }}>
+                      {item.isActive ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Submenu 2: PAN Card Management */}
           {panSubmenuItems.length > 0 && (
             <div className="admin-submenu-group">
@@ -3731,7 +3918,7 @@ const AdminPanel = () => {
       {/* Main Content Area */}
       <main className="admin-main">
         <header className="admin-topbar">
-          <h1>{allMenuItems.find(m => m.id === activeTab)?.label || 'Dashboard'}</h1>
+          <h1>{dynamicLinkMenusList.find(m => m.key === activeTab)?.label || (activeTab === 'quickLinks' ? (allLinkMenusList.find(m => m.key === 'quickLinks')?.label || 'Quick Links') : (allMenuItems.find(m => m.id === activeTab)?.label || 'Dashboard'))}</h1>
           <div className="admin-topbar-actions" style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
             <NotificationBell />
             <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', background: '#f4f7fe', padding: '8px 15px', borderRadius: '20px', fontWeight: '600', color: '#2b3674' }}>
@@ -3882,9 +4069,11 @@ const AdminPanel = () => {
                     <input type="text" placeholder="Label (e.g. Wallet, PAN Card)" value={menuForm.label} onChange={e => setMenuForm({...menuForm, label: e.target.value})} />
                     <input type="text" placeholder="Routing URL (e.g. /pan-card, /wallet)" value={menuForm.url} onChange={e => setMenuForm({...menuForm, url: e.target.value})} />
                     <input type="number" placeholder="Order" value={menuForm.order} onChange={e => setMenuForm({...menuForm, order: e.target.value})} />
-                    <label className="modern-checkbox">
+                    <label className="modern-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '8px 0' }}>
                       <input type="checkbox" checked={menuForm.isActive} onChange={e => setMenuForm({...menuForm, isActive: e.target.checked})} /> 
-                      <span>Is Active?</span>
+                      <span style={{ fontWeight: 700, fontSize: '13px' }}>
+                        User Panel Visibility: {menuForm.isActive ? <span style={{ color: '#10b981' }}>🟢 ON (Visible)</span> : <span style={{ color: '#ef4444' }}>⚪ OFF (Hidden)</span>}
+                      </span>
                     </label>
                     <button className="modern-submit-btn" onClick={() => addItem(`${API_URL}/api/sidebar-menus`, menuForm, setMenuForm, { label: '', url: '', isActive: false, order: 0 }, editingMenuId, setEditingMenuId)}>
                       {editingMenuId ? 'Update Menu' : 'Add Menu'}
@@ -3914,7 +4103,36 @@ const AdminPanel = () => {
                         <span className="item-name">{m.label || '(Empty Block)'} {m.isActive && '★'}</span>
                         {m.url && <span style={{ fontSize: '11px', color: '#3b82f6', fontFamily: 'monospace' }}>🔗 {m.url}</span>}
                       </div>
-                      <div className="item-actions" style={{ marginLeft: 'auto' }}>
+                      <div className="item-actions" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleSidebarMenuStatus(m)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 13px',
+                            borderRadius: '20px',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: '800',
+                            cursor: 'pointer',
+                            background: m.isActive ? '#10b981' : '#e2e8f0',
+                            color: m.isActive ? '#ffffff' : '#64748b',
+                            boxShadow: m.isActive ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                            transition: 'all 0.2s ease',
+                            marginRight: '8px'
+                          }}
+                          title={m.isActive ? 'Click to Turn OFF (Hide from User Panel)' : 'Click to Turn ON (Show in User Panel)'}
+                        >
+                          <span style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: m.isActive ? '#ffffff' : '#94a3b8'
+                          }}></span>
+                          {m.isActive ? 'ON' : 'OFF'}
+                        </button>
                         {hasStaffActionAccess('sidebarMenus.edit') && (
                           <button className="modern-edit-btn" onClick={() => startEditMenu(m)} style={{ marginRight: '8px', background: '#3b82f6', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Edit</button>
                         )}
@@ -4037,251 +4255,592 @@ const AdminPanel = () => {
             </div>
           )}
 
-          {/* Quick Links Tab */}
-          {activeTab === 'quickLinks' && (
-            <div className="admin-panel-grid" style={{ gridTemplateColumns: hasStaffActionAccess('quickLinks.add') ? undefined : '1fr' }}>
-              {hasStaffActionAccess('quickLinks.add') && (
-                <div className="admin-card form-card">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#0284c7' }}>
-                      🔗
-                    </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>{editingQuickLinkId ? 'Edit Quick Link' : 'Add Quick Link / Video'}</h3>
-                      <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>Configure dynamic links and tutorial videos for user panel</p>
-                    </div>
-                  </div>
-                  <div className="modern-form">
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Title / Display Name *</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. NEW PANCARD FORM 93 or Video Guide" 
-                        value={quickLinkForm.title} 
-                        onChange={e => setQuickLinkForm({ ...quickLinkForm, title: e.target.value })} 
-                      />
-                    </div>
+          {/* Quick Links & Dynamic Link Menus Tabs */}
+          {(activeTab === 'quickLinks' || dynamicLinkMenusList.some(m => m.key === activeTab)) && (() => {
+            const currentMenuKey = dynamicLinkMenusList.some(m => m.key === activeTab) ? activeTab : 'quickLinks';
+            const currentLinkMenu = allLinkMenusList.find(m => m.key === currentMenuKey) || { key: 'quickLinks', label: 'Quick Links', icon: '🔗' };
 
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Category / Type</label>
-                      <select 
-                        value={quickLinkForm.category} 
-                        onChange={e => setQuickLinkForm({ ...quickLinkForm, category: e.target.value })}
-                        style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#f8fafc', fontWeight: 600, fontSize: '13px' }}
-                      >
-                        <option value="link">🔗 Web Link / External Form Portal</option>
-                        <option value="video">🎥 Video Guide / Tutorial</option>
-                        <option value="service">⚙️ Internal Service / Tool</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Link / Video URL *</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. https://tin.tin.nsdl.com or https://youtube.com/..." 
-                        value={quickLinkForm.url} 
-                        onChange={e => setQuickLinkForm({ ...quickLinkForm, url: e.target.value })} 
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Emoji / Fallback Icon Symbol</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. 🔄 or 📄 or 🎥 or 🔗" 
-                        value={quickLinkForm.icon} 
-                        onChange={e => setQuickLinkForm({ ...quickLinkForm, icon: e.target.value })} 
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Square Icon Photo / Logo (Square Shape)</label>
-                      <div className="file-upload-wrapper">
-                        <input 
-                          ref={quickLinkFileInputRef}
-                          type="file" 
-                          accept="image/*, .png, .jpg, .jpeg, .webp, .svg, .gif, .avif, .bmp, .ico, .tiff, .tif, .heic, .heif" 
-                          onChange={e => {
-                            const file = e.target.files && e.target.files[0];
-                            setQuickLinkForm({ ...quickLinkForm, imgFile: file || null });
-                            if (file) {
-                              setQuickLinkPreview(URL.createObjectURL(file));
-                            } else {
-                              setQuickLinkPreview(null);
-                            }
-                          }} 
-                        />
-                      </div>
-                      <small style={{ color: '#64748b', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                        Square icon photo will display in the square box on User Panel (Available links).
-                      </small>
-
-                      {/* Square Photo Preview Box */}
-                      {quickLinkPreview && (
-                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '14px', background: '#f8fafc', padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #cbd5e1' }}>
-                          <div style={{ width: '64px', height: '64px', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #0284c7', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.2)', flexShrink: 0, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <img src={quickLinkPreview} alt="Square Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>✓ Square Photo Selected</div>
-                            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>This square photo will appear on the User Panel icon card.</div>
-                            <button 
-                              type="button" 
-                              onClick={() => {
-                                setQuickLinkForm({ ...quickLinkForm, imgFile: null });
-                                setQuickLinkPreview(null);
-                                if (quickLinkFileInputRef.current) quickLinkFileInputRef.current.value = '';
-                              }}
-                              style={{ marginTop: '6px', background: '#fee2e2', color: '#dc2626', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                              ✕ Remove Photo
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <button 
-                      className="modern-submit-btn" 
-                      onClick={addQuickLink} 
-                      disabled={quickLinkSubmitting}
-                      style={{ 
-                        marginTop: '12px', 
-                        padding: '12px', 
-                        fontWeight: 800,
-                        opacity: quickLinkSubmitting ? 0.7 : 1,
-                        cursor: quickLinkSubmitting ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {quickLinkSubmitting 
-                        ? '⏳ Uploading Photo & Saving...' 
-                        : (editingQuickLinkId ? '💾 Update Quick Link' : '➕ Add Quick Link')}
-                    </button>
-                    {editingQuickLinkId && (
-                      <button 
-                        className="modern-submit-btn" 
-                        style={{ background: '#64748b', marginTop: '6px' }} 
-                        onClick={() => {
-                          setEditingQuickLinkId(null);
-                          setQuickLinkForm({ title: '', url: '', category: 'link', icon: '🔗', imgFile: null });
-                          setQuickLinkPreview(null);
-                          if (quickLinkFileInputRef.current) quickLinkFileInputRef.current.value = '';
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Horizontal Quick Switcher Pill Bar */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  overflowX: 'auto',
+                  padding: '4px 2px 12px',
+                  scrollbarWidth: 'thin'
+                }}>
+                  {allLinkMenusList.map(m => {
+                    const isSelected = activeTab === m.key;
+                    const isDyn = m.key !== 'quickLinks';
+                    return (
+                      <button
+                        key={m.key}
+                        type="button"
+                        onClick={() => handleTabChange(m.key)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '7px',
+                          padding: '8px 14px',
+                          borderRadius: '10px',
+                          border: isSelected ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+                          background: isSelected ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : '#ffffff',
+                          color: isSelected ? '#ffffff' : '#334155',
+                          fontWeight: isSelected ? 800 : 600,
+                          fontSize: '12.5px',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          boxShadow: isSelected ? '0 4px 12px rgba(2, 132, 199, 0.25)' : '0 1px 3px rgba(0,0,0,0.04)',
+                          transition: 'all 0.18s ease'
                         }}
                       >
-                        Cancel Edit
+                        <span style={{ fontSize: '14px' }}>{m.icon}</span>
+                        <span>{m.label}</span>
+                        {isDyn && (
+                          <span style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: m.isActive ? (isSelected ? '#86efac' : '#10b981') : (isSelected ? '#fca5a5' : '#ef4444'),
+                            display: 'inline-block',
+                            marginLeft: '2px'
+                          }} title={m.isActive ? 'Status: ON (Visible in User Panel)' : 'Status: OFF (Hidden from User Panel)'} />
+                        )}
                       </button>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-              <div className="admin-card list-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0 }}>Available Quick Links</h3>
-                    <span style={{ background: '#0284c7', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
-                      {quickLinks.length}
-                    </span>
-                  </div>
-                  <small style={{ color: '#64748b', fontWeight: 600 }}>Drag ☰ to reorder</small>
-                </div>
-                <div className="modern-list">
-                  {quickLinks.length === 0 ? (
-                    <div style={{ padding: '50px 20px', textAlign: 'center', color: '#94a3b8' }}>
-                      <div style={{ fontSize: '32px', marginBottom: '10px' }}>🔗</div>
-                      <div style={{ fontWeight: 700, fontSize: '15px' }}>No Quick Links Added Yet</div>
-                      <div style={{ fontSize: '12px', marginTop: '4px' }}>Add links and videos from the form on the left.</div>
-                    </div>
-                  ) : (
-                    quickLinks.map((link, index) => (
-                      <div 
-                        className="list-item" 
-                        key={link._id}
-                        draggable
-                        onDragStart={() => handleDragStart(index)}
-                        onDragEnter={(e) => handleDragEnter(e, index, quickLinks, setQuickLinks)}
-                        onDragEnd={() => handleDragEnd('quick-links', quickLinks)}
-                        onDragOver={(e) => e.preventDefault()}
-                        style={{ cursor: 'grab', display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px' }}
-                      >
-                        <div style={{ color: '#9ca3af', fontSize: '18px', cursor: 'grab' }} title="Drag to reorder">☰</div>
-                        
-                        {/* Square Thumbnail Preview matching User Panel */}
+
+                {currentMenuKey !== 'quickLinks' && (() => {
+                  const matchingSm = (sidebarMenus || []).find(sm => {
+                    const d = getDynamicMenuForSidebarItem(sm);
+                    return d && d.key === currentMenuKey;
+                  });
+                  const isMenuOn = matchingSm ? Boolean(matchingSm.isActive) : true;
+
+                  return (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 18px',
+                      borderRadius: '12px',
+                      background: isMenuOn 
+                        ? 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%)' 
+                        : 'linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%)',
+                      border: `1.5px solid ${isMenuOn ? '#a7f3d0' : '#fecaca'}`,
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{
-                          width: '48px',
-                          height: '48px',
-                          borderRadius: '12px',
-                          background: 'linear-gradient(145deg, #f8fafc, #e2e8f0)',
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '10px',
+                          background: isMenuOn ? '#10b981' : '#ef4444',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          overflow: 'hidden',
-                          border: '2px solid #cbd5e1',
-                          boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-                          flexShrink: 0
+                          color: '#ffffff',
+                          fontSize: '18px',
+                          fontWeight: 900
                         }}>
-                          {link.img ? (
-                            <img src={link.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          ) : (
-                            <span style={{ fontSize: '24px' }}>{link.icon || '🔗'}</span>
-                          )}
+                          {isMenuOn ? '✓' : '✕'}
                         </div>
-
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {link.title}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '14px', color: isMenuOn ? '#065f46' : '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>User Panel Status:</span>
                             <span style={{
-                              fontSize: '10px',
-                              fontWeight: 800,
-                              padding: '2px 7px',
-                              borderRadius: '6px',
-                              background: link.category === 'video' ? '#fef2f2' : link.category === 'service' ? '#f5f3ff' : '#f0fdf4',
-                              color: link.category === 'video' ? '#dc2626' : link.category === 'service' ? '#7c3aed' : '#15803d',
-                              border: `1px solid ${link.category === 'video' ? '#fca5a5' : link.category === 'service' ? '#ddd6fe' : '#bbf7d0'}`
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              background: isMenuOn ? '#10b981' : '#ef4444',
+                              color: '#ffffff',
+                              fontWeight: 900
                             }}>
-                              {link.category === 'video' ? '🎥 VIDEO' : link.category === 'service' ? '⚙️ SERVICE' : '🔗 LINK'}
+                              {isMenuOn ? 'ON (VISIBLE)' : 'OFF (HIDDEN)'}
                             </span>
-                            <a 
-                              href={link.url} 
-                              target="_blank" 
-                              rel="noreferrer" 
-                              style={{ fontSize: '12px', color: '#0284c7', textDecoration: 'none', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}
-                              title={link.url}
-                            >
-                              {link.url}
-                            </a>
                           </div>
-                        </div>
-
-                        <div className="item-actions" style={{ display: 'flex', gap: '8px' }}>
-                          {hasStaffActionAccess('quickLinks.edit') && (
-                            <button 
-                              className="modern-edit-btn" 
-                              onClick={() => startEditQuickLink(link)} 
-                              style={{ background: '#0284c7', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
-                            >
-                              Edit
-                            </button>
-                          )}
-                          {hasStaffActionAccess('quickLinks.delete') && (
-                            <button 
-                              className="modern-delete-btn" 
-                              onClick={() => deleteItem(`${API_URL}/api/quick-links`, link._id)}
-                              style={{ background: '#ef4444', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
-                            >
-                              Delete
-                            </button>
-                          )}
+                          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                            {isMenuOn 
+                              ? `"${currentLinkMenu.label}" is currently visible to users in their sidebar.`
+                              : `"${currentLinkMenu.label}" is currently hidden from users in their sidebar.`}
+                          </div>
                         </div>
                       </div>
-                    ))
+
+                      <button
+                        type="button"
+                        onClick={() => toggleSidebarMenuStatus(matchingSm || { key: currentMenuKey, label: currentLinkMenu.label, route: currentLinkMenu.route, isActive: isMenuOn })}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '9px 20px',
+                          borderRadius: '24px',
+                          border: 'none',
+                          fontWeight: 800,
+                          fontSize: '13px',
+                          cursor: 'pointer',
+                          background: isMenuOn ? '#ef4444' : '#10b981',
+                          color: '#ffffff',
+                          boxShadow: isMenuOn ? '0 4px 12px rgba(239, 68, 68, 0.3)' : '0 4px 12px rgba(16, 185, 129, 0.3)',
+                          transition: 'all 0.18s ease'
+                        }}
+                      >
+                        <span style={{
+                          width: '9px',
+                          height: '9px',
+                          borderRadius: '50%',
+                          background: '#ffffff'
+                        }}></span>
+                        {isMenuOn ? 'Turn OFF (Hide Menu)' : 'Turn ON (Show Menu)'}
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                <div className="admin-panel-grid" style={{ gridTemplateColumns: hasStaffActionAccess('quickLinks.add') ? undefined : '1fr' }}>
+                  {hasStaffActionAccess('quickLinks.add') && (
+                    <div className="admin-card form-card">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', color: '#0284c7' }}>
+                          {currentLinkMenu.icon || '🔗'}
+                        </div>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800 }}>
+                            {editingQuickLinkId ? `Edit ${currentLinkMenu.label}` : `Add ${currentLinkMenu.label} / Service`}
+                          </h3>
+                          <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
+                            Configure dynamic links, fees and logos for {currentLinkMenu.label}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="modern-form">
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Title / Display Name *</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. NEW PANCARD FORM 93 or Video Guide" 
+                            value={quickLinkForm.title} 
+                            onChange={e => setQuickLinkForm({ ...quickLinkForm, title: e.target.value })} 
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Category / Type</label>
+                          <select 
+                            value={quickLinkForm.category} 
+                            onChange={e => setQuickLinkForm({ ...quickLinkForm, category: e.target.value })}
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#f8fafc', fontWeight: 600, fontSize: '13px' }}
+                          >
+                            <option value="link">🔗 Web Link / External Form Portal</option>
+                            <option value="video">🎥 Video Guide / Tutorial</option>
+                            <option value="service">⚙️ Internal Service / Tool</option>
+                          </select>
+                        </div>
+
+                        {currentMenuKey === 'vedioLink' ? (
+                          <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0' }}>
+                            <label style={{ fontSize: '12px', fontWeight: 800, color: '#0f172a', display: 'block', marginBottom: '8px' }}>
+                              Video Source Option *
+                            </label>
+                            
+                            {/* Toggle / Segmented Buttons */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                              <button
+                                type="button"
+                                onClick={() => setQuickLinkForm({ ...quickLinkForm, videoSource: 'url' })}
+                                style={{
+                                  padding: '9px 12px',
+                                  borderRadius: '8px',
+                                  border: quickLinkForm.videoSource === 'url' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                  background: quickLinkForm.videoSource === 'url' ? '#e0f2fe' : '#ffffff',
+                                  color: quickLinkForm.videoSource === 'url' ? '#0369a1' : '#64748b',
+                                  fontWeight: 800,
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <span>🔗</span>
+                                <span>Online Video Link / URL</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setQuickLinkForm({ ...quickLinkForm, videoSource: 'device' })}
+                                style={{
+                                  padding: '9px 12px',
+                                  borderRadius: '8px',
+                                  border: quickLinkForm.videoSource === 'device' ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                                  background: quickLinkForm.videoSource === 'device' ? '#e0f2fe' : '#ffffff',
+                                  color: quickLinkForm.videoSource === 'device' ? '#0369a1' : '#64748b',
+                                  fontWeight: 800,
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '6px',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <span>📁</span>
+                                <span>Upload Video from Device</span>
+                              </button>
+                            </div>
+
+                            {quickLinkForm.videoSource === 'device' ? (
+                              <div>
+                                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                                  Choose Video File from Device * (.mp4, .webm, .mov, .mkv)
+                                </label>
+                                <div className="file-upload-wrapper">
+                                  <input 
+                                    ref={quickLinkVideoFileInputRef}
+                                    type="file" 
+                                    accept="video/*, .mp4, .webm, .mov, .mkv, .avi, .m4v" 
+                                    onChange={e => {
+                                      const file = e.target.files && e.target.files[0];
+                                      setQuickLinkForm({ ...quickLinkForm, videoFile: file || null });
+                                      if (file) {
+                                        setQuickLinkVideoPreview(URL.createObjectURL(file));
+                                      } else {
+                                        setQuickLinkVideoPreview(null);
+                                      }
+                                    }} 
+                                  />
+                                </div>
+                                <small style={{ color: '#64748b', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                                  Video file will be uploaded directly from your device and playable by users.
+                                </small>
+
+                                {/* Video preview / details */}
+                                {(quickLinkVideoPreview || quickLinkForm.existingVideoUrl) && (
+                                  <div style={{ marginTop: '10px', background: '#0f172a', borderRadius: '10px', padding: '10px', color: '#fff' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                                        🎥 {quickLinkForm.videoFile ? quickLinkForm.videoFile.name : 'Current Device Video'}
+                                      </div>
+                                      {quickLinkForm.videoFile && (
+                                        <span style={{ fontSize: '10px', color: '#94a3b8', background: '#1e293b', padding: '2px 6px', borderRadius: '4px' }}>
+                                          {(quickLinkForm.videoFile.size / (1024 * 1024)).toFixed(1)} MB
+                                        </span>
+                                      )}
+                                    </div>
+                                    <video 
+                                      src={quickLinkVideoPreview || (quickLinkForm.existingVideoUrl ? (quickLinkForm.existingVideoUrl.startsWith('http') ? quickLinkForm.existingVideoUrl : `${API_URL}${quickLinkForm.existingVideoUrl}`) : '')} 
+                                      controls 
+                                      style={{ width: '100%', maxHeight: '180px', borderRadius: '6px', background: '#000' }} 
+                                    />
+                                    <button 
+                                      type="button" 
+                                      onClick={() => {
+                                        setQuickLinkForm({ ...quickLinkForm, videoFile: null, existingVideoUrl: '' });
+                                        setQuickLinkVideoPreview(null);
+                                        if (quickLinkVideoFileInputRef.current) quickLinkVideoFileInputRef.current.value = '';
+                                      }}
+                                      style={{ marginTop: '6px', background: '#fee2e2', color: '#dc2626', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                    >
+                                      ✕ Remove Video
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div>
+                                <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>
+                                  Video URL *
+                                </label>
+                                <input 
+                                  type="text" 
+                                  placeholder="e.g. https://youtube.com/watch?v=... or https://..." 
+                                  value={quickLinkForm.url} 
+                                  onChange={e => setQuickLinkForm({ ...quickLinkForm, url: e.target.value })} 
+                                />
+                                <small style={{ color: '#64748b', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                                  Enter YouTube, Vimeo, or web hosted video link.
+                                </small>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Link / Video URL *</label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. https://tin.tin.nsdl.com or https://youtube.com/..." 
+                              value={quickLinkForm.url} 
+                              onChange={e => setQuickLinkForm({ ...quickLinkForm, url: e.target.value })} 
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Emoji / Fallback Icon Symbol</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. 🔄 or 📄 or 🎥 or 🔗" 
+                            value={quickLinkForm.icon} 
+                            onChange={e => setQuickLinkForm({ ...quickLinkForm, icon: e.target.value })} 
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Visiting Fee (₹)</label>
+                          <input 
+                            type="number" 
+                            min="0"
+                            step="any"
+                            placeholder="e.g. 0 for Free, or 20" 
+                            value={quickLinkForm.fee} 
+                            onChange={e => setQuickLinkForm({ ...quickLinkForm, fee: e.target.value })} 
+                          />
+                          <small style={{ color: '#64748b', fontSize: '11px', marginTop: '2px', display: 'block' }}>
+                            Visiting fee amount (leave 0 or empty for Free). Deducted from user's wallet when they access this link.
+                          </small>
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '12px', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '4px' }}>Square Icon Photo / Logo (Square Shape)</label>
+                          <div className="file-upload-wrapper">
+                            <input 
+                              ref={quickLinkFileInputRef}
+                              type="file" 
+                              accept="image/*, .png, .jpg, .jpeg, .webp, .svg, .gif, .avif, .bmp, .ico, .tiff, .tif, .heic, .heif" 
+                              onChange={e => {
+                                const file = e.target.files && e.target.files[0];
+                                setQuickLinkForm({ ...quickLinkForm, imgFile: file || null });
+                                if (file) {
+                                  setQuickLinkPreview(URL.createObjectURL(file));
+                                } else {
+                                  setQuickLinkPreview(null);
+                                }
+                              }} 
+                            />
+                          </div>
+                          <small style={{ color: '#64748b', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                            Square icon photo will display in the square box on User Panel (Available links).
+                          </small>
+
+                          {/* Square Photo Preview Box */}
+                          {quickLinkPreview && (
+                            <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '14px', background: '#f8fafc', padding: '10px 14px', borderRadius: '12px', border: '1.5px solid #cbd5e1' }}>
+                              <div style={{ width: '64px', height: '64px', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #0284c7', boxShadow: '0 4px 12px rgba(2, 132, 199, 0.2)', flexShrink: 0, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <img src={quickLinkPreview} alt="Square Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>✓ Square Photo Selected</div>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>This square photo will appear on the User Panel icon card.</div>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    setQuickLinkForm({ ...quickLinkForm, imgFile: null });
+                                    setQuickLinkPreview(null);
+                                    if (quickLinkFileInputRef.current) quickLinkFileInputRef.current.value = '';
+                                  }}
+                                  style={{ marginTop: '6px', background: '#fee2e2', color: '#dc2626', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                                >
+                                  ✕ Remove Photo
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <button 
+                          className="modern-submit-btn" 
+                          onClick={addQuickLink} 
+                          disabled={quickLinkSubmitting}
+                          style={{ 
+                            marginTop: '12px', 
+                            padding: '12px', 
+                            fontWeight: 800,
+                            opacity: quickLinkSubmitting ? 0.7 : 1,
+                            cursor: quickLinkSubmitting ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          {quickLinkSubmitting 
+                            ? '⏳ Uploading Photo & Saving...' 
+                            : (editingQuickLinkId ? `💾 Update ${currentLinkMenu.label}` : `➕ Add ${currentLinkMenu.label}`)}
+                        </button>
+                        {editingQuickLinkId && (
+                          <button 
+                            className="modern-submit-btn" 
+                            style={{ background: '#64748b', marginTop: '6px' }} 
+                            onClick={() => {
+                              setEditingQuickLinkId(null);
+                              setQuickLinkForm({ title: '', url: '', category: 'link', icon: '🔗', fee: '', imgFile: null });
+                              setQuickLinkPreview(null);
+                              if (quickLinkFileInputRef.current) quickLinkFileInputRef.current.value = '';
+                            }}
+                          >
+                            Cancel Edit
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   )}
+                  <div className="admin-card list-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h3 style={{ margin: 0 }}>Available {currentLinkMenu.label}</h3>
+                        <span style={{ background: '#0284c7', color: 'white', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 800 }}>
+                          {quickLinks.length}
+                        </span>
+                      </div>
+                      <small style={{ color: '#64748b', fontWeight: 600 }}>Drag ☰ to reorder</small>
+                    </div>
+                    <div className="modern-list">
+                      {quickLinks.length === 0 ? (
+                        <div style={{ padding: '50px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                          <div style={{ fontSize: '32px', marginBottom: '10px' }}>{currentLinkMenu.icon || '🔗'}</div>
+                          <div style={{ fontWeight: 700, fontSize: '15px' }}>No {currentLinkMenu.label} Added Yet</div>
+                          <div style={{ fontSize: '12px', marginTop: '4px' }}>Add links and services from the form on the left.</div>
+                        </div>
+                      ) : (
+                        quickLinks.map((link, index) => (
+                          <div 
+                            className="list-item" 
+                            key={link._id}
+                            draggable
+                            onDragStart={() => handleDragStart(index)}
+                            onDragEnter={(e) => handleDragEnter(e, index, quickLinks, setQuickLinks)}
+                            onDragEnd={() => handleDragEnd('quick-links', quickLinks)}
+                            onDragOver={(e) => e.preventDefault()}
+                            style={{ cursor: 'grab', display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px' }}
+                          >
+                            <div style={{ color: '#9ca3af', fontSize: '18px', cursor: 'grab' }} title="Drag to reorder">☰</div>
+                            
+                            {/* Square Thumbnail Preview matching User Panel */}
+                            <div style={{
+                              width: '48px',
+                              height: '48px',
+                              borderRadius: '12px',
+                              background: 'linear-gradient(145deg, #f8fafc, #e2e8f0)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              border: '2px solid #cbd5e1',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                              flexShrink: 0
+                            }}>
+                              {link.img ? (
+                                <img src={link.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <span style={{ fontSize: '24px' }}>{link.icon || currentLinkMenu.icon || '🔗'}</span>
+                              )}
+                            </div>
+
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 800, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {link.title}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  padding: '2px 7px',
+                                  borderRadius: '6px',
+                                  background: link.category === 'video' ? '#fef2f2' : link.category === 'service' ? '#f5f3ff' : '#f0fdf4',
+                                  color: link.category === 'video' ? '#dc2626' : link.category === 'service' ? '#7c3aed' : '#15803d',
+                                  border: `1px solid ${link.category === 'video' ? '#fca5a5' : link.category === 'service' ? '#ddd6fe' : '#bbf7d0'}`
+                                }}>
+                                  {link.category === 'video' ? '🎥 VIDEO' : link.category === 'service' ? '⚙️ SERVICE' : '🔗 LINK'}
+                                </span>
+                                {Number(link.fee) > 0 ? (
+                                  <span style={{
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    padding: '2px 7px',
+                                    borderRadius: '6px',
+                                    background: '#fef3c7',
+                                    color: '#b45309',
+                                    border: '1px solid #fde68a'
+                                  }}>
+                                    💰 ₹{link.fee} FEE
+                                  </span>
+                                ) : (
+                                  <span style={{
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    padding: '2px 7px',
+                                    borderRadius: '6px',
+                                    background: '#f1f5f9',
+                                    color: '#64748b',
+                                    border: '1px solid #e2e8f0'
+                                  }}>
+                                    FREE
+                                  </span>
+                                )}
+                                {(link.videoSource === 'device' || link.videoFile) && (
+                                  <span style={{
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    padding: '2px 7px',
+                                    borderRadius: '6px',
+                                    background: '#eff6ff',
+                                    color: '#1d4ed8',
+                                    border: '1px solid #bfdbfe'
+                                  }}>
+                                    📁 DEVICE VIDEO
+                                  </span>
+                                )}
+                                <a 
+                                  href={link.url ? (link.url.startsWith('http') ? link.url : `${API_URL}${link.url.startsWith('/') ? '' : '/'}${link.url}`) : '#'} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  style={{ fontSize: '12px', color: '#0284c7', textDecoration: 'none', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}
+                                  title={link.url}
+                                >
+                                  {(link.videoSource === 'device' && link.videoFile) ? (link.videoFile.split('/').pop() || link.url) : link.url}
+                                </a>
+                              </div>
+                            </div>
+
+                            <div className="item-actions" style={{ display: 'flex', gap: '8px' }}>
+                              {hasStaffActionAccess('quickLinks.edit') && (
+                                <button 
+                                  className="modern-edit-btn" 
+                                  onClick={() => startEditQuickLink(link)} 
+                                  style={{ background: '#0284c7', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {hasStaffActionAccess('quickLinks.delete') && (
+                                <button 
+                                  className="modern-delete-btn" 
+                                  onClick={async () => {
+                                    await deleteItem(`${API_URL}/api/quick-links`, link._id);
+                                    apiFetch(`/api/quick-links?menuKey=${currentMenuKey}`).then(r => r.json()).then(d => {
+                                      if (Array.isArray(d)) setQuickLinks(d);
+                                    }).catch(() => {});
+                                  }}
+                                  style={{ background: '#ef4444', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Retailer PAN Card Submissions Tab */}
           {activeTab === 'panSubmissions' && (
@@ -5544,8 +6103,9 @@ const AdminPanel = () => {
                             return !isF94(f);
                           };
 
+                          const isDualFormTab = selectedPanTabId === 'manual_new_pan' || selectedPanTabId === 'epan_correction';
                           let displayedFields = masterFields;
-                          if (selectedPanTabId === 'manual_new_pan' || selectedPanTabId === 'epan_correction') {
+                          if (isDualFormTab) {
                             if (panFormTypeFilter === 'Form93') {
                               displayedFields = masterFields.filter(isF93);
                             } else if (panFormTypeFilter === 'Form94') {
@@ -5589,7 +6149,7 @@ const AdminPanel = () => {
                                   <thead>
                                     <tr style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: '#ffffff' }}>
                                       <th style={{ padding: '12px 14px', width: '130px' }}>Order & Drag</th>
-                                      <th style={{ padding: '12px 14px', width: '120px' }}>Form Badge</th>
+                                      {isDualFormTab && <th style={{ padding: '12px 14px', width: '120px' }}>Form Badge</th>}
                                       <th style={{ padding: '12px 14px' }}>Field Label</th>
                                       <th style={{ padding: '12px 14px' }}>Field Key</th>
                                       <th style={{ padding: '12px 14px', width: '130px' }}>Input Type</th>
@@ -5651,18 +6211,20 @@ const AdminPanel = () => {
                                             </div>
                                           </td>
 
-                                          {/* Form Badge */}
-                                          <td style={{ padding: '10px 14px' }}>
-                                            {isForm94Field ? (
-                                              <span style={{ background: '#f3e8ff', color: '#9333ea', border: '1px solid #d8b4fe', padding: '3px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>
-                                                🏢 Form 94
-                                              </span>
-                                            ) : (
-                                              <span style={{ background: '#e0f2fe', color: '#0284c7', border: '1px solid #7dd3fc', padding: '3px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>
-                                                👤 Form 93
-                                              </span>
-                                            )}
-                                          </td>
+                                          {/* Form Badge (Physical / Traditional Forms only) */}
+                                          {isDualFormTab && (
+                                            <td style={{ padding: '10px 14px' }}>
+                                              {isForm94Field ? (
+                                                <span style={{ background: '#f3e8ff', color: '#9333ea', border: '1px solid #d8b4fe', padding: '3px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>
+                                                  🏢 Form 94
+                                                </span>
+                                              ) : (
+                                                <span style={{ background: '#e0f2fe', color: '#0284c7', border: '1px solid #7dd3fc', padding: '3px 8px', borderRadius: '8px', fontSize: '11px', fontWeight: 800 }}>
+                                                  👤 Form 93
+                                                </span>
+                                              )}
+                                            </td>
+                                          )}
 
                                           {/* Editable Label */}
                                           <td style={{ padding: '10px 14px' }}>

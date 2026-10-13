@@ -22,6 +22,19 @@ function App() {
             <Route path="/pan-card" element={<Dashboard />} />
             <Route path="/quick-links" element={<Dashboard />} />
             <Route path="/view-links" element={<Dashboard />} />
+            <Route path="/services-link" element={<Dashboard />} />
+            <Route path="/job-links" element={<Dashboard />} />
+            <Route path="/admit-card" element={<Dashboard />} />
+            <Route path="/form-links" element={<Dashboard />} />
+            <Route path="/vedio-link" element={<Dashboard />} />
+            <Route path="/video-link" element={<Dashboard />} />
+            <Route path="/video-links" element={<Dashboard />} />
+            <Route path="/training-links" element={<Dashboard />} />
+            <Route path="/product-links" element={<Dashboard />} />
+            <Route path="/govt-links" element={<Dashboard />} />
+            <Route path="/print" element={<Dashboard />} />
+            <Route path="/schorship-links" element={<Dashboard />} />
+            <Route path="/scholarship-links" element={<Dashboard />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/admin-panel" element={<AdminPanel />} />
             <Route path="/admin" element={<Navigate to="/admin-login" />} />

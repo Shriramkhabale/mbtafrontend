@@ -495,7 +495,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   const location = useLocation();
   const [tabs, setTabs] = useState([]);
 
-  const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'dark');
+  const [currentTheme, setCurrentTheme] = useState(() => propTheme || localStorage.getItem('appTheme') || 'light');
   const isLightTheme = currentTheme === 'light';
 
   useEffect(() => {
@@ -506,7 +506,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
   useEffect(() => {
     const handleStorage = () => {
-      const saved = localStorage.getItem('appTheme') || 'dark';
+      const saved = localStorage.getItem('appTheme') || 'light';
       setCurrentTheme(saved);
     };
     window.addEventListener('storage', handleStorage);
@@ -552,7 +552,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   };
 
   const handleBackStep = () => {
-    if (activeTab === 'manual_new_pan' || activeTab === 'epan_kyc' || (activeTab !== 'services_landing' && activeTab !== 'new_app_landing' && activeTab !== 'epan_correction' && activeTab !== 'history')) {
+    if (['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab)) {
+      switchTab('services_landing');
+    } else if (activeTab === 'manual_new_pan' || (activeTab !== 'services_landing' && activeTab !== 'new_app_landing' && activeTab !== 'epan_correction' && activeTab !== 'history')) {
       switchTab('new_app_landing');
     } else if (activeTab === 'new_app_landing' || activeTab === 'epan_correction' || activeTab === 'history') {
       switchTab('services_landing');
@@ -709,56 +711,52 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
   const getFallbackTabs = () => [
     {
-      id: 'ieil_scope1',
-      label: '⚡ Instant e-KYC New PAN',
+      id: 'epan_kyc',
+      label: 'E-Pan Kyc',
+      icon: '📲',
+      fee: 107,
+      badge: 'PAN CARD Service Documents Upload',
+      description: 'Paperless E-Pan Kyc service with instant document verification.'
+    },
+    {
+      id: 'epan_correction_otp',
+      label: 'E-Pan Correction',
       icon: '⚡',
       fee: 107,
-      scope: 1,
-      mode: 'ONLINE',
-      description: 'Paperless Instant e-KYC New PAN application via Aadhaar OTP / Biometric.'
+      badge: 'PAPER LESS E-Pan Correction OTP Base',
+      description: 'Paperless E-Pan Correction OTP Base application.'
     },
     {
-      id: 'ieil_scope2',
-      label: '📁 Physical Scan New PAN',
-      icon: '📁',
+      id: 'epan_sign_photo',
+      label: 'EPan (Sign&Photo)',
+      icon: '📸',
       fee: 107,
-      scope: 2,
-      mode: 'ONLINE',
-      description: 'Scanned Document New PAN application with Photo & Signature upload.'
+      badge: 'PAPER LESS E- Pan Card Upload photo And Sign',
+      description: 'Paperless E-Pan Card with photo and sign upload.'
     },
     {
-      id: 'ieil_scope3',
-      label: '✏️ Instant e-KYC PAN Correction',
-      icon: '✏️',
+      id: 'epan_correction_sign_photo',
+      label: 'E Pan Correction photo with sign',
+      icon: '✍️',
       fee: 107,
-      scope: 3,
-      mode: 'ONLINE',
-      description: 'Paperless Instant PAN Correction via Aadhaar e-KYC.'
-    },
-    {
-      id: 'ieil_scope4',
-      label: '📝 Physical Scan PAN Correction',
-      icon: '📝',
-      fee: 107,
-      scope: 4,
-      mode: 'ONLINE',
-      description: 'Scanned Document PAN Correction with Supporting Document upload.'
+      badge: 'PAPER LESS E-Pan Correction photo with sign',
+      description: 'Paperless E-Pan Correction with photo and sign.'
     },
     {
       id: 'manual_new_pan',
-      label: '📄 Offline Form 49A (New PAN)',
+      label: 'Manual New PAN',
       icon: '📄',
-      fee: 107,
+      fee: 245,
       mode: 'OFFLINE',
-      description: 'Offline Portal Form 49A with Photo/Signature Dropzone, PDF Generator & Admin Review.'
+      description: 'Detailed manual PAN Application with Photo & Signature Upload support.'
     },
     {
-      id: 'manual_pan_correction',
-      label: '📋 Offline PAN Correction',
-      icon: '📋',
+      id: 'epan_correction',
+      label: 'PAN Correction',
+      icon: '📝',
       fee: 107,
-      mode: 'OFFLINE',
-      description: 'Offline Portal PAN Correction Form with Pre-Filled PDF & Admin Manual Approval.'
+      badge: 'PAN Update Service',
+      description: 'Update or correct personal details on your existing PAN Card record.'
     }
   ];
 
@@ -2323,51 +2321,90 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         {/* Dynamic Sub-Tabs Bar (Clean Official Navigation) */}
         {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing') && (
           <div className="pancard-tabs-bar">
-            {(activeTab === 'manual_new_pan' || activeTab === 'epan_kyc' || (!['epan_correction', 'history'].includes(activeTab) && tabs.some(t => t.id === activeTab))) && (
-              <button
-                type="button"
-                className="pancard-tab-btn active"
-                onClick={() => switchTab('new_app_landing')}
-              >
-                <span className="tab-btn-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                </span>
-                <span>New Application</span>
-              </button>
-            )}
-            {(activeTab === 'epan_correction' || activeTab === 'manual_pan_correction') && (
-              <button
-                type="button"
-                className="pancard-tab-btn active"
-                onClick={() => switchTab('epan_correction')}
-              >
-                <span className="tab-btn-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </span>
-                <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
-              </button>
-            )}
-            {activeTab === 'history' && (
-              <button
-                type="button"
-                className="pancard-tab-btn history-tab-btn active"
-                onClick={() => switchTab('history')}
-              >
-                <span className="tab-btn-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                  </svg>
-                </span>
-                <span>Applications History</span>
-              </button>
+            {['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab) ? (
+              <>
+                <button
+                  type="button"
+                  className={`pancard-tab-btn ${activeTab === 'epan_kyc' ? 'active' : ''}`}
+                  onClick={() => switchTab('epan_kyc')}
+                >
+                  <span className="tab-btn-icon">⚡</span>
+                  <span>E-Pan Kyc</span>
+                </button>
+                <button
+                  type="button"
+                  className={`pancard-tab-btn ${activeTab === 'epan_correction_otp' ? 'active' : ''}`}
+                  onClick={() => switchTab('epan_correction_otp')}
+                >
+                  <span className="tab-btn-icon">⚡</span>
+                  <span>E-Pan Correction</span>
+                </button>
+                <button
+                  type="button"
+                  className={`pancard-tab-btn ${activeTab === 'epan_sign_photo' ? 'active' : ''}`}
+                  onClick={() => switchTab('epan_sign_photo')}
+                >
+                  <span className="tab-btn-icon">📸</span>
+                  <span>EPan (Sign&Photo)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`pancard-tab-btn ${activeTab === 'epan_correction_sign_photo' ? 'active' : ''}`}
+                  onClick={() => switchTab('epan_correction_sign_photo')}
+                >
+                  <span className="tab-btn-icon">✍️</span>
+                  <span>E Pan Correction photo with sign</span>
+                </button>
+              </>
+            ) : (
+              <>
+                {activeTab === 'manual_new_pan' && (
+                  <button
+                    type="button"
+                    className="pancard-tab-btn active"
+                    onClick={() => switchTab('new_app_landing')}
+                  >
+                    <span className="tab-btn-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                      </svg>
+                    </span>
+                    <span>New Application</span>
+                  </button>
+                )}
+                {(activeTab === 'epan_correction' || activeTab === 'manual_pan_correction') && (
+                  <button
+                    type="button"
+                    className="pancard-tab-btn active"
+                    onClick={() => switchTab('epan_correction')}
+                  >
+                    <span className="tab-btn-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </span>
+                    <span>{tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction')?.label || 'PAN Correction'}</span>
+                  </button>
+                )}
+                {activeTab === 'history' && (
+                  <button
+                    type="button"
+                    className="pancard-tab-btn history-tab-btn active"
+                    onClick={() => switchTab('history')}
+                  >
+                    <span className="tab-btn-icon">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                      </svg>
+                    </span>
+                    <span>Applications History</span>
+                  </button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -2375,83 +2412,190 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         {/* MAIN CONTENT DISPLAY */}
         {activeTab === 'services_landing' ? (
           /* OVERVIEW CARDS LANDING PAGE (MATCHING PHOTO 2) */
-          <div className="pan-landing-overview-grid">
-            <div
-              className="pan-overview-card"
-              onClick={() => switchTab('new_app_landing')}
-            >
-              <div className="pan-card-image-wrap">
-                <img
-                  src="/pan-card-banner.jpg"
-                  alt="New PAN Application"
-                  className="pan-card-top-img"
-                />
-              </div>
-              <div className="pan-card-bottom-bar">
-                <div className="pan-card-icon-badge">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h7" />
-                    <path d="M14 2v6h6" />
-                    <line x1="8" y1="13" x2="14" y2="13" />
-                    <line x1="8" y1="17" x2="11" y2="17" />
-                    <circle cx="18" cy="18" r="4" stroke="#ea580c" strokeWidth="2" />
-                    <line x1="18" y1="16" x2="18" y2="20" stroke="#ea580c" strokeWidth="2" />
-                    <line x1="16" y1="18" x2="20" y2="18" stroke="#ea580c" strokeWidth="2" />
-                  </svg>
+          <div className="pan-landing-main-view">
+            <div className="pan-landing-overview-grid">
+              <div
+                className="pan-overview-card"
+                onClick={() => switchTab('new_app_landing')}
+              >
+                <div className="pan-card-image-wrap">
+                  <img
+                    src="/pan-card-banner.jpg"
+                    alt="New PAN Application"
+                    className="pan-card-top-img"
+                  />
                 </div>
-                <div className="pan-card-text-col">
-                  <h4 className="pan-card-title-text">New PAN Application</h4>
-                  <span className="pan-card-accent-line" />
+                <div className="pan-card-bottom-bar">
+                  <div className="pan-card-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h7" />
+                      <path d="M14 2v6h6" />
+                      <line x1="8" y1="13" x2="14" y2="13" />
+                      <line x1="8" y1="17" x2="11" y2="17" />
+                      <circle cx="18" cy="18" r="4" stroke="#ea580c" strokeWidth="2" />
+                      <line x1="18" y1="16" x2="18" y2="20" stroke="#ea580c" strokeWidth="2" />
+                      <line x1="16" y1="18" x2="20" y2="18" stroke="#ea580c" strokeWidth="2" />
+                    </svg>
+                  </div>
+                  <div className="pan-card-text-col">
+                    <h4 className="pan-card-title-text" title="New PAN Application">New PAN Application</h4>
+                    <span className="pan-card-accent-line" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div
-              className="pan-overview-card"
-              onClick={() => switchTab('epan_correction')}
-            >
-              <div className="pan-card-image-wrap">
-                <img
-                  src="/pan-correction-banner.jpg"
-                  alt="PAN Correction"
-                  className="pan-card-top-img"
-                />
-              </div>
-              <div className="pan-card-bottom-bar">
-                <div className="pan-card-icon-badge">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                  </svg>
+              <div
+                className="pan-overview-card"
+                onClick={() => switchTab('epan_correction')}
+              >
+                <div className="pan-card-image-wrap">
+                  <img
+                    src="/pan-correction-banner.jpg"
+                    alt="PAN Correction"
+                    className="pan-card-top-img"
+                  />
                 </div>
-                <div className="pan-card-text-col">
-                  <h4 className="pan-card-title-text">PAN Correction</h4>
-                  <span className="pan-card-accent-line" />
+                <div className="pan-card-bottom-bar">
+                  <div className="pan-card-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                    </svg>
+                  </div>
+                  <div className="pan-card-text-col">
+                    <h4 className="pan-card-title-text" title="PAN Correction">PAN Correction</h4>
+                    <span className="pan-card-accent-line" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div
-              className="pan-overview-card"
-              onClick={() => switchTab('history')}
-            >
-              <div className="pan-card-image-wrap">
-                <img
-                  src="/pan-history-banner.jpg"
-                  alt="Application History"
-                  className="pan-card-top-img"
-                />
-              </div>
-              <div className="pan-card-bottom-bar">
-                <div className="pan-card-icon-badge">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                    <path d="M3 3v5h5" />
-                    <polyline points="12 7 12 12 15 15" />
-                  </svg>
+              {/* Paperless Service 1: E-Pan Kyc */}
+              <div
+                className="pan-overview-card"
+                onClick={() => switchTab('epan_kyc')}
+              >
+                <div className="pan-card-image-wrap">
+                  <img
+                    src="/pan-paperless-kyc.jpg"
+                    alt="E-Pan Kyc"
+                    className="pan-card-top-img"
+                  />
                 </div>
-                <div className="pan-card-text-col">
-                  <h4 className="pan-card-title-text">Application History</h4>
-                  <span className="pan-card-accent-line" />
+                <div className="pan-card-bottom-bar">
+                  <div className="pan-card-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                      <line x1="12" y1="18" x2="12.01" y2="18" />
+                      <path d="M9 7h6M9 11h6" />
+                    </svg>
+                  </div>
+                  <div className="pan-card-text-col">
+                    <h4 className="pan-card-title-text" title="E-Pan Kyc">E-Pan Kyc</h4>
+                    <span className="pan-card-accent-line" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Paperless Service 2: E-Pan Correction */}
+              <div
+                className="pan-overview-card"
+                onClick={() => switchTab('epan_correction_otp')}
+              >
+                <div className="pan-card-image-wrap">
+                  <img
+                    src="/pan-paperless-otp.jpg"
+                    alt="E-Pan Correction"
+                    className="pan-card-top-img"
+                  />
+                </div>
+                <div className="pan-card-bottom-bar">
+                  <div className="pan-card-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                  </div>
+                  <div className="pan-card-text-col">
+                    <h4 className="pan-card-title-text" title="E-Pan Correction">E-Pan Correction</h4>
+                    <span className="pan-card-accent-line" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Paperless Service 3: EPan (Sign&Photo) */}
+              <div
+                className="pan-overview-card"
+                onClick={() => switchTab('epan_sign_photo')}
+              >
+                <div className="pan-card-image-wrap">
+                  <img
+                    src="/pan-paperless-photo.jpg"
+                    alt="EPan (Sign&Photo)"
+                    className="pan-card-top-img"
+                  />
+                </div>
+                <div className="pan-card-bottom-bar">
+                  <div className="pan-card-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  </div>
+                  <div className="pan-card-text-col">
+                    <h4 className="pan-card-title-text" title="EPan (Sign&Photo)">EPan (Sign&Photo)</h4>
+                    <span className="pan-card-accent-line" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Paperless Service 4: E Pan Correction photo with sign */}
+              <div
+                className="pan-overview-card"
+                onClick={() => switchTab('epan_correction_sign_photo')}
+              >
+                <div className="pan-card-image-wrap">
+                  <img
+                    src="/pan-paperless-corr-sign.jpg"
+                    alt="E Pan Correction with Signature"
+                    className="pan-card-top-img"
+                  />
+                </div>
+                <div className="pan-card-bottom-bar">
+                  <div className="pan-card-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                  </div>
+                  <div className="pan-card-text-col">
+                    <h4 className="pan-card-title-text" title="E Pan Correction photo with sign">E Pan Correction photo with sign</h4>
+                    <span className="pan-card-accent-line" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Application History */}
+              <div
+                className="pan-overview-card"
+                onClick={() => switchTab('history')}
+              >
+                <div className="pan-card-image-wrap">
+                  <img
+                    src="/pan-history-banner.jpg"
+                    alt="Application History"
+                    className="pan-card-top-img"
+                  />
+                </div>
+                <div className="pan-card-bottom-bar">
+                  <div className="pan-card-icon-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                      <path d="M3 3v5h5" />
+                      <polyline points="12 7 12 12 15 15" />
+                    </svg>
+                  </div>
+                  <div className="pan-card-text-col">
+                    <h4 className="pan-card-title-text" title="Application History">Application History</h4>
+                    <span className="pan-card-accent-line" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -4295,6 +4439,54 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           </div>
                         );
                       })
+                    ) : ['epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab) ? (
+                      <div style={{
+                        gridColumn: '1 / -1',
+                        background: '#ffffff',
+                        borderRadius: '16px',
+                        border: '1.5px dashed #0284c7',
+                        padding: '36px 20px',
+                        textAlign: 'center',
+                        boxShadow: '0 4px 16px rgba(2, 132, 199, 0.05)'
+                      }}>
+                        <div style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
+                          color: '#0284c7',
+                          fontSize: '24px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto 14px',
+                          border: '2px solid #38bdf8'
+                        }}>
+                          📄
+                        </div>
+                        <h4 style={{ margin: '0 0 6px', fontSize: '17px', color: '#0369a1', fontWeight: 800 }}>
+                          {currentTabObj?.label || 'Paperless PAN'} Form Created & Ready
+                        </h4>
+                        <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', maxWidth: '440px', marginInline: 'auto' }}>
+                          This paperless service option is now available in both User Panel & Admin Panel. Form fields will be added as specified.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => switchTab('services_landing')}
+                          style={{
+                            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '8px 20px',
+                            fontWeight: 700,
+                            fontSize: '12.5px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ◀ Back to PAN Services
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <div className="form-group-pro">
