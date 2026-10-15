@@ -181,11 +181,11 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
   });
   const [isAddingBene, setIsAddingBene] = useState(false);
 
-  // Pay-In & Pay-Out Transaction History State
+  // Pay-In, Pay-Out, and service-charge transaction history state
   const [userTransactions, setUserTransactions] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
-  const [historySubTab, setHistorySubTab] = useState('payIn'); // 'payIn' or 'payOut'
+  const [historySubTab, setHistorySubTab] = useState('payIn');
 
   const handlePaymentSuccess = (amount, txnId, newBal) => {
     setCheckoutData(null);
@@ -1360,7 +1360,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
           </div>
         )}
 
-        {/* TAB 4: HISTORY (WITH PAY-IN AND PAY-OUT SUB-TOGGLE OPTIONS) */}
+        {/* TAB 4: HISTORY */}
         {(activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') && (
           <div className="form-card-box">
             <div className="form-section-header" style={{ marginBottom: '16px' }}>
@@ -1369,11 +1369,11 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
               </div>
               <div className="section-header-text">
                 <div className="section-title">Wallet Transaction History</div>
-                <div className="section-desc">View complete history of your Pay-In top-ups and Pay-Out bank transfers</div>
+                <div className="section-desc">View Pay-In top-ups, Pay-Out bank transfers, and service charges</div>
               </div>
             </div>
 
-            {/* Sub-toggle buttons for Pay-In History and Pay-Out History */}
+            {/* Separate wallet top-ups, payouts, and service charges */}
             <div className="history-subtabs-row">
               <button
                 type="button"
@@ -1391,13 +1391,21 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                 <span className="subtab-icon"><PayoutIcon /></span>
                 <span>Pay-Out History</span>
               </button>
+              <button
+                type="button"
+                className={`history-subtab-btn ${historySubTab === 'serviceCharges' ? 'active-payout' : ''}`}
+                onClick={() => setHistorySubTab('serviceCharges')}
+              >
+                <span className="subtab-icon">🧾</span>
+                <span>Service Charges</span>
+              </button>
             </div>
 
             <div className="history-filter-bar">
               <input
                 type="text"
                 className="form-input-pro history-search-input"
-                placeholder={`Search ${historySubTab === 'payIn' ? 'Pay-In' : 'Pay-Out'} reference, description...`}
+                placeholder={`Search ${historySubTab === 'payIn' ? 'Pay-In' : historySubTab === 'payOut' ? 'Pay-Out' : 'service charge'} reference, description...`}
                 value={historySearch}
                 onChange={e => setHistorySearch(e.target.value)}
               />
@@ -1427,8 +1435,12 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                 <span>Loading transaction history...</span>
               </div>
             ) : (() => {
-              const targetType = historySubTab === 'payIn' ? 'Credit' : 'Debit';
-              const filteredTxs = userTransactions.filter(tx => tx.transactionType === targetType).filter(tx => {
+              const filteredTxs = userTransactions.filter(tx => {
+                if (historySubTab === 'payIn') return tx.transactionType === 'Credit';
+                if (tx.transactionType !== 'Debit') return false;
+                const isPayout = /^payout transfer to\b/i.test(tx.description || '');
+                return historySubTab === 'payOut' || !isPayout;
+              }).filter(tx => {
                 if (!historySearch) return true;
                 const q = historySearch.toLowerCase();
                 return (tx.description || '').toLowerCase().includes(q) ||
@@ -1438,12 +1450,19 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
               });
 
               if (filteredTxs.length === 0) {
+                const historyLabel = historySubTab === 'payIn'
+                  ? 'Pay-In'
+                  : historySubTab === 'payOut' ? 'Pay-Out' : 'Service Charge';
                 return (
                   <div className="history-empty-box">
-                    <div className="history-empty-icon">{historySubTab === 'payIn' ? '📥' : '📤'}</div>
-                    <div className="history-empty-title">No {historySubTab === 'payIn' ? 'Pay-In' : 'Pay-Out'} Transactions Found</div>
+                    <div className="history-empty-icon">{historySubTab === 'payIn' ? '📥' : historySubTab === 'payOut' ? '📤' : '🧾'}</div>
+                    <div className="history-empty-title">No {historyLabel} Transactions Found</div>
                     <div className="history-empty-sub">
-                      {historySubTab === 'payIn' ? 'Top-up your wallet using Pay-In to see credited transactions here' : 'Transfer funds to bank accounts using Pay-Out to see debited transactions here'}
+                      {historySubTab === 'payIn'
+                        ? 'Top-up your wallet using Pay-In to see credited transactions here'
+                        : historySubTab === 'payOut'
+                          ? 'Transfer funds to bank accounts using Pay-Out to see debited transactions here'
+                          : 'PAN applications, Find My PAN lookups, and other service fees appear here'}
                     </div>
                   </div>
                 );
