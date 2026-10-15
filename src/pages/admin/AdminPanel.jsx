@@ -670,13 +670,24 @@ const AdminPanel = () => {
     return savedTab || 'actionCards';
   });
 
+  // Filter links on the frontend by menuKey as a reliable safety net.
+  // This guarantees each tab only shows its own links even if the backend
+  // returns unfiltered data (e.g. older production backend without menuKey support).
+  const filterLinksByMenuKey = (data, menuKey) => {
+    if (!Array.isArray(data)) return [];
+    if (!menuKey || menuKey === 'quickLinks') {
+      return data.filter(l => !l.menuKey || l.menuKey === '' || l.menuKey === 'quickLinks');
+    }
+    return data.filter(l => l.menuKey === menuKey);
+  };
+
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     sessionStorage.setItem('adminPanelActiveTab', tabId);
     const isLinkTab = tabId === 'quickLinks' || DYNAMIC_LINK_MENUS.some(m => m.key === tabId);
     if (isLinkTab) {
       apiFetch(`/api/quick-links?menuKey=${tabId}`).then(res => res.json()).then(data => {
-        if (Array.isArray(data)) setQuickLinks(data);
+        setQuickLinks(filterLinksByMenuKey(data, tabId));
       }).catch(err => console.error('Failed to load links:', err));
     }
   };
@@ -2024,7 +2035,21 @@ const AdminPanel = () => {
   };
 
 
+
   useEffect(() => { fetchAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch links data whenever the active tab changes to a link-type tab.
+  // Also applies frontend filtering to guarantee each tab shows only its own links.
+  useEffect(() => {
+    const isLinkTab = activeTab === 'quickLinks' || DYNAMIC_LINK_MENUS.some(m => m.key === activeTab);
+    if (isLinkTab) {
+      apiFetch(`/api/quick-links?menuKey=${activeTab}`)
+        .then(res => res.json())
+        .then(data => { setQuickLinks(filterLinksByMenuKey(data, activeTab)); })
+        .catch(err => console.error('Failed to reload links for tab:', activeTab, err));
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const fetchLedgerTransactions = async () => {
     setLedgerLoading(true);
@@ -2478,7 +2503,7 @@ const AdminPanel = () => {
     }
   };
 
-  const fetchAll = () => {
+  const fetchAll = (linkMenuKeyOverride) => {
     const load = (path, onData) => apiFetch(path)
       .then(response => {
         if (!response.ok) throw new Error(`Request failed (${response.status})`);
@@ -2492,8 +2517,16 @@ const AdminPanel = () => {
     load('/api/sidebar-menus', setSidebarMenus);
     load('/api/banners', setBanners);
     load('/api/news-images', setNewsImages);
-    const activeLinkMenuKey = DYNAMIC_LINK_MENUS.some(m => m.key === activeTab) ? activeTab : 'quickLinks';
-    load(`/api/quick-links?menuKey=${activeLinkMenuKey}`, setQuickLinks);
+    // Use the explicitly-passed key first; fall back to activeTab only if it's a link menu; else 'quickLinks'
+    const activeLinkMenuKey = linkMenuKeyOverride
+      || (DYNAMIC_LINK_MENUS.some(m => m.key === activeTab) ? activeTab
+        : activeTab === 'quickLinks' ? 'quickLinks' : null);
+    if (activeLinkMenuKey) {
+      // Apply frontend filtering as safety net against unfiltered backend responses
+      load(`/api/quick-links?menuKey=${activeLinkMenuKey}`, data =>
+        setQuickLinks(filterLinksByMenuKey(data, activeLinkMenuKey))
+      );
+    }
     load('/api/users', setUsers);
     load('/api/payment-requisitions', setPaymentRequisitions);
     load('/api/wallet-transactions/report', data => {
@@ -2796,7 +2829,7 @@ const AdminPanel = () => {
         quickLinkVideoFileInputRef.current.value = '';
       }
       setEditingQuickLinkId(null);
-      fetchAll();
+      fetchAll(currentMenuKey);
     } catch (err) {
       console.error('Quick link save error:', err);
       Swal.fire({
@@ -4823,7 +4856,7 @@ const AdminPanel = () => {
                                   onClick={async () => {
                                     await deleteItem(`${API_URL}/api/quick-links`, link._id);
                                     apiFetch(`/api/quick-links?menuKey=${currentMenuKey}`).then(r => r.json()).then(d => {
-                                      if (Array.isArray(d)) setQuickLinks(d);
+                                      setQuickLinks(filterLinksByMenuKey(d, currentMenuKey));
                                     }).catch(() => {});
                                   }}
                                   style={{ background: '#ef4444', color: 'white', border: 'none', padding: '7px 14px', borderRadius: '7px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}

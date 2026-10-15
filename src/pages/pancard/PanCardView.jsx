@@ -7,6 +7,8 @@ import Form93PdfTemplate, { generateForm49APdf } from './Form49APdfGenerator';
 import FormPanCrPdfTemplate, { generatePanCrPdf } from './PanCrPdfGenerator';
 import PanCorrectionForm from './PanCorrectionForm';
 import StampSignatureMerger from './StampSignatureMerger';
+import EPanCorrectionOtpForm from './EPanCorrectionOtpForm';
+import EPanCorrectionPanForm from './EPanCorrectionPanForm';
 import { Form49ADirectEditModal } from './Form49ADirectEditModal'; // eslint-disable-line no-unused-vars
 import { ALL_INDIAN_STATES, INDIAN_STATES_DISTRICTS, ALL_INDIAN_DISTRICTS, PROOF_OF_IDENTITY_OPTIONS, PROOF_OF_ADDRESS_OPTIONS, PROOF_OF_DOB_OPTIONS } from '../../utils/indiaData';
 
@@ -4377,7 +4379,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   <div className="pancard-form-grid">
-                    {currentTabObj?.fields && currentTabObj.fields.length > 0 ? (
+                    {activeTab === 'epan_kyc' ? (
+                      /* E-Pan KYC: Aadhaar → PAN lookup via mpan.in API */
+                      <EPanCorrectionOtpForm
+                        currentUser={currentUser}
+                        walletBalance={walletBalance}
+                        tabFee={currentTabObj?.fee ?? 107}
+                        onSuccess={() => { switchTab('services_landing'); }}
+                      />
+                    ) : currentTabObj?.fields && currentTabObj.fields.length > 0 ? (
                       currentTabObj.fields.filter(f => !f.hidden).map((f, idx) => {
                         const fieldKey = f.name || `field_${idx}`;
                         const isFullWidth = f.gridSpan === 2 || f.type === 'file';
@@ -4439,7 +4449,15 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           </div>
                         );
                       })
-                    ) : ['epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab) ? (
+                    ) : activeTab === 'epan_correction_otp' ? (
+
+                      <EPanCorrectionPanForm
+                        currentUser={currentUser}
+                        walletBalance={walletBalance}
+                        tabFee={currentTabObj?.fee ?? 107}
+                        onSuccess={() => { switchTab('services_landing'); }}
+                      />
+                    ) : ['epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab) ? (
                       <div style={{
                         gridColumn: '1 / -1',
                         background: '#ffffff',
@@ -4526,9 +4544,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   <div style={{ marginTop: '20px' }}>
-                    <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
-                      {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
-                    </button>
+                    {activeTab !== 'epan_correction_otp' && activeTab !== 'epan_kyc' && (
+                      <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
+                        {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
+                      </button>
+                    )}
                   </div>
 
                 </div>
