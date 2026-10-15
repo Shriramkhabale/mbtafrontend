@@ -7,13 +7,14 @@ import Form93PdfTemplate, { generateForm49APdf } from './Form49APdfGenerator';
 import FormPanCrPdfTemplate, { generatePanCrPdf } from './PanCrPdfGenerator';
 import PanCorrectionForm from './PanCorrectionForm';
 import StampSignatureMerger from './StampSignatureMerger';
-import EPanCorrectionOtpForm from './EPanCorrectionOtpForm';
-import EPanCorrectionPanForm from './EPanCorrectionPanForm';
+import FindPanByAadhaarForm from './FindPanByAadhaarForm';
 import { Form49ADirectEditModal } from './Form49ADirectEditModal'; // eslint-disable-line no-unused-vars
 import { ALL_INDIAN_STATES, INDIAN_STATES_DISTRICTS, ALL_INDIAN_DISTRICTS, PROOF_OF_IDENTITY_OPTIONS, PROOF_OF_ADDRESS_OPTIONS, PROOF_OF_DOB_OPTIONS } from '../../utils/indiaData';
-
 import { AO_CODES_LIST, getAoCodesForDistrict } from '../../utils/aoCodeData';
 import { API_URL, apiFetch } from '../../utils/apiClient';
+
+const PAPERLESS_PAN_TABS = ['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'];
+const EPAN_SERVICE_TABS = ['find_pan_aadhaar', ...PAPERLESS_PAN_TABS];
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -554,7 +555,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   };
 
   const handleBackStep = () => {
-    if (['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab)) {
+    if (EPAN_SERVICE_TABS.includes(activeTab)) {
       switchTab('services_landing');
     } else if (activeTab === 'manual_new_pan' || (activeTab !== 'services_landing' && activeTab !== 'new_app_landing' && activeTab !== 'epan_correction' && activeTab !== 'history')) {
       switchTab('new_app_landing');
@@ -712,6 +713,14 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   }, []);
 
   const getFallbackTabs = () => [
+    {
+      id: 'find_pan_aadhaar',
+      label: 'Find My PAN',
+      icon: '🔍',
+      fee: 107,
+      badge: 'Aadhaar to PAN lookup',
+      description: 'Find an existing PAN using the Aadhaar number.'
+    },
     {
       id: 'epan_kyc',
       label: 'E-Pan Kyc',
@@ -2323,8 +2332,16 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
         {/* Dynamic Sub-Tabs Bar (Clean Official Navigation) */}
         {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing') && (
           <div className="pancard-tabs-bar">
-            {['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab) ? (
+            {EPAN_SERVICE_TABS.includes(activeTab) ? (
               <>
+                <button
+                  type="button"
+                  className={`pancard-tab-btn ${activeTab === 'find_pan_aadhaar' ? 'active' : ''}`}
+                  onClick={() => switchTab('find_pan_aadhaar')}
+                >
+                  <span className="tab-btn-icon">🔍</span>
+                  <span>Find My PAN</span>
+                </button>
                 <button
                   type="button"
                   className={`pancard-tab-btn ${activeTab === 'epan_kyc' ? 'active' : ''}`}
@@ -4379,15 +4396,14 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   <div className="pancard-form-grid">
-                    {activeTab === 'epan_kyc' ? (
-                      /* E-Pan KYC: Aadhaar → PAN lookup via mpan.in API */
-                      <EPanCorrectionOtpForm
+                    {activeTab === 'find_pan_aadhaar' ? (
+                      <FindPanByAadhaarForm
                         currentUser={currentUser}
                         walletBalance={walletBalance}
                         tabFee={currentTabObj?.fee ?? 107}
                         onSuccess={() => { switchTab('services_landing'); }}
                       />
-                    ) : currentTabObj?.fields && currentTabObj.fields.length > 0 ? (
+                    ) : !PAPERLESS_PAN_TABS.includes(activeTab) && currentTabObj?.fields && currentTabObj.fields.length > 0 ? (
                       currentTabObj.fields.filter(f => !f.hidden).map((f, idx) => {
                         const fieldKey = f.name || `field_${idx}`;
                         const isFullWidth = f.gridSpan === 2 || f.type === 'file';
@@ -4449,15 +4465,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           </div>
                         );
                       })
-                    ) : activeTab === 'epan_correction_otp' ? (
-
-                      <EPanCorrectionPanForm
-                        currentUser={currentUser}
-                        walletBalance={walletBalance}
-                        tabFee={currentTabObj?.fee ?? 107}
-                        onSuccess={() => { switchTab('services_landing'); }}
-                      />
-                    ) : ['epan_sign_photo', 'epan_correction_sign_photo'].includes(activeTab) ? (
+                    ) : PAPERLESS_PAN_TABS.includes(activeTab) ? (
                       <div style={{
                         gridColumn: '1 / -1',
                         background: '#ffffff',
@@ -4483,10 +4491,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           📄
                         </div>
                         <h4 style={{ margin: '0 0 6px', fontSize: '17px', color: '#0369a1', fontWeight: 800 }}>
-                          {currentTabObj?.label || 'Paperless PAN'} Form Created & Ready
+                          {currentTabObj?.label || 'Paperless PAN'} Service
                         </h4>
                         <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', maxWidth: '440px', marginInline: 'auto' }}>
-                          This paperless service option is now available in both User Panel & Admin Panel. Form fields will be added as specified.
+                          The paperless PAN API for this service will be added later.
                         </p>
                         <button
                           type="button"
@@ -4544,7 +4552,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                   </div>
 
                   <div style={{ marginTop: '20px' }}>
-                    {activeTab !== 'epan_correction_otp' && activeTab !== 'epan_kyc' && (
+                    {activeTab !== 'find_pan_aadhaar' && !PAPERLESS_PAN_TABS.includes(activeTab) && (
                       <button type="submit" disabled={isSubmitting} className="pancard-submit-btn">
                         {isSubmitting ? 'Submitting...' : '🚀 Submit Application'}
                       </button>
