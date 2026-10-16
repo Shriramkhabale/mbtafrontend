@@ -2626,7 +2626,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             {/* Service Options Cards Grid (Dynamically rendered from tabs config) */}
             <div className="pan-services-grid">
               {tabs
-                .filter(t => t.id !== 'epan_correction' && t.id !== 'manual_pan_correction')
+                .filter(t => t.id === 'manual_new_pan')
                 .map((tab) => {
                   const isManual = tab.id === 'manual_new_pan';
                   const isKyc = tab.id === 'epan_kyc';

@@ -11,7 +11,7 @@ import { API_URL, apiFetch } from '../../utils/apiClient';
 import NotificationBell from '../../context/NotificationBell';
 import { exportSinglePanApplicationToExcel } from '../../utils/exportPanToExcel';
 import logoImg from '../../assets/logo.png';
-import { DYNAMIC_LINK_MENUS, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
+import { DYNAMIC_LINK_MENUS, getDynamicMenuForSidebarItem, toMenuKey, getCustomMenuIcons, setCustomMenuIcon } from '../../utils/dynamicLinkMenus';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -684,7 +684,7 @@ const AdminPanel = () => {
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     sessionStorage.setItem('adminPanelActiveTab', tabId);
-    const isLinkTab = tabId === 'quickLinks' || DYNAMIC_LINK_MENUS.some(m => m.key === tabId);
+    const isLinkTab = tabId === 'quickLinks' || dynamicLinkMenusList.some(m => m.key === tabId) || DYNAMIC_LINK_MENUS.some(m => m.key === tabId);
     if (isLinkTab) {
       apiFetch(`/api/quick-links?menuKey=${tabId}`).then(res => res.json()).then(data => {
         setQuickLinks(filterLinksByMenuKey(data, tabId));
@@ -693,7 +693,7 @@ const AdminPanel = () => {
   };
 
   const [isUiSubmenuOpen, setIsUiSubmenuOpen] = useState(false);
-  const [isDynamicMenusOpen, setIsDynamicMenusOpen] = useState(false);
+  const [isDynamicMenusOpen, setIsDynamicMenusOpen] = useState(true);
   const [isPanSubmenuOpen, setIsPanSubmenuOpen] = useState(false);
   const [isFeesSubmenuOpen, setIsFeesSubmenuOpen] = useState(false);
   const [isLedgerSubmenuOpen, setIsLedgerSubmenuOpen] = useState(false);
@@ -1398,20 +1398,67 @@ const AdminPanel = () => {
   const [topTabs, setTopTabs] = useState([]);
   const [sidebarMenus, setSidebarMenus] = useState([]);
 
+  // Dynamic Menu Add / Edit Modal States
+  const [showDynamicMenuModal, setShowDynamicMenuModal] = useState(false);
+  const [editingDynamicMenu, setEditingDynamicMenu] = useState(null); // null if adding new, or menu object if editing
+  const [dynamicMenuForm, setDynamicMenuForm] = useState({
+    label: '',
+    icon: '🌐',
+    route: ''
+  });
+  const [isSavingDynamicMenu, setIsSavingDynamicMenu] = useState(false);
+
   // Derive dynamic menus with up-to-date labels and active status from sidebarMenus
   const dynamicLinkMenusList = useMemo(() => {
-    return DYNAMIC_LINK_MENUS.map(dyn => {
+    const customIcons = getCustomMenuIcons();
+    // 1. Standard dynamic link menus
+    const standardList = DYNAMIC_LINK_MENUS.map(dyn => {
       const matched = (sidebarMenus || []).find(sm => {
         const d = getDynamicMenuForSidebarItem(sm);
         return d && d.key === dyn.key;
       });
       return {
         ...dyn,
+        icon: customIcons[dyn.key] || dyn.icon || '🌐',
         _id: matched ? matched._id : null,
         label: (matched && matched.label && matched.label.trim()) ? matched.label.trim() : dyn.label,
-        isActive: matched ? Boolean(matched.isActive) : true
+        isActive: matched ? Boolean(matched.isActive) : true,
+        isCustom: false
       };
     });
+
+    // 2. Custom dynamic link menus added by the admin from sidebarMenus
+    const customList = [];
+    (sidebarMenus || []).forEach(sm => {
+      if (!sm || !sm.label) return;
+      const matchedStd = getDynamicMenuForSidebarItem(sm);
+      if (matchedStd) return; // already in standardList
+
+      const l = sm.label.toLowerCase();
+      const u = (sm.url || '').toLowerCase();
+      const isPan = l.includes('pan');
+      const isDash = l.includes('dash');
+      const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+      const isWallet = l.includes('wallet');
+      const isLedger = l.includes('ledger') || l.includes('report');
+
+      if (!isPan && !isDash && !isQuick && !isWallet && !isLedger && sm.url && sm.url.startsWith('/')) {
+        const key = sm.url.replace(/^\/+/, '').replace(/[^a-zA-Z0-9]/g, '');
+        if (key && !standardList.some(s => s.key === key) && !customList.some(c => c.key === key || c.route === sm.url)) {
+          customList.push({
+            key,
+            _id: sm._id,
+            label: sm.label.trim(),
+            icon: customIcons[key] || '🌐',
+            route: sm.url,
+            isActive: sm.isActive !== undefined ? Boolean(sm.isActive) : true,
+            isCustom: true
+          });
+        }
+      }
+    });
+
+    return [...standardList, ...customList];
   }, [sidebarMenus]);
 
   const allLinkMenusList = useMemo(() => {
@@ -2041,14 +2088,14 @@ const AdminPanel = () => {
   // Re-fetch links data whenever the active tab changes to a link-type tab.
   // Also applies frontend filtering to guarantee each tab shows only its own links.
   useEffect(() => {
-    const isLinkTab = activeTab === 'quickLinks' || DYNAMIC_LINK_MENUS.some(m => m.key === activeTab);
+    const isLinkTab = activeTab === 'quickLinks' || dynamicLinkMenusList.some(m => m.key === activeTab) || DYNAMIC_LINK_MENUS.some(m => m.key === activeTab);
     if (isLinkTab) {
       apiFetch(`/api/quick-links?menuKey=${activeTab}`)
         .then(res => res.json())
         .then(data => { setQuickLinks(filterLinksByMenuKey(data, activeTab)); })
         .catch(err => console.error('Failed to reload links for tab:', activeTab, err));
     }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab, dynamicLinkMenusList]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const fetchLedgerTransactions = async () => {
@@ -2519,7 +2566,7 @@ const AdminPanel = () => {
     load('/api/news-images', setNewsImages);
     // Use the explicitly-passed key first; fall back to activeTab only if it's a link menu; else 'quickLinks'
     const activeLinkMenuKey = linkMenuKeyOverride
-      || (DYNAMIC_LINK_MENUS.some(m => m.key === activeTab) ? activeTab
+      || (dynamicLinkMenusList.some(m => m.key === activeTab) || DYNAMIC_LINK_MENUS.some(m => m.key === activeTab) ? activeTab
         : activeTab === 'quickLinks' ? 'quickLinks' : null);
     if (activeLinkMenuKey) {
       // Apply frontend filtering as safety net against unfiltered backend responses
@@ -3488,11 +3535,32 @@ const AdminPanel = () => {
 
   const toggleSidebarMenuStatus = async (menuItem) => {
     if (!menuItem) return;
-    const currentActive = menuItem.isActive !== undefined ? Boolean(menuItem.isActive) : false;
+
+    // Resolve the actual database item from sidebarMenus
+    let targetSm = null;
+    if (menuItem._id) {
+      targetSm = (sidebarMenus || []).find(sm => String(sm._id) === String(menuItem._id));
+    }
+    if (!targetSm && (menuItem.route || menuItem.url)) {
+      const u = (menuItem.route || menuItem.url).toLowerCase().trim();
+      targetSm = (sidebarMenus || []).find(sm => sm.url && sm.url.toLowerCase().trim() === u);
+    }
+    if (!targetSm && menuItem.key) {
+      targetSm = (sidebarMenus || []).find(sm => {
+        const d = getDynamicMenuForSidebarItem(sm, dynamicLinkMenusList);
+        return d && d.key === menuItem.key;
+      });
+    }
+
+    const currentActive = (targetSm && targetSm.isActive !== undefined)
+      ? Boolean(targetSm.isActive)
+      : (menuItem.isActive !== undefined ? Boolean(menuItem.isActive) : true);
     const newStatus = !currentActive;
+    const targetId = targetSm ? targetSm._id : menuItem._id;
+
     try {
-      if (menuItem._id) {
-        await fetch(`${API_URL}/api/sidebar-menus/${menuItem._id}`, {
+      if (targetId) {
+        await fetch(`${API_URL}/api/sidebar-menus/${targetId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isActive: newStatus })
@@ -3520,6 +3588,151 @@ const AdminPanel = () => {
     } catch (err) {
       console.error('Failed to toggle sidebar menu status:', err);
       Swal.fire({ icon: 'error', text: 'Failed to update menu status.' });
+    }
+  };
+
+  const handleOpenAddDynamicMenu = () => {
+    setEditingDynamicMenu(null);
+    setDynamicMenuForm({
+      label: '',
+      icon: '🌐',
+      route: ''
+    });
+    setShowDynamicMenuModal(true);
+  };
+
+  const handleOpenEditDynamicMenu = (menuItem) => {
+    setEditingDynamicMenu(menuItem);
+    setDynamicMenuForm({
+      label: menuItem.label || '',
+      icon: menuItem.icon || '🌐',
+      route: menuItem.route || ''
+    });
+    setShowDynamicMenuModal(true);
+  };
+
+  const handleSaveDynamicMenu = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!dynamicMenuForm.label.trim()) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter a title for the Dynamic Menu.' });
+    }
+
+    const cleanLabel = dynamicMenuForm.label.trim();
+    const cleanIcon = dynamicMenuForm.icon.trim() || '🌐';
+    setIsSavingDynamicMenu(true);
+
+    try {
+      if (editingDynamicMenu) {
+        // Editing existing dynamic menu (standard or custom)
+        const targetKey = editingDynamicMenu.key;
+        setCustomMenuIcon(targetKey, cleanIcon);
+
+        if (editingDynamicMenu._id) {
+          await fetch(`${API_URL}/api/sidebar-menus/${editingDynamicMenu._id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              label: cleanLabel
+            })
+          });
+        } else {
+          // Standard menu record not yet created in sidebar-menus DB
+          await fetch(`${API_URL}/api/sidebar-menus`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              label: cleanLabel,
+              url: editingDynamicMenu.route,
+              isActive: editingDynamicMenu.isActive !== undefined ? editingDynamicMenu.isActive : true,
+              order: sidebarMenus.length
+            })
+          });
+        }
+
+        setShowDynamicMenuModal(false);
+        fetchAll(targetKey);
+        Swal.fire({
+          icon: 'success',
+          title: 'Dynamic Menu Updated',
+          text: `"${cleanLabel}" has been updated successfully.`,
+          timer: 1600,
+          showConfirmButton: false
+        });
+      } else {
+        // Creating new custom dynamic menu
+        const slug = cleanLabel.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'menu';
+        const formattedRoute = `/${slug}`;
+        const newKey = slug.replace(/[^a-zA-Z0-9]/g, '');
+
+        setCustomMenuIcon(newKey, cleanIcon);
+
+        const res = await fetch(`${API_URL}/api/sidebar-menus`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            label: cleanLabel,
+            url: formattedRoute,
+            isActive: true,
+            order: sidebarMenus.length
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to create new dynamic menu on server');
+        }
+
+        setShowDynamicMenuModal(false);
+        fetchAll(newKey);
+        setActiveTab(newKey);
+        sessionStorage.setItem('adminPanelActiveTab', newKey);
+        Swal.fire({
+          icon: 'success',
+          title: 'Dynamic Menu Added!',
+          text: `"${cleanLabel}" is now created and active. You can now add service links to it!`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
+    } catch (err) {
+      console.error('Error saving dynamic menu:', err);
+      Swal.fire({ icon: 'error', title: 'Error', text: err.message || 'Failed to save dynamic menu.' });
+    } finally {
+      setIsSavingDynamicMenu(false);
+    }
+  };
+
+  const handleDeleteCustomDynamicMenu = async (menuItem) => {
+    if (!menuItem || !menuItem._id) return;
+    const confirmRes = await Swal.fire({
+      title: `Delete "${menuItem.label}"?`,
+      text: 'Are you sure you want to delete this custom dynamic menu? All associated links may also be deleted.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      confirmButtonColor: '#ef4444',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (!confirmRes.isConfirmed) return;
+
+    try {
+      await fetch(`${API_URL}/api/sidebar-menus/${menuItem._id}`, {
+        method: 'DELETE'
+      });
+      setShowDynamicMenuModal(false);
+      setActiveTab('quickLinks');
+      sessionStorage.setItem('adminPanelActiveTab', 'quickLinks');
+      fetchAll('quickLinks');
+      Swal.fire({
+        icon: 'success',
+        title: 'Deleted',
+        text: `Menu "${menuItem.label}" was deleted.`,
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      console.error('Failed to delete custom dynamic menu:', err);
+      Swal.fire({ icon: 'error', text: 'Failed to delete dynamic menu.' });
     }
   };
 
@@ -3814,6 +4027,30 @@ const AdminPanel = () => {
                     </span>
                   </button>
                 ))}
+
+                <button
+                  type="button"
+                  onClick={handleOpenAddDynamicMenu}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    padding: '8px 12px',
+                    margin: '6px 0 2px',
+                    borderRadius: '8px',
+                    background: 'rgba(2, 132, 199, 0.12)',
+                    border: '1px dashed #0284c7',
+                    color: '#0284c7',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease'
+                  }}
+                >
+                  <span style={{ fontSize: '14px' }}>➕</span>
+                  <span>+ Add Dynamic Menu</span>
+                </button>
               </div>
             )}
           </div>
@@ -4344,14 +4581,43 @@ const AdminPanel = () => {
                       </button>
                     );
                   })}
+
+                  {/* Add Dynamic Menu Pill Button */}
+                  <button
+                    type="button"
+                    onClick={handleOpenAddDynamicMenu}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '7px',
+                      padding: '8px 15px',
+                      borderRadius: '10px',
+                      border: '1.5px dashed #0284c7',
+                      background: 'rgba(2, 132, 199, 0.08)',
+                      color: '#0284c7',
+                      fontWeight: 800,
+                      fontSize: '12.5px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.18s ease'
+                    }}
+                    title="Add a new Dynamic Menu to User Panel"
+                  >
+                    <span style={{ fontSize: '14px' }}>➕</span>
+                    <span>+ Add Dynamic Menu</span>
+                  </button>
                 </div>
 
                 {currentMenuKey !== 'quickLinks' && (() => {
                   const matchingSm = (sidebarMenus || []).find(sm => {
-                    const d = getDynamicMenuForSidebarItem(sm);
+                    if (currentLinkMenu._id && String(sm._id) === String(currentLinkMenu._id)) return true;
+                    if (sm.url && currentLinkMenu.route && sm.url.toLowerCase().trim() === currentLinkMenu.route.toLowerCase().trim()) return true;
+                    const d = getDynamicMenuForSidebarItem(sm, dynamicLinkMenusList);
                     return d && d.key === currentMenuKey;
-                  });
-                  const isMenuOn = matchingSm ? Boolean(matchingSm.isActive) : true;
+                  }) || currentLinkMenu;
+                  const isMenuOn = (matchingSm && matchingSm.isActive !== undefined) 
+                    ? Boolean(matchingSm.isActive) 
+                    : (currentLinkMenu && currentLinkMenu.isActive !== undefined ? Boolean(currentLinkMenu.isActive) : true);
 
                   return (
                     <div style={{
@@ -4405,33 +4671,88 @@ const AdminPanel = () => {
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => toggleSidebarMenuStatus(matchingSm || { key: currentMenuKey, label: currentLinkMenu.label, route: currentLinkMenu.route, isActive: isMenuOn })}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '9px 20px',
-                          borderRadius: '24px',
-                          border: 'none',
-                          fontWeight: 800,
-                          fontSize: '13px',
-                          cursor: 'pointer',
-                          background: isMenuOn ? '#ef4444' : '#10b981',
-                          color: '#ffffff',
-                          boxShadow: isMenuOn ? '0 4px 12px rgba(239, 68, 68, 0.3)' : '0 4px 12px rgba(16, 185, 129, 0.3)',
-                          transition: 'all 0.18s ease'
-                        }}
-                      >
-                        <span style={{
-                          width: '9px',
-                          height: '9px',
-                          borderRadius: '50%',
-                          background: '#ffffff'
-                        }}></span>
-                        {isMenuOn ? 'Turn OFF (Hide Menu)' : 'Turn ON (Show Menu)'}
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {/* Edit Menu Name / Icon Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditDynamicMenu(currentLinkMenu)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '7px',
+                            padding: '9px 16px',
+                            borderRadius: '24px',
+                            border: '1.5px solid #cbd5e1',
+                            fontWeight: 800,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            background: '#ffffff',
+                            color: '#1e293b',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                            transition: 'all 0.18s ease'
+                          }}
+                          title="Edit Dynamic Menu Title & Icon"
+                        >
+                          <span>✏️</span>
+                          <span>Edit Menu</span>
+                        </button>
+
+                        {/* Turn ON / OFF Status Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleSidebarMenuStatus(matchingSm)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '9px 20px',
+                            borderRadius: '24px',
+                            border: 'none',
+                            fontWeight: 800,
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            background: isMenuOn ? '#ef4444' : '#10b981',
+                            color: '#ffffff',
+                            boxShadow: isMenuOn ? '0 4px 12px rgba(239, 68, 68, 0.3)' : '0 4px 12px rgba(16, 185, 129, 0.3)',
+                            transition: 'all 0.18s ease'
+                          }}
+                        >
+                          <span style={{
+                            width: '9px',
+                            height: '9px',
+                            borderRadius: '50%',
+                            background: '#ffffff'
+                          }}></span>
+                          {isMenuOn ? 'Turn OFF (Hide Menu)' : 'Turn ON (Show Menu)'}
+                        </button>
+
+                        {/* Delete button if custom menu */}
+                        {currentLinkMenu.isCustom && currentLinkMenu._id && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomDynamicMenu(currentLinkMenu)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '9px 14px',
+                              borderRadius: '24px',
+                              border: '1.5px solid #fecaca',
+                              fontWeight: 800,
+                              fontSize: '13px',
+                              cursor: 'pointer',
+                              background: '#fff1f2',
+                              color: '#dc2626',
+                              boxShadow: '0 2px 6px rgba(220, 38, 38, 0.1)',
+                              transition: 'all 0.18s ease'
+                            }}
+                            title="Delete this dynamic menu"
+                          >
+                            <span>🗑️</span>
+                            <span>Delete</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })()}
@@ -4871,6 +5192,182 @@ const AdminPanel = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Add / Edit Dynamic Menu Modal */}
+                {showDynamicMenuModal && (
+                  <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    backdropFilter: 'blur(5px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 99999,
+                    padding: '20px'
+                  }}>
+                    <div style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '18px',
+                      width: '100%',
+                      maxWidth: '480px',
+                      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                      overflow: 'hidden',
+                      border: '1px solid #e2e8f0',
+                      animation: 'modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}>
+                      <div style={{
+                        padding: '18px 24px',
+                        borderBottom: '1px solid #f1f5f9',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span style={{ fontSize: '22px' }}>{editingDynamicMenu ? '✏️' : '✨'}</span>
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#0f172a' }}>
+                              {editingDynamicMenu ? `Edit "${editingDynamicMenu.label}"` : 'Add New Dynamic Menu'}
+                            </h3>
+                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                              {editingDynamicMenu ? 'Update title and icon for this menu' : 'Create a new dynamic service portal for users'}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowDynamicMenuModal(false)}
+                          style={{
+                            background: '#f1f5f9',
+                            border: 'none',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#64748b',
+                            fontSize: '15px',
+                            fontWeight: 700
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleSaveDynamicMenu} style={{ padding: '22px 24px' }}>
+                        <div style={{ marginBottom: '16px' }}>
+                          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                            Menu Title / Name *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. EXAM RESULTS or RATION CARD"
+                            value={dynamicMenuForm.label}
+                            onChange={(e) => setDynamicMenuForm({ ...dynamicMenuForm, label: e.target.value })}
+                            style={{
+                              width: '100%',
+                              padding: '11px 14px',
+                              borderRadius: '10px',
+                              border: '1.5px solid #cbd5e1',
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              outline: 'none',
+                              boxSizing: 'border-box'
+                            }}
+                            autoFocus
+                            required
+                          />
+                          <small style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                            This name will display in the Admin Dynamic Menus tabs and the User Panel sidebar.
+                          </small>
+                        </div>
+
+                        <div style={{ marginBottom: '20px' }}>
+                          <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                            Icon (Emoji / Symbol)
+                          </label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <input
+                              type="text"
+                              value={dynamicMenuForm.icon}
+                              onChange={(e) => setDynamicMenuForm({ ...dynamicMenuForm, icon: e.target.value })}
+                              style={{
+                                width: '70px',
+                                textAlign: 'center',
+                                padding: '10px',
+                                fontSize: '20px',
+                                borderRadius: '10px',
+                                border: '1.5px solid #cbd5e1',
+                                outline: 'none'
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {['🌐', '📋', '💼', '📊', '🏛️', '📦', '🎓', '🛠️', '🪪', '⚡'].map(ic => (
+                                <button
+                                  type="button"
+                                  key={ic}
+                                  onClick={() => setDynamicMenuForm({ ...dynamicMenuForm, icon: ic })}
+                                  style={{
+                                    fontSize: '16px',
+                                    padding: '6px 10px',
+                                    borderRadius: '8px',
+                                    border: dynamicMenuForm.icon === ic ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                                    background: dynamicMenuForm.icon === ic ? '#e0f2fe' : '#ffffff',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  {ic}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowDynamicMenuModal(false)}
+                            style={{
+                              padding: '10px 18px',
+                              borderRadius: '10px',
+                              border: '1px solid #cbd5e1',
+                              background: '#ffffff',
+                              color: '#475569',
+                              fontWeight: 700,
+                              fontSize: '13px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSavingDynamicMenu}
+                            style={{
+                              padding: '10px 22px',
+                              borderRadius: '10px',
+                              border: 'none',
+                              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                              color: '#ffffff',
+                              fontWeight: 800,
+                              fontSize: '13px',
+                              cursor: isSavingDynamicMenu ? 'not-allowed' : 'pointer',
+                              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
+                            }}
+                          >
+                            {isSavingDynamicMenu ? 'Saving...' : (editingDynamicMenu ? 'Update Menu' : 'Create Dynamic Menu')}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -5768,8 +6265,8 @@ const AdminPanel = () => {
                             <label className="pan-input-label">Application Fee (₹)</label>
                             <input
                               type="number"
-                              value={currentTab.fee || 107}
-                              onChange={(e) => handleUpdateTabHeader('fee', Number(e.target.value))}
+                              value={currentTab.fee !== undefined && currentTab.fee !== null ? currentTab.fee : ''}
+                              onChange={(e) => handleUpdateTabHeader('fee', e.target.value === '' ? '' : Number(e.target.value))}
                               disabled={!hasStaffActionAccess('panForms.editTab')}
                               className="pan-form-control pan-fee-input"
                             />

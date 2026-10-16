@@ -16,11 +16,55 @@ export const ALL_LINK_MENUS = [
   ...DYNAMIC_LINK_MENUS
 ];
 
-export const findDynamicMenu = (term) => {
+// Storage key for custom icons if needed
+const CUSTOM_ICONS_KEY = 'mb_custom_menu_icons';
+
+export const getCustomMenuIcons = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CUSTOM_ICONS_KEY) || '{}');
+  } catch (e) {
+    return {};
+  }
+};
+
+export const setCustomMenuIcon = (key, icon) => {
+  try {
+    const existing = getCustomMenuIcons();
+    existing[key] = icon;
+    localStorage.setItem(CUSTOM_ICONS_KEY, JSON.stringify(existing));
+  } catch (e) {}
+};
+
+export const toMenuKey = (str) => {
+  if (!str) return '';
+  return String(str)
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/[^a-zA-Z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
+    .replace(/[^a-zA-Z0-9]/g, '');
+};
+
+export const findDynamicMenu = (term, customMenus = []) => {
   if (!term) return null;
   const raw = String(term).trim().toLowerCase();
   const t = raw.split('?')[0].replace(/\/+$/, '');
   const tNoSlash = t.replace(/^\/+/, '');
+
+  // Check custom dynamic menus first if passed
+  if (Array.isArray(customMenus) && customMenus.length > 0) {
+    const matchedCustom = customMenus.find(m => {
+      const r = m.route || m.url || '';
+      const routeNoSlash = r.toLowerCase().replace(/^\/+/, '');
+      return (
+        (m.key && m.key.toLowerCase() === t) ||
+        (m.label && m.label.toLowerCase() === t) ||
+        (r && r.toLowerCase() === t) ||
+        (tNoSlash && routeNoSlash && routeNoSlash === tNoSlash)
+      );
+    });
+    if (matchedCustom) return matchedCustom;
+  }
+
   return DYNAMIC_LINK_MENUS.find(m => {
     const routeNoSlash = m.route.toLowerCase().replace(/^\/+/, '');
     if (
@@ -74,15 +118,16 @@ export const findDynamicMenu = (term) => {
   });
 };
 
-export const getDynamicMenuForSidebarItem = (menuItem) => {
+export const getDynamicMenuForSidebarItem = (menuItem, customMenus = []) => {
   if (!menuItem) return null;
   if (menuItem.url) {
-    const byUrl = findDynamicMenu(menuItem.url);
+    const byUrl = findDynamicMenu(menuItem.url, customMenus);
     if (byUrl) return byUrl;
   }
   if (menuItem.label) {
-    const byLabel = findDynamicMenu(menuItem.label);
+    const byLabel = findDynamicMenu(menuItem.label, customMenus);
     if (byLabel) return byLabel;
   }
   return null;
 };
+

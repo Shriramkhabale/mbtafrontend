@@ -38,6 +38,7 @@ function App() {
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/admin-panel" element={<AdminPanel />} />
             <Route path="/admin" element={<Navigate to="/admin-login" />} />
+            <Route path="*" element={<Dashboard />} />
           </Routes>
         </div>
       </NotificationProvider>

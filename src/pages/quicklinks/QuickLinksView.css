@@ -52,6 +52,99 @@
 }
 
 /* ==========================================================================
+   DYNAMIC LINKS TABS BAR (Row matching Photo 2 top tabs)
+   ========================================================================== */
+.quick-links-tabs-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: nowrap;
+  width: 100%;
+  overflow-x: auto;
+  padding: 4px 2px 18px 2px;
+  margin-bottom: 24px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(234, 88, 12, 0.4) transparent;
+}
+
+.quick-links-tabs-bar::-webkit-scrollbar {
+  height: 5px;
+}
+
+.quick-links-tabs-bar::-webkit-scrollbar-thumb {
+  background: rgba(234, 88, 12, 0.4);
+  border-radius: 4px;
+}
+
+.quick-links-tab-pill {
+  padding: 10px 20px;
+  border: 1.5px solid #ea580c;
+  background: #fffdf9;
+  color: #1e293b;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 13px;
+  font-family: inherit;
+  box-shadow: 0px 2px 10px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex: 0 0 auto;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.quick-links-tab-pill:hover {
+  background: #fff7ed;
+  color: #ea580c;
+  border-color: #fb923c;
+  transform: translateY(-2px);
+  box-shadow: 0px 6px 16px rgba(234, 88, 12, 0.2);
+}
+
+.quick-links-tab-pill.active {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border: 1.5px solid #ea580c;
+  color: #ea580c;
+  box-shadow: 0px 6px 18px rgba(234, 88, 12, 0.25);
+  transform: translateY(-1px);
+}
+
+.tab-pill-icon {
+  font-size: 15px;
+}
+
+.tab-pill-label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Dark theme styling for dynamic links tabs */
+.theme-dark .quick-links-tab-pill {
+  background: #1e2228;
+  border-color: #ea580c;
+  color: #ffffff;
+  box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.5), 0 0 10px rgba(234, 88, 12, 0.2);
+}
+
+.theme-dark .quick-links-tab-pill:hover {
+  background: #282e36;
+  color: #ffffff;
+  border-color: #fb923c;
+  box-shadow: 0px 8px 20px rgba(234, 88, 12, 0.4);
+}
+
+.theme-dark .quick-links-tab-pill.active {
+  background: linear-gradient(135deg, #2b1f1a 0%, #1c1512 100%);
+  border-color: #ea580c;
+  color: #fb923c;
+  box-shadow: 0px 8px 25px rgba(234, 88, 12, 0.5), inset 0 0 15px rgba(234, 88, 12, 0.2);
+}
+
+/* ==========================================================================
    4 CARDS IN A SINGLE ROW
    ========================================================================== */
 .quick-links-grid {

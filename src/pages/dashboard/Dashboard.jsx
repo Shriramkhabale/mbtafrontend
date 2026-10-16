@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
@@ -69,9 +69,6 @@ const Dashboard = () => {
   const isWalletRoute = location.pathname === '/wallet';
   const isPanCardRoute = location.pathname === '/pancard' || location.pathname === '/pan-card';
   const isQuickLinksRoute = location.pathname === '/quick-links' || location.pathname === '/view-links';
-  const activeDynLinkMenu = findDynamicMenu(location.pathname);
-  const isDynLinkMenuRoute = Boolean(activeDynLinkMenu);
-  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute;
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('appTheme') || 'light';
@@ -83,6 +80,29 @@ const Dashboard = () => {
   const [bannersData, setBannersData] = useState([]);
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [activeTabId, setActiveTabId] = useState(null);
+
+  const activeDynLinkMenu = React.useMemo(() => {
+    const std = findDynamicMenu(location.pathname);
+    if (std) return std;
+    const customMatch = (sidebarMenuData || []).find(m => {
+      if (!m.url || !m.url.startsWith('/')) return false;
+      const cleanPath = location.pathname.toLowerCase().replace(/\/+$/, '');
+      const cleanUrl = m.url.toLowerCase().replace(/\/+$/, '');
+      return cleanPath === cleanUrl;
+    });
+    if (customMatch) {
+      const customKey = customMatch.url.replace(/^\/+/, '').replace(/[^a-zA-Z0-9]/g, '');
+      return {
+        key: customKey,
+        label: customMatch.label,
+        icon: '🌐',
+        route: customMatch.url
+      };
+    }
+    return null;
+  }, [location.pathname, sidebarMenuData]);
+  const isDynLinkMenuRoute = Boolean(activeDynLinkMenu);
+  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute;
   const [activeCardId, setActiveCardId] = useState(null);
   const [activeBannerId, setActiveBannerId] = useState(null);
 
@@ -184,7 +204,7 @@ const Dashboard = () => {
           }
         }
 
-        // Ensure all 10 dynamic link menus are present (without duplicating)
+        // Ensure all 10 standard dynamic link menus are present (without duplicating)
         DYNAMIC_LINK_MENUS.forEach(dyn => {
           const exists = menus.some(m => {
             const matched = getDynamicMenuForSidebarItem(m);
@@ -200,11 +220,33 @@ const Dashboard = () => {
           }
         });
 
-        // Deduplicate any menus that match the same dynamic menu or quick links
+        // Identify any custom dynamic menus in database (items with route starting with / and not Pan/Dash/Quick)
+        const customDynMenus = [];
+        menus.forEach(m => {
+          if (!m.label) return;
+          const matchedStandard = getDynamicMenuForSidebarItem(m);
+          if (matchedStandard) return;
+          const l = m.label.toLowerCase();
+          const u = (m.url || '').toLowerCase();
+          const isPan = l.includes('pan');
+          const isDash = l.includes('dash');
+          const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+          if (!isPan && !isDash && !isQuick && (m.url && m.url.startsWith('/'))) {
+            const customKey = m.url.replace(/^\/+/, '').replace(/[^a-zA-Z0-9]/g, '');
+            customDynMenus.push({
+              key: customKey,
+              label: m.label,
+              icon: '🌐',
+              route: m.url
+            });
+          }
+        });
+
+        // Deduplicate any menus that match standard or custom dynamic menus or quick links
         const seenKeys = new Set();
         const dedupedMenus = [];
         menus.forEach(m => {
-          const matchedDyn = getDynamicMenuForSidebarItem(m);
+          const matchedDyn = getDynamicMenuForSidebarItem(m, customDynMenus);
           if (matchedDyn) {
             if (!seenKeys.has(matchedDyn.key)) {
               seenKeys.add(matchedDyn.key);
@@ -251,6 +293,21 @@ const Dashboard = () => {
 
 
 
+    // Fetch Global Search Links (Quick Links & PAN tabs)
+    fetch(`${API_URL}/api/quick-links`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setQuickLinksData(data);
+      })
+      .catch(() => {});
+
+    fetch(`${API_URL}/api/pancard/tabs`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setPanTabsData(data);
+      })
+      .catch(() => {});
+
     // Setup an interval to periodically fetch wallet balance
     const currentUser = localStorage.getItem('currentUser');
     if (currentUser) {
@@ -271,6 +328,138 @@ const Dashboard = () => {
       return () => clearInterval(interval);
     }
   }, []);
+
+  // Global search state & refs
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [quickLinksData, setQuickLinksData] = useState([]);
+  const [panTabsData, setPanTabsData] = useState([]);
+  const searchContainerRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Focus input on expand & auto close on click outside
+  useEffect(() => {
+    if (isSearchExpanded && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchExpanded]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setIsSearchExpanded(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Compute all searchable platform services
+  const allSearchableServices = [
+    // Top Tabs
+    ...(topTabsData || []).map(tab => ({
+      id: `tab_${tab._id || tab.id || tab.label}`,
+      title: tab.label,
+      category: 'Top Tab',
+      icon: '🚀',
+      action: () => {
+        const l = (tab.label || '').toLowerCase();
+        if (l.includes('wallet point')) {
+          setWalletTab('directPayment');
+          navigate('/wallet');
+        } else if (l.includes('ledger') || l.includes('report')) {
+          navigate('/ledger');
+        } else {
+          setActiveTabId(tab._id || tab.id);
+          navigate('/dashboard');
+        }
+      }
+    })),
+    // Action Cards
+    ...(actionCardsData || []).map(card => ({
+      id: `card_${card._id || card.id || card.title}`,
+      title: card.title || card.label,
+      subtitle: card.category || card.desc,
+      category: 'Action Service',
+      icon: card.icon || '⚡',
+      action: () => {
+        if (card.url && card.url.startsWith('http')) {
+          window.open(card.url, '_blank');
+        } else if (card.url) {
+          navigate(card.url);
+        } else {
+          setActiveCardId(card._id || card.id);
+          navigate('/dashboard');
+        }
+      }
+    })),
+    // Sidebar Menus (including PAN, Dynamic links, Quick Links)
+    ...(sidebarMenuData || []).map(menu => ({
+      id: `menu_${menu._id || menu.id || menu.label}`,
+      title: menu.label,
+      category: 'Menu / Portal',
+      icon: '📂',
+      action: () => {
+        if (menu.url) {
+          navigate(menu.url);
+        } else {
+          setActiveMenuId(menu._id || menu.id);
+          navigate('/dashboard');
+        }
+      }
+    })),
+    // Dynamic Menus direct entries
+    ...DYNAMIC_LINK_MENUS.map(dyn => ({
+      id: `dyn_${dyn.key}`,
+      title: dyn.label,
+      category: 'Service Category',
+      icon: dyn.icon || '🔗',
+      action: () => navigate(dyn.route)
+    })),
+    // PAN Card Services (Dynamic & Standard)
+    ...(panTabsData.length > 0 ? panTabsData : [
+      { id: 'find_pan_aadhaar', label: 'Find My PAN', icon: '🔍', description: 'Aadhaar to PAN lookup' },
+      { id: 'epan_kyc', label: 'E-Pan Kyc', icon: '📲', description: 'Paperless E-Pan Kyc service' },
+      { id: 'epan_correction_otp', label: 'E-Pan Correction', icon: '⚡', description: 'Paperless E-Pan Correction OTP Base' },
+      { id: 'epan_sign_photo', label: 'EPan (Sign&Photo)', icon: '📸', description: 'Paperless E-Pan Photo & Sign upload' },
+      { id: 'epan_correction_sign_photo', label: 'EPan Correction (Sign&Photo)', icon: '🖋️', description: 'Correction with signature & photo' },
+      { id: 'manual_new_pan', label: 'Manual New PAN', icon: '📝', description: 'Manual Form 49A application' },
+      { id: 'manual_pan_correction', label: 'Manual PAN Correction', icon: '📑', description: 'Manual Form CSF Correction' },
+      { id: 'stamp_signature_merger', label: 'Crop Photo / Signature', icon: '✂️', description: 'Crop & Stamp Signature Merger Tool' },
+      { id: 'history', label: 'PAN Application History', icon: '📋', description: 'Track submitted PAN applications' }
+    ]).map(pan => ({
+      id: `pan_${pan.id || pan._id}`,
+      title: pan.label || pan.title,
+      subtitle: pan.description || pan.badge || 'PAN Card Service',
+      category: 'PAN Card',
+      icon: pan.icon || '💳',
+      action: () => navigate(`/pancard?tab=${pan.id}`)
+    })),
+    // Quick Links & Dynamic Service Links
+    ...(quickLinksData || []).map(link => ({
+      id: `link_${link._id || link.id || link.title}`,
+      title: link.title,
+      subtitle: link.category ? `${link.category} • ${link.fee ? '₹' + link.fee : 'Free'}` : (link.fee ? '₹' + link.fee : 'Free'),
+      category: link.menuKey ? 'Service Link' : 'Quick Link',
+      icon: '🔗',
+      action: () => {
+        if (link.url) {
+          window.open(link.url, '_blank', 'noopener,noreferrer');
+        }
+      }
+    }))
+  ];
+
+  // Filter matching services deduplicated by title and category
+  const filteredServices = searchQuery.trim() === '' ? [] : allSearchableServices.filter((item, idx, self) => {
+    const q = searchQuery.toLowerCase().trim();
+    const titleMatch = item.title && item.title.toLowerCase().includes(q);
+    const subMatch = item.subtitle && item.subtitle.toLowerCase().includes(q);
+    const catMatch = item.category && item.category.toLowerCase().includes(q);
+    const matches = titleMatch || subMatch || catMatch;
+    if (!matches) return false;
+    return idx === self.findIndex(t => (t.title || '').trim().toLowerCase() === (item.title || '').trim().toLowerCase());
+  }).slice(0, 15); // Show top 15 matches
 
   return (
     <div className={`dashboard-container-new theme-${theme}`}>
@@ -304,6 +493,89 @@ const Dashboard = () => {
         </div>
 
         <div className="header-right-controls">
+          {/* Expandable Global Search */}
+          <div className="global-header-search" ref={searchContainerRef}>
+            <div className={`search-expand-wrapper ${isSearchExpanded ? 'expanded' : ''}`}>
+              <button
+                type="button"
+                className="search-toggle-btn"
+                onClick={() => {
+                  setIsSearchExpanded(!isSearchExpanded);
+                  if (isSearchExpanded) setSearchQuery('');
+                }}
+                title={isSearchExpanded ? 'Close search' : 'Search all services, forms, links...'}
+                aria-label="Search services"
+              >
+                🔍
+              </button>
+              {isSearchExpanded && (
+                <div className="search-input-field-wrap">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    className="search-expand-input"
+                    placeholder="Search all services, forms, tabs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setIsSearchExpanded(false);
+                        setSearchQuery('');
+                      }
+                    }}
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      className="search-clear-btn"
+                      onClick={() => setSearchQuery('')}
+                      title="Clear search"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Global Search Results Dropdown */}
+            {isSearchExpanded && searchQuery.trim() !== '' && (
+              <div className="global-search-results-dropdown">
+                <div className="search-results-header">
+                  <span>Found {filteredServices.length} result{filteredServices.length === 1 ? '' : 's'}</span>
+                  <span className="search-results-hint">Click item to open</span>
+                </div>
+                {filteredServices.length === 0 ? (
+                  <div className="search-no-results">
+                    <span className="search-no-results-icon">🔍</span>
+                    <span>No service found matching &quot;{searchQuery}&quot;</span>
+                  </div>
+                ) : (
+                  <div className="search-results-list">
+                    {filteredServices.map(item => (
+                      <div
+                        key={item.id}
+                        className="search-result-item"
+                        onClick={() => {
+                          setIsSearchExpanded(false);
+                          setSearchQuery('');
+                          item.action();
+                        }}
+                      >
+                        <span className="search-result-icon">{item.icon}</span>
+                        <div className="search-result-info">
+                          <div className="search-result-title">{item.title}</div>
+                          {item.subtitle && <div className="search-result-subtitle">{item.subtitle}</div>}
+                        </div>
+                        <span className="search-result-tag">{item.category}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <NotificationBell dark={theme === 'dark'} />
           <div
             className="top-wallet-box"
@@ -445,11 +717,19 @@ const Dashboard = () => {
 
           <div className="sidebar-menu-new">
             {sidebarMenuData.filter((menu) => {
+              if (!menu || !menu.label) return false;
+              if (menu.isActive === false) return false; // Respect ON/OFF toggle from Admin Panel
               const matchedDyn = getDynamicMenuForSidebarItem(menu) || findDynamicMenu(menu.url || menu.label);
-              if (matchedDyn) {
-                return Boolean(menu.isActive);
-              }
-              return true;
+              if (matchedDyn) return false; // Hide all dynamic links from sidebar
+
+              const l = menu.label.toLowerCase();
+              const u = (menu.url || '').toLowerCase();
+              const isDash = l.includes('dash');
+              const isPan = l.includes('pan');
+              const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+
+              // Only show Dashboard, Pan Card, and Quick Links in the sidebar
+              return isDash || isPan || isQuick;
             }).map((menu) => {
               const menuId = menu._id || menu.id;
               const isPan = menu.label && menu.label.toLowerCase().includes('pan');
@@ -651,10 +931,12 @@ const Dashboard = () => {
                 currentUser={localStorage.getItem('currentUser')}
                 walletBalance={walletBalance}
                 onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+                sidebarMenus={sidebarMenuData}
               />
             );
           })() : isDynLinkMenuRoute ? (() => {
             const currentDynItem = (sidebarMenuData || []).find(m => {
+              if (m.url && activeDynLinkMenu.route && m.url.toLowerCase().trim() === activeDynLinkMenu.route.toLowerCase().trim()) return true;
               const d = getDynamicMenuForSidebarItem(m);
               return d && d.key === activeDynLinkMenu.key;
             });
@@ -690,6 +972,7 @@ const Dashboard = () => {
                 currentUser={localStorage.getItem('currentUser')}
                 walletBalance={walletBalance}
                 onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+                sidebarMenus={sidebarMenuData}
               />
             );
           })() : (

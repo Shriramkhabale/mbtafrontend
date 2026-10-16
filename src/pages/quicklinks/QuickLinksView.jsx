@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 import './QuickLinksView.css';
 import { API_URL } from '../../utils/apiClient';
+import { ALL_LINK_MENUS, DYNAMIC_LINK_MENUS, getDynamicMenuForSidebarItem, getCustomMenuIcons } from '../../utils/dynamicLinkMenus';
 
 const QuickLinksView = ({ 
   theme = 'light', 
@@ -10,13 +11,110 @@ const QuickLinksView = ({
   onBalanceUpdate,
   menuKey = 'quickLinks',
   pageTitle = 'Available links',
-  pageSubtitle = 'Access useful forms, portals, guidelines, and video tutorials'
+  pageSubtitle = 'Access useful forms, portals, guidelines, and video tutorials',
+  sidebarMenus: propSidebarMenus
 }) => {
+  const [selectedCategory, setSelectedCategory] = useState(menuKey || 'quickLinks');
+  const [menuTabs, setMenuTabs] = useState(ALL_LINK_MENUS);
   const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingLinkId, setProcessingLinkId] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeVideoModal, setActiveVideoModal] = useState(null);
+
+  const updateMenuTabsFromMenus = React.useCallback((menus) => {
+    if (!Array.isArray(menus)) return;
+    const customIcons = getCustomMenuIcons();
+
+    // 1. Standard dynamic link menus
+    const standardList = DYNAMIC_LINK_MENUS.map(dyn => {
+      const matched = menus.find(sm => {
+        if (sm.url && dyn.route && sm.url.toLowerCase().trim() === dyn.route.toLowerCase().trim()) return true;
+        const d = getDynamicMenuForSidebarItem(sm);
+        return d && d.key === dyn.key;
+      });
+      return {
+        ...dyn,
+        icon: customIcons[dyn.key] || dyn.icon || '🌐',
+        label: (matched && matched.label && matched.label.trim()) ? matched.label.trim() : dyn.label,
+        isActive: matched ? (matched.isActive !== undefined ? Boolean(matched.isActive) : true) : true
+      };
+    });
+
+    // 2. Custom dynamic menus added from Admin Panel
+    const customList = [];
+    menus.forEach(sm => {
+      if (!sm || !sm.label) return;
+      const matchedStd = getDynamicMenuForSidebarItem(sm);
+      if (matchedStd) return;
+      const l = sm.label.toLowerCase();
+      const u = (sm.url || '').toLowerCase();
+      const isPan = l.includes('pan');
+      const isDash = l.includes('dash');
+      const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+      const isWallet = l.includes('wallet');
+      const isLedger = l.includes('ledger') || l.includes('report');
+
+      if (!isPan && !isDash && !isQuick && !isWallet && !isLedger && sm.url && sm.url.startsWith('/')) {
+        const key = sm.url.replace(/^\/+/, '').replace(/[^a-zA-Z0-9]/g, '');
+        if (key && !standardList.some(s => s.key === key) && !customList.some(c => c.key === key || c.route === sm.url)) {
+          customList.push({
+            key,
+            label: sm.label.trim(),
+            icon: customIcons[key] || '🌐',
+            route: sm.url,
+            isActive: sm.isActive !== undefined ? Boolean(sm.isActive) : true
+          });
+        }
+      }
+    });
+
+    const quickMenu = menus.find(sm => {
+      const d = getDynamicMenuForSidebarItem(sm);
+      if (d) return false;
+      const l = (sm.label || '').toLowerCase();
+      const u = (sm.url || '').toLowerCase();
+      return l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+    });
+    const quickLabel = (quickMenu && quickMenu.label && quickMenu.label.trim()) ? quickMenu.label.trim() : 'Quick Links';
+    const quickIsActive = quickMenu ? Boolean(quickMenu.isActive) : true;
+
+    const allMenus = [
+      { key: 'quickLinks', label: quickLabel, icon: '🔗', route: '/quick-links', isActive: quickIsActive },
+      ...standardList,
+      ...customList
+    ];
+
+    // Filter only active menus (ON) for user panel display
+    const activeOnly = allMenus.filter(m => m.isActive !== false);
+    setMenuTabs(activeOnly);
+
+    // If currently selected tab was turned OFF by admin, fall back to first active menu
+    if (activeOnly.length > 0 && selectedCategory && !activeOnly.some(m => m.key === selectedCategory)) {
+      setSelectedCategory(activeOnly[0].key);
+    }
+  }, [selectedCategory]);
+
+  // Sync when propSidebarMenus changes from parent
+  useEffect(() => {
+    if (Array.isArray(propSidebarMenus) && propSidebarMenus.length > 0) {
+      updateMenuTabsFromMenus(propSidebarMenus);
+    }
+  }, [propSidebarMenus, updateMenuTabsFromMenus]);
+
+  // Load sidebar menus dynamically on mount as fallback
+  useEffect(() => {
+    fetch(`${API_URL}/api/sidebar-menus`)
+      .then(res => res.json())
+      .then(menus => updateMenuTabsFromMenus(menus))
+      .catch(err => console.error('Error fetching dynamic sidebar menus in QuickLinksView:', err));
+  }, [updateMenuTabsFromMenus]);
+
+  // Sync internal selectedCategory if menuKey prop changes from parent
+  useEffect(() => {
+    if (menuKey) {
+      setSelectedCategory(menuKey);
+    }
+  }, [menuKey]);
 
   const activeUser = propCurrentUser || (typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null);
 
@@ -79,7 +177,7 @@ const QuickLinksView = ({
 
   useEffect(() => {
     setLoading(true);
-    const queryParam = menuKey ? `?menuKey=${encodeURIComponent(menuKey)}` : '';
+    const queryParam = selectedCategory ? `?menuKey=${encodeURIComponent(selectedCategory)}` : '';
     fetch(`${API_URL}/api/quick-links${queryParam}`)
       .then(res => res.json())
       .then(data => {
@@ -95,7 +193,7 @@ const QuickLinksView = ({
         setLinks([]);
         setLoading(false);
       });
-  }, [menuKey]);
+  }, [selectedCategory]);
 
   const handleLinkClick = async (item) => {
     if (!item) return;
@@ -192,42 +290,29 @@ const QuickLinksView = ({
     }
   };
 
-  const filteredLinks = links.filter((item) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase().trim();
-    const title = (item.title || '').toLowerCase();
-    const cat = (item.category || '').toLowerCase();
-    return title.includes(q) || cat.includes(q);
-  });
-
   return (
     <div className={`quick-links-container theme-${theme}`}>
       <div className="quick-links-header">
         <h2 className="quick-links-title">{pageTitle}</h2>
         <p className="quick-links-subtitle">{pageSubtitle}</p>
+      </div>
 
-        <div className="quick-links-search-wrap">
-          <div className="quick-links-search-box">
-            <span className="quick-links-search-icon">🔍</span>
-            <input
-              type="text"
-              className="quick-links-search-input"
-              placeholder="Search links, forms, tutorials..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="quick-links-search-clear"
-                onClick={() => setSearchQuery('')}
-                title="Clear search"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
+      {/* Link Menu Tabs Bar (QUICK LINKS + All dynamic service links in top tab button format) */}
+      <div className="quick-links-tabs-bar">
+        {menuTabs.map((menuItem) => {
+          const isSelected = selectedCategory === menuItem.key;
+          return (
+            <button
+              key={menuItem.key}
+              type="button"
+              className={`quick-links-tab-pill ${isSelected ? 'active' : ''}`}
+              onClick={() => setSelectedCategory(menuItem.key)}
+            >
+              <span className="tab-pill-icon">{menuItem.icon}</span>
+              <span className="tab-pill-label">{menuItem.label.toUpperCase()}</span>
+            </button>
+          );
+        })}
       </div>
 
       {loading ? (
@@ -238,13 +323,9 @@ const QuickLinksView = ({
         <div className="quick-links-empty">
           No links available right now.
         </div>
-      ) : filteredLinks.length === 0 ? (
-        <div className="quick-links-empty">
-          No links found matching "{searchQuery}".
-        </div>
       ) : (
         <div className="quick-links-grid">
-          {filteredLinks.map((item) => {
+          {links.map((item) => {
             const itemId = item._id || item.id;
             const hasPhoto = Boolean(item.img && item.img.trim() !== '');
             const feeVal = Number(item.fee) || 0;
