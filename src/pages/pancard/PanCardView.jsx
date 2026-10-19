@@ -4555,19 +4555,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                             providerForm.method = 'POST';
                             providerForm.action = data.actionUrl;
 
-                            // POST each provider field as a separate hidden input
-                            // as required by the ETDS Authorizernew.aspx endpoint
-                            [
-                              ['token',   data.providerForm.token],
-                              ['payload', data.providerForm.payload],
-                              ['authkey', data.providerForm.authkey]
-                            ].forEach(([name, value]) => {
-                              const field = document.createElement('input');
-                              field.type  = 'hidden';
-                              field.name  = name;
-                              field.value = value;
-                              providerForm.appendChild(field);
-                            });
+                            const providerData = document.createElement('input');
+                            providerData.type = 'hidden';
+                            providerData.name = 'data';
+                            providerData.value = JSON.stringify(data.providerForm);
+                            providerForm.appendChild(providerData);
 
                             document.body.appendChild(providerForm);
                             providerForm.submit();
