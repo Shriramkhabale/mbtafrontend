@@ -8,6 +8,7 @@ import FormPanCrPdfTemplate, { generatePanCrPdf } from './PanCrPdfGenerator';
 import PanCorrectionForm from './PanCorrectionForm';
 import StampSignatureMerger from './StampSignatureMerger';
 import FindPanByAadhaarForm from './FindPanByAadhaarForm';
+import EPanCorrectionPanForm from './EPanCorrectionPanForm';
 import { Form49ADirectEditModal } from './Form49ADirectEditModal'; // eslint-disable-line no-unused-vars
 import { ALL_INDIAN_STATES, INDIAN_STATES_DISTRICTS, ALL_INDIAN_DISTRICTS, PROOF_OF_IDENTITY_OPTIONS, PROOF_OF_ADDRESS_OPTIONS, PROOF_OF_DOB_OPTIONS } from '../../utils/indiaData';
 import { AO_CODES_LIST, getAoCodesForDistrict } from '../../utils/aoCodeData';
@@ -15,6 +16,9 @@ import { API_URL, apiFetch } from '../../utils/apiClient';
 
 const PAPERLESS_PAN_TABS = ['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'];
 const EPAN_SERVICE_TABS = ['find_pan_aadhaar', ...PAPERLESS_PAN_TABS];
+const PAPERLESS_PAN_UNAVAILABLE_MESSAGE = 'This service is unavailable until the provider confirms its approved scope, retailer onboarding, required customer fields, and callback handling. No provider request will be sent and no wallet fee will be deducted.';
+const ETDS_CORRECTION_MESSAGE = 'Complete the customer details to continue to the provider authorization page. Your wallet fee is debited only after the backend accepts the request.';
+const EPAN_KYC_UNAVAILABLE_MESSAGE = 'The MPAN API only looks up an existing PAN from Aadhaar; it does not issue a new PAN. E-PAN KYC remains unavailable until the matching provider flow is confirmed. No request or wallet debit will occur.';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -2000,6 +2004,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
   // Submit PAN Application (Manual / E-KYC / Correction / Dynamic Tabs)
   const handleManualSubmit = async (e) => {
     e.preventDefault();
+    if (PAPERLESS_PAN_TABS.includes(activeTab)) {
+      return;
+    }
     if (Swal.isVisible() && Swal.getPopup()?.classList?.contains('swal2-toast')) {
       Swal.close();
     }
@@ -4389,9 +4396,19 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     <div className="hero-card-header">
                       <h4 className="hero-form-title" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                         <span>{currentTabObj?.icon || '💳'} {currentTabObj?.label || 'PAN Application'} Form</span>
-                        <span className="hero-fee-pill" style={{ marginLeft: '4px' }}>Fee: ₹{currentTabObj?.fee ?? 107}</span>
+                        {!PAPERLESS_PAN_TABS.includes(activeTab) && (
+                          <span className="hero-fee-pill" style={{ marginLeft: '4px' }}>Fee: ₹{currentTabObj?.fee ?? 107}</span>
+                        )}
                       </h4>
-                      <p className="hero-form-desc">{currentTabObj?.description}</p>
+                      <p className="hero-form-desc">
+                        {activeTab === 'epan_kyc'
+                          ? EPAN_KYC_UNAVAILABLE_MESSAGE
+                          : PAPERLESS_PAN_TABS.includes(activeTab)
+                            ? activeTab === 'epan_correction_otp'
+                              ? ETDS_CORRECTION_MESSAGE
+                              : PAPERLESS_PAN_UNAVAILABLE_MESSAGE
+                            : currentTabObj?.description}
+                      </p>
                     </div>
                   </div>
 
@@ -4465,6 +4482,76 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           </div>
                         );
                       })
+                    ) : activeTab === 'epan_correction_otp' ? (
+                      <EPanCorrectionPanForm
+                        onBack={() => switchTab('services_landing')}
+                        isSubmitting={isSubmitting}
+                        onSubmit={async (payload) => {
+                          const feeAmount = Number(currentTabObj?.fee ?? 107);
+
+                          if (!currentUser) {
+                            Toast.fire({ icon: 'error', title: 'User not found', text: 'Please log in to continue.' });
+                            return;
+                          }
+
+                          if (Number(walletBalance) < feeAmount) {
+                            Toast.fire({
+                              icon: 'warning',
+                              title: 'Insufficient Wallet Balance',
+                              text: `Required ₹${feeAmount.toFixed(2)}; available ₹${Number(walletBalance || 0).toFixed(2)}`
+                            });
+                            return;
+                          }
+
+                          try {
+                            setIsSubmitting(true);
+                            const sessionToken = sessionStorage.getItem('sessionToken');
+                            if (!sessionToken) {
+                              throw new Error('Please log in again before submitting this request.');
+                            }
+                            const response = await fetch(`${API_URL}/api/etds/start`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${sessionToken}`
+                              },
+                              body: JSON.stringify({
+                                title: payload.title,
+                                firstName: payload.firstName,
+                                middleName: payload.middleName,
+                                lastName: payload.lastName,
+                                panNumber: payload.panNumber,
+                                dob: payload.dob,
+                                mobileNumber: payload.mobileNumber,
+                                email: payload.email
+                              })
+                            });
+
+                            const data = await response.json();
+                            if (!response.ok || !data.success) {
+                              throw new Error(data.message || 'Unable to start PAN correction request.');
+                            }
+
+                            if (!data.actionUrl || !data.providerForm) {
+                              throw new Error('The provider handoff was incomplete. Please contact support.');
+                            }
+                            const providerForm = document.createElement('form');
+                            providerForm.method = 'POST';
+                            providerForm.action = data.actionUrl;
+                            const dataField = document.createElement('input');
+                            dataField.type = 'hidden';
+                            dataField.name = 'data';
+                            dataField.value = JSON.stringify(data.providerForm);
+                            providerForm.appendChild(dataField);
+                            document.body.appendChild(providerForm);
+                            providerForm.submit();
+                          } catch (error) {
+                            Toast.fire({ icon: 'error', title: 'Request failed', text: error.message || 'Unable to submit correction request.' });
+                          } finally {
+                            setIsSubmitting(false);
+                          }
+                        }}
+                      />
                     ) : PAPERLESS_PAN_TABS.includes(activeTab) ? (
                       <div style={{
                         gridColumn: '1 / -1',
@@ -4494,7 +4581,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           {currentTabObj?.label || 'Paperless PAN'} Service
                         </h4>
                         <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', maxWidth: '440px', marginInline: 'auto' }}>
-                          The paperless PAN API for this service will be added later.
+                          {activeTab === 'epan_kyc'
+                            ? EPAN_KYC_UNAVAILABLE_MESSAGE
+                            : activeTab === 'epan_correction_otp'
+                              ? ETDS_CORRECTION_MESSAGE
+                              : PAPERLESS_PAN_UNAVAILABLE_MESSAGE}
                         </p>
                         <button
                           type="button"
@@ -4562,7 +4653,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                 </div>
 
                 {/* Right Summary Sidebar */}
-                <div className="pancard-summary-sidebar">
+                {!PAPERLESS_PAN_TABS.includes(activeTab) && <div className="pancard-summary-sidebar">
                   <div className="summary-card-pro">
                     <div className="summary-card-header">
                       <h5 className="summary-title">Application Review</h5>
@@ -4607,6 +4698,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     </div>
                   </div>
                 </div>
+                }
 
               </div>
             </div>

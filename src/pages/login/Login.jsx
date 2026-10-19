@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './Login.css';
 import logoImg from '../../assets/logo.png';
@@ -17,6 +17,7 @@ const Toast = Swal.mixin({
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [newsImagesList, setNewsImagesList] = useState(() => {
@@ -188,8 +189,23 @@ const Login = () => {
         Swal.close();
         const storedUser = localStorage.getItem('currentUser') || (data.user && data.user.userId) || userId;
         localStorage.setItem('currentUser', storedUser);
+        if (data.sessionToken) {
+          sessionStorage.setItem('sessionToken', data.sessionToken);
+        }
         if (role === 'admin' || storedUser === 'admin') {
           navigate('/admin-login');
+        } else if (data.sessionToken) {
+          const returnTo = new URLSearchParams(location.search).get('returnTo');
+          if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+            const resultPath = new URL(returnTo, window.location.origin);
+            if (resultPath.origin === window.location.origin && resultPath.pathname === '/etds-result') {
+              navigate(`${resultPath.pathname}${resultPath.search}`, { replace: true });
+            } else {
+              navigate('/dashboard');
+            }
+          } else {
+            navigate('/dashboard');
+          }
         } else {
           navigate('/dashboard');
         }

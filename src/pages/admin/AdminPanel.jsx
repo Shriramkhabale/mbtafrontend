@@ -4203,6 +4203,7 @@ const AdminPanel = () => {
                 sessionStorage.removeItem('staffName');
                 sessionStorage.removeItem('staffPermissions');
                 sessionStorage.removeItem('currentUser');
+                sessionStorage.removeItem('sessionToken');
 
                 localStorage.removeItem('adminAuth');
                 localStorage.removeItem('adminEmail');

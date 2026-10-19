@@ -4,6 +4,7 @@ import Login from './pages/login/Login';
 import Dashboard from './pages/dashboard/Dashboard';
 import AdminPanel from './pages/admin/AdminPanel';
 import AdminLogin from './pages/admin/AdminLogin';
+import ETDSResultPage from './pages/pancard/ETDSResultPage';
 import { NotificationProvider } from './context/NotificationContext';
 import './App.css';
 
@@ -37,6 +38,7 @@ function App() {
             <Route path="/scholarship-links" element={<Dashboard />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/admin-panel" element={<AdminPanel />} />
+            <Route path="/etds-result" element={<ETDSResultPage />} />
             <Route path="/admin" element={<Navigate to="/admin-login" />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>

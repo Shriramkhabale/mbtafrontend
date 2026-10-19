@@ -651,7 +651,11 @@ const Dashboard = () => {
               <div className="dropdown-divider"></div>
               <button
                 className="dropdown-action-item logout-btn"
-                onClick={() => { localStorage.removeItem('currentUser'); navigate('/'); }}
+                onClick={() => {
+                  localStorage.removeItem('currentUser');
+                  sessionStorage.removeItem('sessionToken');
+                  navigate('/');
+                }}
               >
                 🚪 Logout
               </button>
