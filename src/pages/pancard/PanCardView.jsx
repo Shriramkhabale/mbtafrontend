@@ -4507,7 +4507,23 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                             setIsSubmitting(true);
                             const sessionToken = sessionStorage.getItem('sessionToken');
                             if (!sessionToken) {
-                              throw new Error('Please log in again before submitting this request.');
+                              // Token missing — prompt re-login with a dialog instead of a cold error
+                              setIsSubmitting(false);
+                              const result = await Swal.fire({
+                                icon: 'warning',
+                                title: 'Session Expired',
+                                text: 'Your session has expired or is missing. Please log out and log back in to continue.',
+                                confirmButtonText: 'Log Out & Re-Login',
+                                cancelButtonText: 'Cancel',
+                                showCancelButton: true,
+                                confirmButtonColor: '#ea580c'
+                              });
+                              if (result.isConfirmed) {
+                                localStorage.removeItem('currentUser');
+                                sessionStorage.removeItem('sessionToken');
+                                navigate('/');
+                              }
+                              return;
                             }
                             const response = await fetch(`${API_URL}/api/etds/start`, {
                               method: 'POST',
@@ -4538,11 +4554,21 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                             const providerForm = document.createElement('form');
                             providerForm.method = 'POST';
                             providerForm.action = data.actionUrl;
-                            const dataField = document.createElement('input');
-                            dataField.type = 'hidden';
-                            dataField.name = 'data';
-                            dataField.value = JSON.stringify(data.providerForm);
-                            providerForm.appendChild(dataField);
+
+                            // POST each provider field as a separate hidden input
+                            // as required by the ETDS Authorizernew.aspx endpoint
+                            [
+                              ['token',   data.providerForm.token],
+                              ['payload', data.providerForm.payload],
+                              ['authkey', data.providerForm.authkey]
+                            ].forEach(([name, value]) => {
+                              const field = document.createElement('input');
+                              field.type  = 'hidden';
+                              field.name  = name;
+                              field.value = value;
+                              providerForm.appendChild(field);
+                            });
+
                             document.body.appendChild(providerForm);
                             providerForm.submit();
                           } catch (error) {
