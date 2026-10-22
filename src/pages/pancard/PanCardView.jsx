@@ -16,9 +16,7 @@ import { API_URL, apiFetch } from '../../utils/apiClient';
 
 const PAPERLESS_PAN_TABS = ['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'];
 const EPAN_SERVICE_TABS = ['find_pan_aadhaar', ...PAPERLESS_PAN_TABS];
-const PAPERLESS_PAN_UNAVAILABLE_MESSAGE = 'This service is unavailable until the provider confirms its approved scope, retailer onboarding, required customer fields, and callback handling. No provider request will be sent and no wallet fee will be deducted.';
-const ETDS_CORRECTION_MESSAGE = 'Complete the customer details to continue to the provider authorization page. Your wallet fee is debited only after the backend accepts the request.';
-const EPAN_KYC_UNAVAILABLE_MESSAGE = 'The MPAN API only looks up an existing PAN from Aadhaar; it does not issue a new PAN. E-PAN KYC remains unavailable until the matching provider flow is confirmed. No request or wallet debit will occur.';
+const ETDS_PROVIDER_MESSAGE = 'Complete the customer details to continue to the provider authorization page. Your wallet fee is debited only after the backend accepts the request.';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -4401,13 +4399,9 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                         )}
                       </h4>
                       <p className="hero-form-desc">
-                        {activeTab === 'epan_kyc'
-                          ? EPAN_KYC_UNAVAILABLE_MESSAGE
-                          : PAPERLESS_PAN_TABS.includes(activeTab)
-                            ? activeTab === 'epan_correction_otp'
-                              ? ETDS_CORRECTION_MESSAGE
-                              : PAPERLESS_PAN_UNAVAILABLE_MESSAGE
-                            : currentTabObj?.description}
+                        {PAPERLESS_PAN_TABS.includes(activeTab)
+                          ? ETDS_PROVIDER_MESSAGE
+                          : currentTabObj?.description}
                       </p>
                     </div>
                   </div>
@@ -4482,8 +4476,11 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                           </div>
                         );
                       })
-                    ) : activeTab === 'epan_correction_otp' ? (
+                    ) : PAPERLESS_PAN_TABS.includes(activeTab) ? (
                       <EPanCorrectionPanForm
+                        serviceLabel={currentTabObj?.label || 'E-PAN'}
+                        submitLabel={`Continue to ${currentTabObj?.label || 'Provider'}`}
+                        showPanNumber={!['epan_kyc', 'epan_sign_photo'].includes(activeTab)}
                         onBack={() => switchTab('services_landing')}
                         isSubmitting={isSubmitting}
                         onSubmit={async (payload) => {
@@ -4532,11 +4529,12 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                                 Authorization: `Bearer ${sessionToken}`
                               },
                               body: JSON.stringify({
+                                serviceId: activeTab,
                                 title: payload.title,
                                 firstName: payload.firstName,
                                 middleName: payload.middleName,
                                 lastName: payload.lastName,
-                                panNumber: payload.panNumber,
+                                ...(payload.panNumber ? { panNumber: payload.panNumber } : {}),
                                 dob: payload.dob,
                                 mobileNumber: payload.mobileNumber,
                                 email: payload.email
@@ -4545,7 +4543,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
 
                             const data = await response.json();
                             if (!response.ok || !data.success) {
-                              throw new Error(data.message || 'Unable to start PAN correction request.');
+                              throw new Error(data.message || 'Unable to start the PAN request.');
                             }
 
                             if (!data.actionUrl || !data.providerForm) {
@@ -4564,64 +4562,12 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                             document.body.appendChild(providerForm);
                             providerForm.submit();
                           } catch (error) {
-                            Toast.fire({ icon: 'error', title: 'Request failed', text: error.message || 'Unable to submit correction request.' });
+                            Toast.fire({ icon: 'error', title: 'Request failed', text: error.message || 'Unable to submit the PAN request.' });
                           } finally {
                             setIsSubmitting(false);
                           }
                         }}
                       />
-                    ) : PAPERLESS_PAN_TABS.includes(activeTab) ? (
-                      <div style={{
-                        gridColumn: '1 / -1',
-                        background: '#ffffff',
-                        borderRadius: '16px',
-                        border: '1.5px dashed #0284c7',
-                        padding: '36px 20px',
-                        textAlign: 'center',
-                        boxShadow: '0 4px 16px rgba(2, 132, 199, 0.05)'
-                      }}>
-                        <div style={{
-                          width: '56px',
-                          height: '56px',
-                          borderRadius: '50%',
-                          background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)',
-                          color: '#0284c7',
-                          fontSize: '24px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          margin: '0 auto 14px',
-                          border: '2px solid #38bdf8'
-                        }}>
-                          📄
-                        </div>
-                        <h4 style={{ margin: '0 0 6px', fontSize: '17px', color: '#0369a1', fontWeight: 800 }}>
-                          {currentTabObj?.label || 'Paperless PAN'} Service
-                        </h4>
-                        <p style={{ margin: '0 0 16px', color: '#64748b', fontSize: '13px', maxWidth: '440px', marginInline: 'auto' }}>
-                          {activeTab === 'epan_kyc'
-                            ? EPAN_KYC_UNAVAILABLE_MESSAGE
-                            : activeTab === 'epan_correction_otp'
-                              ? ETDS_CORRECTION_MESSAGE
-                              : PAPERLESS_PAN_UNAVAILABLE_MESSAGE}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => switchTab('services_landing')}
-                          style={{
-                            background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '8px',
-                            padding: '8px 20px',
-                            fontWeight: 700,
-                            fontSize: '12.5px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ◀ Back to PAN Services
-                        </button>
-                      </div>
                     ) : (
                       <>
                         <div className="form-group-pro">
