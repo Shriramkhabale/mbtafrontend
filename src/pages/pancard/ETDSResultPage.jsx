@@ -88,7 +88,7 @@ const ETDSResultPage = () => {
       color: '#1e293b',
       fontFamily: 'Arial, sans-serif'
     }}>
-      <h1 style={{ marginTop: 0, color: '#c2410c', fontSize: '24px' }}>PAN Correction Status</h1>
+      <h1 style={{ marginTop: 0, color: '#c2410c', fontSize: '24px' }}>PAN Service Status</h1>
       {error ? (
         <p role="alert">{error}</p>
       ) : (

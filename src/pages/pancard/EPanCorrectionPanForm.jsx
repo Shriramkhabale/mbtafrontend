@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 
 const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
-const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correction', isSubmitting = false }) => {
+const EPanCorrectionPanForm = ({ onBack, onSubmit, serviceLabel = 'E-PAN Correction', submitLabel = 'Continue to Provider', showPanNumber = true, isSubmitting = false }) => {
   const [formData, setFormData] = useState({
     panNumber: '',
     title: '',
@@ -17,7 +17,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
   const fieldErrors = useMemo(() => {
     const nextErrors = {};
 
-    if (formData.panNumber && !PAN_PATTERN.test(formData.panNumber)) {
+    if (showPanNumber && formData.panNumber && !PAN_PATTERN.test(formData.panNumber)) {
       nextErrors.panNumber = 'Enter a valid PAN in the format ABCDE1234F.';
     }
 
@@ -45,13 +45,11 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
     }
 
     return nextErrors;
-  }, [formData]);
+  }, [formData, showPanNumber]);
 
   const isValid = Boolean(
-    formData.panNumber &&
-    PAN_PATTERN.test(formData.panNumber) &&
+    (!showPanNumber || (formData.panNumber && PAN_PATTERN.test(formData.panNumber))) &&
     formData.title &&
-    formData.firstName.trim() &&
     formData.lastName.trim() &&
     formData.firstName.length <= 25 &&
     formData.middleName.length <= 25 &&
@@ -91,7 +89,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
         dateofbirth: `${day}/${month}/${year}`,
         mobileno: formData.mobileNumber.trim(),
         emailid: formData.email.trim().toLowerCase(),
-        pan: formData.panNumber.trim()
+        ...(showPanNumber ? { pan: formData.panNumber.trim() } : {})
       }
     });
   };
@@ -101,7 +99,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
       <div onKeyDown={(event) => {
         if (event.key === 'Enter') event.preventDefault();
       }}>
-        <div className="form-group-pro">
+        {showPanNumber && <div className="form-group-pro">
           <label className="form-label-pro" htmlFor="epan-correction-pan">
             PAN Number <span className="req-star">*</span>
           </label>
@@ -128,7 +126,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
               {fieldErrors.panNumber}
             </p>
           )}
-        </div>
+        </div>}
 
         <div className="form-group-pro" style={{ marginTop: '14px' }}>
           <label className="form-label-pro" htmlFor="epan-correction-title">
@@ -151,7 +149,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
 
         <div className="form-group-pro" style={{ marginTop: '14px' }}>
           <label className="form-label-pro" htmlFor="epan-correction-first-name">
-            First Name <span className="req-star">*</span>
+            First Name
           </label>
           <input
             id="epan-correction-first-name"
@@ -160,7 +158,6 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
             value={formData.firstName}
             onChange={handleChange}
             maxLength={25}
-            required
             autoComplete="given-name"
             className="form-input-pro"
           />
@@ -173,7 +170,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
 
         <div className="form-group-pro" style={{ marginTop: '14px' }}>
           <label className="form-label-pro" htmlFor="epan-correction-middle-name">
-            Middle Name <span className="req-star">*</span>
+            Middle Name
           </label>
           <input
             id="epan-correction-middle-name"
@@ -293,7 +290,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, submitLabel = 'Submit Correct
             padding: '12px 14px'
           }}
         >
-          After submission, you will be redirected to the provider to authorize this PAN correction.
+          After submission, you will be redirected to the provider to authorize {serviceLabel}.
           The application fee is debited only after the backend has validated your request and
           prepared the provider handoff.
         </div>
