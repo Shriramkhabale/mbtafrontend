@@ -1,7 +1,7 @@
 export const DYNAMIC_LINK_MENUS = [
   { key: 'servicesLink', label: 'SERVICES LINK', icon: '🛠️', route: '/services-link' },
   { key: 'jobLinks', label: 'JOB LINKS', icon: '💼', route: '/job-links' },
-  { key: 'admitCard', label: 'ADMIT CARD', icon: '🪪', route: '/admit-card' },
+  { key: 'admitCard', label: 'ADMIT CARD', icon: '🎫', route: '/admit-card' },
   { key: 'formLinks', label: 'FORM LINKS', icon: '📋', route: '/form-links' },
   { key: 'vedioLink', label: 'VEDIO LINK', icon: '🎥', route: '/vedio-link' },
   { key: 'trainingLinks', label: 'TRAINING LINKS', icon: '🎓', route: '/training-links' },
@@ -49,6 +49,7 @@ export const findDynamicMenu = (term, customMenus = []) => {
   const raw = String(term).trim().toLowerCase();
   const t = raw.split('?')[0].replace(/\/+$/, '');
   const tNoSlash = t.replace(/^\/+/, '');
+  if (t.includes('offline') || t.includes('pan')) return null;
 
   // Check custom dynamic menus first if passed
   if (Array.isArray(customMenus) && customMenus.length > 0) {
@@ -120,6 +121,11 @@ export const findDynamicMenu = (term, customMenus = []) => {
 
 export const getDynamicMenuForSidebarItem = (menuItem, customMenus = []) => {
   if (!menuItem) return null;
+  const lowerUrl = (menuItem.url || '').toLowerCase();
+  const lowerLabel = (menuItem.label || '').toLowerCase();
+  if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan')) {
+    return null;
+  }
   if (menuItem.url) {
     const byUrl = findDynamicMenu(menuItem.url, customMenus);
     if (byUrl) return byUrl;

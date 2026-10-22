@@ -1,0 +1,205 @@
+/**
+ * User Permissions Utility
+ * Centralizes permission checks and alias mappings for Retailer / User accounts.
+ */
+
+export const PERMISSION_ALIASES = {
+  // PAN Card aliases
+  'pancard': 'panCard',
+  'pan_card': 'panCard',
+  'pan.new': 'pan.manualNew',
+  'pan_manual': 'pan.manualNew',
+  'pan_correction': 'pan.correction',
+  'pan_find': 'pan.findPan',
+
+  // Quick Links & Portals aliases
+  'view_quick_links_dashboard': 'quickLinks.view',
+  'quick_links': 'quickLinksModule',
+  'quicklinks': 'quickLinksModule',
+
+  // Wallet aliases
+  'instant_upi_qr_code_topup': 'wallet.upiPayment',
+  'wallet_upi': 'wallet.upiPayment',
+  'wallet_balance': 'wallet.balance',
+  'wallet_requisition': 'wallet.requisition',
+  'requisition': 'wallet.requisition',
+  'wallet_payout': 'wallet.payout',
+  'payout': 'wallet.payout',
+  'wallet_history': 'wallet.history',
+  'wallet': 'walletModule',
+
+  // Ledger aliases
+  'ledger_view': 'ledger.view',
+  'ledger': 'ledgerModule',
+
+  // Dynamic menus aliases
+  'services_link': 'dyn.servicesLink',
+  'servicesLink': 'dyn.servicesLink',
+  'job_links': 'dyn.jobLinks',
+  'jobLinks': 'dyn.jobLinks',
+  'admit_card': 'dyn.admitCard',
+  'admitCard': 'dyn.admitCard',
+  'form_links': 'dyn.formLinks',
+  'formLinks': 'dyn.formLinks',
+  'vedio_link': 'dyn.vedioLink',
+  'vedioLink': 'dyn.vedioLink',
+  'video_link': 'dyn.vedioLink',
+  'videoLink': 'dyn.vedioLink',
+  'training_links': 'dyn.trainingLinks',
+  'trainingLinks': 'dyn.trainingLinks',
+  'product_links': 'dyn.productLinks',
+  'productLinks': 'dyn.productLinks',
+  'govt_links': 'dyn.govtLinks',
+  'govtLinks': 'dyn.govtLinks',
+  'print': 'dyn.print',
+  'schorship_links': 'dyn.schorshipLinks',
+  'schorshipLinks': 'dyn.schorshipLinks',
+  'scholarship_links': 'dyn.schorshipLinks',
+  'scholarshipLinks': 'dyn.schorshipLinks',
+
+  // Offline Work aliases
+  'offline_work': 'offlineWork',
+  'offlineWork': 'offlineWork',
+  'offlinework': 'offlineWork'
+};
+
+// Map each module to its sub-permissions
+export const MODULE_SUB_MAP = {
+  offlineWork: ['offlineWork.view', 'offlineWork.submit', 'offlineWork.history'],
+  panCard: ['pan.manualNew', 'pan.epanKyc', 'pan.correction', 'pan.findPan', 'pan.merger', 'pan.submissions'],
+  dynamicMenus: [
+    'dyn.servicesLink', 'dyn.jobLinks', 'dyn.admitCard', 'dyn.formLinks', 
+    'dyn.vedioLink', 'dyn.trainingLinks', 'dyn.productLinks', 'dyn.govtLinks', 
+    'dyn.print', 'dyn.schorshipLinks'
+  ],
+  quickLinksModule: ['quickLinks.view', 'quickLinks.open', 'quickLinks.search'],
+  walletModule: ['wallet.balance', 'wallet.upiPayment', 'wallet.payout', 'wallet.requisition', 'wallet.history'],
+  ledgerModule: ['ledger.view', 'ledger.filter', 'ledger.exportPdf'],
+  dashboardNavModule: ['dashboard.actionCards', 'dashboard.topTabs', 'dashboard.banners'],
+  profileModule: ['profile.view', 'profile.receipts', 'profile.certificate', 'profile.password']
+};
+
+/**
+ * Normalizes an array of permission IDs, expanding aliases.
+ */
+export const normalizePermissions = (rawPermissions) => {
+  if (!Array.isArray(rawPermissions)) return [];
+  const normalized = new Set();
+
+  rawPermissions.forEach(p => {
+    if (!p || typeof p !== 'string') return;
+    const trimmed = p.trim();
+    if (!trimmed) return;
+
+    const mapped = PERMISSION_ALIASES[trimmed] || trimmed;
+    normalized.add(mapped);
+
+    // If an alias matched, also add the alias itself for backwards compatibility
+    if (PERMISSION_ALIASES[trimmed]) {
+      normalized.add(PERMISSION_ALIASES[trimmed]);
+    }
+  });
+
+  return Array.from(normalized);
+};
+
+/**
+ * Retrieves the currently active user's permissions from localStorage or memory.
+ */
+export const getStoredUserPermissions = () => {
+  try {
+    const raw = localStorage.getItem('userPermissions');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return normalizePermissions(parsed);
+    }
+    const userJson = localStorage.getItem('user');
+    if (userJson) {
+      const u = JSON.parse(userJson);
+      if (Array.isArray(u.permissions)) return normalizePermissions(u.permissions);
+    }
+  } catch (e) {
+    console.warn('Error reading stored user permissions:', e);
+  }
+  return [];
+};
+
+/**
+ * Core permission check:
+ * Returns true if the user is allowed to access the specified module or sub-permission.
+ *
+ * Rules:
+ * 1. Admin always has full access.
+ * 2. If user permissions contain 'none', access is completely revoked.
+ * 3. If user permissions array is empty (unconfigured / default), user has full access.
+ * 4. If user permissions has explicit items:
+ *    - Direct match on permId returns true.
+ *    - If checking a sub-permission and parent module is allowed, returns true.
+ *    - If checking a parent module and ANY of its sub-permissions is allowed, returns true.
+ */
+export const hasUserAccess = (userOrPermissions, permissionId, userRole = null) => {
+  if (!permissionId) return true;
+
+  // Determine user role
+  const role = (
+    userRole ||
+    (userOrPermissions && typeof userOrPermissions === 'object' && !Array.isArray(userOrPermissions) ? userOrPermissions.role : null) ||
+    (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('userRole') : null) ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('userRole') : null) ||
+    ''
+  ).toLowerCase();
+
+  const currentUsername = (
+    (userOrPermissions && typeof userOrPermissions === 'object' && !Array.isArray(userOrPermissions) ? userOrPermissions.userId : null) ||
+    (typeof localStorage !== 'undefined' ? localStorage.getItem('currentUser') : null) ||
+    ''
+  ).toLowerCase();
+
+  if (role === 'admin' || currentUsername === 'admin') {
+    return true;
+  }
+
+  // Extract raw permissions array
+  let perms = [];
+  if (Array.isArray(userOrPermissions)) {
+    perms = userOrPermissions;
+  } else if (userOrPermissions && Array.isArray(userOrPermissions.permissions)) {
+    perms = userOrPermissions.permissions;
+  } else {
+    perms = getStoredUserPermissions();
+  }
+
+  const normalized = normalizePermissions(perms);
+
+  // If explicitly revoked / restricted to none
+  if (normalized.includes('none')) {
+    return false;
+  }
+
+  // If unconfigured (no permissions set in DB yet), default to full access
+  if (normalized.length === 0) {
+    return true;
+  }
+
+  const target = PERMISSION_ALIASES[permissionId] || permissionId;
+
+  // 1. Direct match
+  if (normalized.includes(target)) {
+    return true;
+  }
+
+  // 2. If target is a parent module, check if ANY sub-permission of that module is granted
+  const subs = MODULE_SUB_MAP[target];
+  if (subs && subs.some(subId => normalized.includes(subId))) {
+    return true;
+  }
+
+  // 3. For offlineWork: grant access by default to all active users unless explicitly revoked
+  if (target === 'offlineWork' || target.startsWith('offlineWork.')) {
+    if (!normalized.includes('!offlineWork') && !normalized.includes('none')) {
+      return true;
+    }
+  }
+
+  return false;
+};

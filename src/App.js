@@ -36,6 +36,8 @@ function App() {
             <Route path="/print" element={<Dashboard />} />
             <Route path="/schorship-links" element={<Dashboard />} />
             <Route path="/scholarship-links" element={<Dashboard />} />
+            <Route path="/offline-work" element={<Dashboard />} />
+            <Route path="/offlinework" element={<Dashboard />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/admin-panel" element={<AdminPanel />} />
             <Route path="/etds-result" element={<ETDSResultPage />} />

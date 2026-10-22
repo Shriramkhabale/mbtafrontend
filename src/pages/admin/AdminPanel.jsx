@@ -12,6 +12,9 @@ import NotificationBell from '../../context/NotificationBell';
 import { exportSinglePanApplicationToExcel } from '../../utils/exportPanToExcel';
 import logoImg from '../../assets/logo.png';
 import { DYNAMIC_LINK_MENUS, getDynamicMenuForSidebarItem, toMenuKey, getCustomMenuIcons, setCustomMenuIcon } from '../../utils/dynamicLinkMenus';
+import { normalizePermissions } from '../../utils/userPermissions';
+import OfflineFormsManager from './OfflineFormsManager';
+import OfflineSubmissionsManager from './OfflineSubmissionsManager';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -64,19 +67,43 @@ const showCustomToast = (title, text = '', icon = 'success', duration = 5000) =>
   });
 
   let timer = null;
+  let forceRemoveTimer = null;
+
   const dismiss = () => {
     if (timer) clearTimeout(timer);
+    if (forceRemoveTimer) clearTimeout(forceRemoveTimer);
     toastContainer.style.opacity = '0';
     toastContainer.style.transform = 'translateY(-15px) scale(0.95)';
+    toastContainer.style.pointerEvents = 'none';
     setTimeout(() => {
-      if (toastContainer.parentNode) {
-        toastContainer.parentNode.removeChild(toastContainer);
-      }
+      try {
+        if (toastContainer && toastContainer.parentNode) {
+          toastContainer.parentNode.removeChild(toastContainer);
+        } else if (toastContainer && typeof toastContainer.remove === 'function') {
+          toastContainer.remove();
+        }
+      } catch (e) {}
     }, 250);
   };
 
   toastContainer.onclick = dismiss;
-  timer = setTimeout(dismiss, duration);
+  const toastCloseBtn = toastContainer.querySelector('[title="Close"]');
+  if (toastCloseBtn) {
+    toastCloseBtn.onclick = (e) => {
+      e.stopPropagation();
+      dismiss();
+    };
+  }
+
+  const toastDuration = (duration && Number(duration) > 0) ? Number(duration) : 5000;
+  timer = setTimeout(dismiss, toastDuration);
+
+  forceRemoveTimer = setTimeout(() => {
+    try {
+      const el = document.getElementById('custom-app-toast-container');
+      if (el) el.remove();
+    } catch (e) {}
+  }, toastDuration + 300);
 };
 
 const Toast = {
@@ -693,8 +720,9 @@ const AdminPanel = () => {
   };
 
   const [isUiSubmenuOpen, setIsUiSubmenuOpen] = useState(false);
-  const [isDynamicMenusOpen, setIsDynamicMenusOpen] = useState(true);
+  const [isDynamicMenusOpen, setIsDynamicMenusOpen] = useState(false);
   const [isPanSubmenuOpen, setIsPanSubmenuOpen] = useState(false);
+  const [isOfflineSubmenuOpen, setIsOfflineSubmenuOpen] = useState(false);
   const [isFeesSubmenuOpen, setIsFeesSubmenuOpen] = useState(false);
   const [isLedgerSubmenuOpen, setIsLedgerSubmenuOpen] = useState(false);
 
@@ -826,6 +854,28 @@ const AdminPanel = () => {
       ]
     },
     {
+      id: 'offlineSubmissions',
+      label: 'Retailer Offline Submissions',
+      icon: '📁',
+      subPermissions: [
+        { id: 'offlineSubmissions.view', label: 'View & Filter List', icon: '👁️' },
+        { id: 'offlineSubmissions.status', label: 'Update Status & Remarks', icon: '🔄' },
+        { id: 'offlineSubmissions.receipt', label: 'Upload & Send Receipt', icon: '📤' },
+        { id: 'offlineSubmissions.docs', label: 'View Documents', icon: '📄' },
+      ]
+    },
+    {
+      id: 'offlineForms',
+      label: 'Offline Form Manager',
+      icon: '📑',
+      subPermissions: [
+        { id: 'offlineForms.addTab', label: 'Add Service Tab', icon: '➕' },
+        { id: 'offlineForms.editTab', label: 'Edit Tab & Fee', icon: '✏️' },
+        { id: 'offlineForms.deleteTab', label: 'Delete Tab', icon: '🗑️' },
+        { id: 'offlineForms.fields', label: 'Manage Form Fields', icon: '⚙️' },
+      ]
+    },
+    {
       id: 'walletRequests',
       label: 'Wallet Requests',
       icon: '💼',
@@ -893,6 +943,101 @@ const AdminPanel = () => {
         { id: 'payOutHistory.export', label: 'Export CSV & Print PDF', icon: '📥' },
       ]
     },
+  ];
+
+  const AVAILABLE_USER_MODULES = [
+    {
+      id: 'panCard',
+      label: 'PAN Card Services',
+      icon: '📇',
+      subPermissions: [
+        { id: 'pan.manualNew', label: 'Physical New PAN (Form 49A / Form 93)', icon: '📝' },
+        { id: 'pan.epanKyc', label: 'Instant E-PAN KYC (Biometric / OTP)', icon: '⚡' },
+        { id: 'pan.correction', label: 'PAN Correction & Changes (CSF)', icon: '✏️' },
+        { id: 'pan.findPan', label: 'Find PAN Number by Aadhaar', icon: '🔍' },
+        { id: 'pan.merger', label: 'Stamp & Signature PDF Merger Tool', icon: '📎' },
+        { id: 'pan.submissions', label: 'View Submissions & Status Tracking', icon: '📊' }
+      ]
+    },
+    {
+      id: 'offlineWork',
+      label: 'Offline Work Services',
+      icon: '📁',
+      subPermissions: [
+        { id: 'offlineWork.view', label: 'Access Offline Work Portal', icon: '👁️' },
+        { id: 'offlineWork.submit', label: 'Submit Offline Applications', icon: '📝' },
+        { id: 'offlineWork.history', label: 'View Submission History & Receipts', icon: '📜' }
+      ]
+    },
+    {
+      id: 'dynamicMenus',
+      label: 'Dynamic Service Portals',
+      icon: '🌐',
+      subPermissions: [
+        { id: 'dyn.servicesLink', label: 'Services Link Portal', icon: '🛠️' },
+        { id: 'dyn.jobLinks', label: 'Job Links Portal', icon: '💼' },
+        { id: 'dyn.admitCard', label: 'Admit Card Portal', icon: '🎫' },
+        { id: 'dyn.formLinks', label: 'Form Links Portal', icon: '📋' },
+        { id: 'dyn.vedioLink', label: 'Video / Tutorial Portal', icon: '🎥' },
+        { id: 'dyn.trainingLinks', label: 'Training Links Portal', icon: '🎓' },
+        { id: 'dyn.productLinks', label: 'Product Links Portal', icon: '📦' },
+        { id: 'dyn.govtLinks', label: 'Government Links Portal', icon: '🏛️' },
+        { id: 'dyn.print', label: 'Print Services Portal', icon: '🖨️' },
+        { id: 'dyn.schorshipLinks', label: 'Scholarship Links Portal', icon: '📜' }
+      ]
+    },
+    {
+      id: 'quickLinksModule',
+      label: 'Quick Links & Bookmarks',
+      icon: '🔗',
+      subPermissions: [
+        { id: 'quickLinks.view', label: 'View Quick Links Dashboard', icon: '👁️' },
+        { id: 'quickLinks.open', label: 'Open External & Direct URLs', icon: '🚀' },
+        { id: 'quickLinks.search', label: 'Search & Filter Quick Links', icon: '🔍' }
+      ]
+    },
+    {
+      id: 'walletModule',
+      label: 'Wallet & Fund Management',
+      icon: '💼',
+      subPermissions: [
+        { id: 'wallet.balance', label: 'View Live Wallet Balance', icon: '👁️' },
+        { id: 'wallet.upiPayment', label: 'Instant UPI QR Code Top-up', icon: '📱' },
+        { id: 'wallet.requisition', label: 'Submit Bank Payment Requisition', icon: '🏦' },
+        { id: 'wallet.history', label: 'View Top-up & Payment History', icon: '📜' }
+      ]
+    },
+    {
+      id: 'ledgerModule',
+      label: 'Wallet Ledger & Statements',
+      icon: '📒',
+      subPermissions: [
+        { id: 'ledger.view', label: 'View Passbook & Debit/Credit Ledger', icon: '👁️' },
+        { id: 'ledger.filter', label: 'Filter Transactions by Date & Type', icon: '🔍' },
+        { id: 'ledger.exportPdf', label: 'Download & Print Ledger PDF', icon: '📥' }
+      ]
+    },
+    {
+      id: 'dashboardNavModule',
+      label: 'Dashboard Shortcuts & Navigation',
+      icon: '💳',
+      subPermissions: [
+        { id: 'dashboard.actionCards', label: 'Access Action Quick Cards', icon: '💳' },
+        { id: 'dashboard.topTabs', label: 'Access Top Service Tabs', icon: '📑' },
+        { id: 'dashboard.banners', label: 'View Promotional Banners & News', icon: '🖼️' }
+      ]
+    },
+    {
+      id: 'profileModule',
+      label: 'Account Profile & Receipts',
+      icon: '👤',
+      subPermissions: [
+        { id: 'profile.view', label: 'View Profile & Retailer Info', icon: '👤' },
+        { id: 'profile.receipts', label: 'Download Application Receipts', icon: '🧾' },
+        { id: 'profile.certificate', label: 'View Authorized Retailer Certificate', icon: '🏆' },
+        { id: 'profile.password', label: 'Change Login Password', icon: '🔑' }
+      ]
+    }
   ];
 
   const fetchStaffList = async () => {
@@ -1408,44 +1553,69 @@ const AdminPanel = () => {
   });
   const [isSavingDynamicMenu, setIsSavingDynamicMenu] = useState(false);
 
-  // Derive dynamic menus with up-to-date labels and active status from sidebarMenus
-  const dynamicLinkMenusList = useMemo(() => {
+  // Derive all link menus (Quick Links + all dynamic link menus) ordered according to sidebarMenus
+  const allLinkMenusList = useMemo(() => {
     const customIcons = getCustomMenuIcons();
-    // 1. Standard dynamic link menus
-    const standardList = DYNAMIC_LINK_MENUS.map(dyn => {
-      const matched = (sidebarMenus || []).find(sm => {
-        const d = getDynamicMenuForSidebarItem(sm);
-        return d && d.key === dyn.key;
-      });
-      return {
-        ...dyn,
-        icon: customIcons[dyn.key] || dyn.icon || '🌐',
-        _id: matched ? matched._id : null,
-        label: (matched && matched.label && matched.label.trim()) ? matched.label.trim() : dyn.label,
-        isActive: matched ? Boolean(matched.isActive) : true,
-        isCustom: false
-      };
-    });
+    const result = [];
+    const seenKeys = new Set();
 
-    // 2. Custom dynamic link menus added by the admin from sidebarMenus
-    const customList = [];
     (sidebarMenus || []).forEach(sm => {
       if (!sm || !sm.label) return;
-      const matchedStd = getDynamicMenuForSidebarItem(sm);
-      if (matchedStd) return; // already in standardList
-
-      const l = sm.label.toLowerCase();
+      const l = (sm.label || '').toLowerCase();
       const u = (sm.url || '').toLowerCase();
       const isPan = l.includes('pan');
       const isDash = l.includes('dash');
-      const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
       const isWallet = l.includes('wallet');
       const isLedger = l.includes('ledger') || l.includes('report');
+      if (isDash || isPan || isWallet || isLedger) return;
 
-      if (!isPan && !isDash && !isQuick && !isWallet && !isLedger && sm.url && sm.url.startsWith('/')) {
+      const matchedStd = getDynamicMenuForSidebarItem(sm);
+      const isQuick = !matchedStd && (
+        u === '/quick-links' || u === '/view-links' || l.includes('quick') || l === 'view links'
+      );
+
+      if (isQuick) {
+        if (!seenKeys.has('quickLinks')) {
+          seenKeys.add('quickLinks');
+          result.push({
+            key: 'quickLinks',
+            _id: sm._id,
+            label: (sm.label && sm.label.trim()) || 'Quick Links',
+            icon: customIcons['quickLinks'] || '🔗',
+            route: '/quick-links',
+            isActive: sm.isActive !== undefined ? Boolean(sm.isActive) : true,
+            isCustom: false
+          });
+        }
+        return;
+      }
+
+      if (matchedStd) {
+        if (!seenKeys.has(matchedStd.key)) {
+          seenKeys.add(matchedStd.key);
+          result.push({
+            ...matchedStd,
+            _id: sm._id,
+            label: (sm.label && sm.label.trim()) || matchedStd.label,
+            icon: customIcons[matchedStd.key] || matchedStd.icon || '🌐',
+            route: matchedStd.route,
+            isActive: sm.isActive !== undefined ? Boolean(sm.isActive) : true,
+            isCustom: false
+          });
+        }
+        return;
+      }
+
+      if (sm.url && sm.url.startsWith('/')) {
+        const lowerUrl = (sm.url || '').toLowerCase();
+        const lowerLabel = (sm.label || '').toLowerCase();
+        if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan')) {
+          return;
+        }
         const key = sm.url.replace(/^\/+/, '').replace(/[^a-zA-Z0-9]/g, '');
-        if (key && !standardList.some(s => s.key === key) && !customList.some(c => c.key === key || c.route === sm.url)) {
-          customList.push({
+        if (key && !seenKeys.has(key)) {
+          seenKeys.add(key);
+          result.push({
             key,
             _id: sm._id,
             label: sm.label.trim(),
@@ -1458,23 +1628,40 @@ const AdminPanel = () => {
       }
     });
 
-    return [...standardList, ...customList];
+    // Ensure any standard menus not yet in sidebarMenus are appended
+    DYNAMIC_LINK_MENUS.forEach(dyn => {
+      if (!seenKeys.has(dyn.key)) {
+        seenKeys.add(dyn.key);
+        result.push({
+          ...dyn,
+          icon: customIcons[dyn.key] || dyn.icon || '🌐',
+          _id: null,
+          isActive: true,
+          isCustom: false
+        });
+      }
+    });
+
+    // Ensure quickLinks is included
+    if (!seenKeys.has('quickLinks')) {
+      seenKeys.add('quickLinks');
+      result.unshift({
+        key: 'quickLinks',
+        label: 'Quick Links',
+        icon: '🔗',
+        route: '/quick-links',
+        isActive: true,
+        _id: null,
+        isCustom: false
+      });
+    }
+
+    return result;
   }, [sidebarMenus]);
 
-  const allLinkMenusList = useMemo(() => {
-    const quickMenu = (sidebarMenus || []).find(sm => {
-      const d = getDynamicMenuForSidebarItem(sm);
-      if (d) return false;
-      const l = (sm.label || '').toLowerCase();
-      const u = (sm.url || '').toLowerCase();
-      return l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
-    });
-    const quickLabel = (quickMenu && quickMenu.label && quickMenu.label.trim()) ? quickMenu.label.trim() : 'Quick Links';
-    return [
-      { key: 'quickLinks', label: quickLabel, icon: '🔗', route: '/quick-links', isActive: quickMenu ? Boolean(quickMenu.isActive) : true },
-      ...dynamicLinkMenusList
-    ];
-  }, [sidebarMenus, dynamicLinkMenusList]);
+  const dynamicLinkMenusList = useMemo(() => {
+    return allLinkMenusList.filter(m => m.key !== 'quickLinks');
+  }, [allLinkMenusList]);
   const [banners, setBanners] = useState([]);
   const [newsImages, setNewsImages] = useState([]);
   const [quickLinks, setQuickLinks] = useState([]);
@@ -1733,6 +1920,11 @@ const AdminPanel = () => {
   const [isUserEditModalOpen, setIsUserEditModalOpen] = useState(false);
   const [isUserViewModalOpen, setIsUserViewModalOpen] = useState(false);
   const [selectedUserForModal, setSelectedUserForModal] = useState(null);
+  const [isUserPermsModalOpen, setIsUserPermsModalOpen] = useState(false);
+  const [selectedUserForPerms, setSelectedUserForPerms] = useState(null);
+  const [userPermsFormData, setUserPermsFormData] = useState({ permissions: [] });
+  const [collapsedUserModules, setCollapsedUserModules] = useState({});
+  const [userPermsSaving, setUserPermsSaving] = useState(false);
 
   const [showCreateUserPassword, setShowCreateUserPassword] = useState(false);
   const [showCreateUserConfirmPassword, setShowCreateUserConfirmPassword] = useState(false);
@@ -1820,6 +2012,68 @@ const AdminPanel = () => {
         body: JSON.stringify({ orderedIds })
       });
     } catch (e) { console.error("Error saving order"); }
+  };
+
+  // Drag and drop states & handlers for dynamic link menus tab switcher (Photo 2)
+  const [draggedMenuTabIdx, setDraggedMenuTabIdx] = useState(null);
+  const isDraggingMenuTabRef = useRef(false);
+  const latestSidebarMenusRef = useRef(sidebarMenus);
+  useEffect(() => {
+    latestSidebarMenusRef.current = sidebarMenus;
+  }, [sidebarMenus]);
+
+  const handleMenuTabDragStart = (e, index) => {
+    setDraggedMenuTabIdx(index);
+    isDraggingMenuTabRef.current = false;
+    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', String(index));
+    } catch (err) {}
+  };
+
+  const handleMenuTabDragEnter = (e, targetIdx) => {
+    e.preventDefault();
+    if (draggedMenuTabIdx === null || draggedMenuTabIdx === targetIdx) return;
+    isDraggingMenuTabRef.current = true;
+
+    const currentLinks = [...allLinkMenusList];
+    const [movedLink] = currentLinks.splice(draggedMenuTabIdx, 1);
+    currentLinks.splice(targetIdx, 0, movedLink);
+    setDraggedMenuTabIdx(targetIdx);
+
+    const currentSidebar = latestSidebarMenusRef.current || sidebarMenus || [];
+    const nonLinkMenus = currentSidebar.filter(sm => {
+      return !currentLinks.some(lm => lm._id && String(lm._id) === String(sm._id));
+    });
+    const updatedLinkMenus = currentLinks
+      .map(lm => currentSidebar.find(sm => lm._id && String(sm._id) === String(lm._id)))
+      .filter(Boolean);
+
+    const combined = [...nonLinkMenus, ...updatedLinkMenus];
+    latestSidebarMenusRef.current = combined;
+    setSidebarMenus(combined);
+  };
+
+  const handleMenuTabDragEnd = async () => {
+    setDraggedMenuTabIdx(null);
+    setTimeout(() => {
+      isDraggingMenuTabRef.current = false;
+    }, 120);
+
+    const toSave = latestSidebarMenusRef.current || sidebarMenus || [];
+    const orderedIds = toSave.map(m => m._id).filter(Boolean);
+    if (orderedIds.length > 0) {
+      try {
+        await fetch(`${API_URL}/api/sidebar-menus/reorder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderedIds })
+        });
+        showCustomToast('Position Saved', 'Dynamic menu positions updated successfully.', 'success', 1800);
+      } catch (err) {
+        console.error('Failed to save reordered dynamic menus:', err);
+      }
+    }
   };
 
   // Drag and drop states & handlers for PAN form field reordering
@@ -3112,6 +3366,166 @@ const AdminPanel = () => {
     setIsUserViewModalOpen(true);
   };
 
+  const getAllUserPermissionsList = () => {
+    const all = [];
+    AVAILABLE_USER_MODULES.forEach(mod => {
+      all.push(mod.id);
+      if (mod.subPermissions) {
+        mod.subPermissions.forEach(s => all.push(s.id));
+      }
+    });
+    return all;
+  };
+
+  const handleOpenUserPermissions = (user) => {
+    setSelectedUserForPerms(user);
+    setCollapsedUserModules({});
+    if (Array.isArray(user.permissions) && user.permissions.includes('none')) {
+      setUserPermsFormData({ permissions: [] });
+    } else if (Array.isArray(user.permissions) && user.permissions.length > 0) {
+      const normalized = normalizePermissions(user.permissions);
+      const expanded = new Set(normalized);
+      AVAILABLE_USER_MODULES.forEach(mod => {
+        const subIds = (mod.subPermissions || []).map(s => s.id);
+        const hasAnySub = subIds.some(s => normalized.includes(s));
+        if (normalized.includes(mod.id) && !hasAnySub) {
+          subIds.forEach(s => expanded.add(s));
+        }
+      });
+      setUserPermsFormData({ permissions: Array.from(expanded) });
+    } else {
+      setUserPermsFormData({ permissions: getAllUserPermissionsList() });
+    }
+    setIsUserPermsModalOpen(true);
+  };
+
+  const handleToggleUserModuleAll = (mod, isChecked) => {
+    setUserPermsFormData(prev => {
+      const current = prev.permissions || [];
+      const subIds = mod.subPermissions ? mod.subPermissions.map(s => s.id) : [];
+      const allModIds = [mod.id, ...subIds];
+
+      if (isChecked) {
+        const set = new Set([...current, ...allModIds]);
+        return { ...prev, permissions: Array.from(set) };
+      } else {
+        const removeSet = new Set(allModIds);
+        return { ...prev, permissions: current.filter(id => !removeSet.has(id)) };
+      }
+    });
+  };
+
+  const handleToggleUserSubPermission = (mod, subId) => {
+    setUserPermsFormData(prev => {
+      const current = prev.permissions || [];
+      const isCurrentlyChecked = current.includes(subId);
+      let updated;
+
+      if (isCurrentlyChecked) {
+        updated = current.filter(id => id !== subId);
+        const otherSubs = (mod.subPermissions || []).map(s => s.id).filter(id => id !== subId);
+        const hasOtherChecked = otherSubs.some(id => updated.includes(id));
+        if (!hasOtherChecked) {
+          updated = updated.filter(id => id !== mod.id);
+        }
+      } else {
+        const set = new Set([...current, subId, mod.id]);
+        updated = Array.from(set);
+      }
+
+      return { ...prev, permissions: updated };
+    });
+  };
+
+  const handleToggleAllUserPermissions = (select) => {
+    if (select) {
+      setUserPermsFormData({ permissions: getAllUserPermissionsList() });
+    } else {
+      setUserPermsFormData({ permissions: [] });
+    }
+  };
+
+  const handleToggleCollapseAllUserModules = () => {
+    setCollapsedUserModules(prev => {
+      const anyOpen = AVAILABLE_USER_MODULES.some(m => !prev[m.id]);
+      const next = {};
+      AVAILABLE_USER_MODULES.forEach(m => {
+        next[m.id] = anyOpen;
+      });
+      return next;
+    });
+  };
+
+  const handleToggleUserModuleCollapse = (modId) => {
+    setCollapsedUserModules(prev => ({
+      ...prev,
+      [modId]: !prev[modId]
+    }));
+  };
+
+  const handleSaveUserPermissions = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedUserForPerms) return;
+    const targetId = selectedUserForPerms._id || selectedUserForPerms.userId || selectedUserForPerms.retailerId || selectedUserForPerms.id;
+    if (!targetId) return;
+
+    setUserPermsSaving(true);
+    try {
+      const permsToSave = Array.from(new Set(userPermsFormData.permissions || []));
+      const finalPermsToSave = permsToSave.length === 0 ? ['none'] : permsToSave;
+      let res = await apiFetch(`/api/users/${targetId}/permissions`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissions: finalPermsToSave })
+      });
+
+      // Fallback to /api/users/:id if /permissions is 404
+      if (!res.ok && res.status === 404) {
+        res = await apiFetch(`/api/users/${targetId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permissions: finalPermsToSave })
+        });
+      }
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        data = null;
+      }
+
+      if (res.ok && (data?.success || res.status === 200)) {
+        Toast.fire({
+          icon: 'success',
+          title: `Service Access Updated for ${selectedUserForPerms.name || selectedUserForPerms.userId || 'User'}!`,
+          timer: 5000
+        });
+        setUsers(prev => prev.map(u => 
+          (u._id === targetId || u.userId === targetId || u._id === selectedUserForPerms._id || u.userId === selectedUserForPerms.userId) 
+            ? { ...u, permissions: finalPermsToSave } 
+            : u
+        ));
+        setIsUserPermsModalOpen(false);
+      } else {
+        Toast.fire({
+          icon: 'error',
+          title: data?.message || `Failed to update service permissions (Status ${res.status})`,
+          timer: 5000
+        });
+      }
+    } catch (err) {
+      console.error('Save user permissions error:', err);
+      Toast.fire({
+        icon: 'error',
+        title: err?.message || 'Server error saving permissions',
+        timer: 5000
+      });
+    } finally {
+      setUserPermsSaving(false);
+    }
+  };
+
   const handleExportUsersCSV = () => {
     if (filteredAndSortedUsers.length === 0) {
       return Toast.fire({ icon: 'warning', title: 'No users to export' });
@@ -3533,8 +3947,10 @@ const AdminPanel = () => {
     fetchAll();
   };
 
-  const toggleSidebarMenuStatus = async (menuItem) => {
+  const toggleSidebarMenuStatus = async (menuItem, explicitKey) => {
     if (!menuItem) return;
+
+    const resolvedKey = explicitKey || menuItem.key || null;
 
     // Resolve the actual database item from sidebarMenus
     let targetSm = null;
@@ -3545,10 +3961,14 @@ const AdminPanel = () => {
       const u = (menuItem.route || menuItem.url).toLowerCase().trim();
       targetSm = (sidebarMenus || []).find(sm => sm.url && sm.url.toLowerCase().trim() === u);
     }
-    if (!targetSm && menuItem.key) {
+    if (!targetSm && (menuItem.label || menuItem.title)) {
+      const targetLabel = (menuItem.label || menuItem.title || '').toLowerCase().trim();
+      targetSm = (sidebarMenus || []).find(sm => (sm.label || '').toLowerCase().trim() === targetLabel);
+    }
+    if (!targetSm && resolvedKey) {
       targetSm = (sidebarMenus || []).find(sm => {
         const d = getDynamicMenuForSidebarItem(sm, dynamicLinkMenusList);
-        return d && d.key === menuItem.key;
+        return d && d.key === resolvedKey;
       });
     }
 
@@ -3558,25 +3978,49 @@ const AdminPanel = () => {
     const newStatus = !currentActive;
     const targetId = targetSm ? targetSm._id : menuItem._id;
 
+    // Immediately update local React state so UI flips ON/OFF with 0ms delay
+    setSidebarMenus(prev => {
+      const list = prev || [];
+      return list.map(sm => {
+        if (targetId && String(sm._id) === String(targetId)) {
+          return { ...sm, isActive: newStatus };
+        }
+        if (resolvedKey) {
+          const d = getDynamicMenuForSidebarItem(sm, dynamicLinkMenusList);
+          if (d && d.key === resolvedKey) {
+            return { ...sm, isActive: newStatus };
+          }
+        }
+        if (menuItem.label && sm.label && sm.label.toLowerCase().trim() === menuItem.label.toLowerCase().trim()) {
+          return { ...sm, isActive: newStatus };
+        }
+        return sm;
+      });
+    });
+
     try {
       if (targetId) {
-        await fetch(`${API_URL}/api/sidebar-menus/${targetId}`, {
+        await apiFetch(`/api/sidebar-menus/${targetId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isActive: newStatus })
         });
       } else {
-        const dyn = DYNAMIC_LINK_MENUS.find(d => d.key === menuItem.key);
-        await fetch(`${API_URL}/api/sidebar-menus`, {
+        const dyn = DYNAMIC_LINK_MENUS.find(d => d.key === (resolvedKey || menuItem.key));
+        const postRes = await apiFetch('/api/sidebar-menus', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             label: menuItem.label || (dyn ? dyn.label : 'Menu'),
             url: menuItem.route || (dyn ? dyn.route : ''),
             isActive: newStatus,
-            order: sidebarMenus.length
+            order: (sidebarMenus || []).length
           })
         });
+        if (postRes.ok) {
+          const created = await postRes.json();
+          setSidebarMenus(prev => [...(prev || []), created]);
+        }
       }
       fetchAll();
       showCustomToast(
@@ -3587,6 +4031,7 @@ const AdminPanel = () => {
       );
     } catch (err) {
       console.error('Failed to toggle sidebar menu status:', err);
+      fetchAll();
       Swal.fire({ icon: 'error', text: 'Failed to update menu status.' });
     }
   };
@@ -3778,6 +4223,8 @@ const AdminPanel = () => {
     { id: 'quickLinks', label: 'Quick Links', icon: '🔗' },
     { id: 'panSubmissions', label: 'Retailer PAN Submissions', icon: '📇' },
     { id: 'panForms', label: 'PAN Form Manager', icon: '📝' },
+    { id: 'offlineSubmissions', label: 'Retailer Offline Submissions', icon: '📁' },
+    { id: 'offlineForms', label: 'Offline Form Manager', icon: '📑' },
     { id: 'walletRequests', label: 'Wallet Requests', icon: '💼' },
     { id: 'payInHistory', label: 'Pay-In History', icon: '📥' },
     { id: 'payOutHistory', label: 'Pay-Out History', icon: '📤' },
@@ -3833,6 +4280,11 @@ const AdminPanel = () => {
   const panSubmenuItems = [
     { id: 'panSubmissions', label: 'Retailer PAN Submissions', icon: '📇' },
     { id: 'panForms', label: 'PAN Form Manager', icon: '📝' },
+  ].filter(item => hasStaffModuleAccess(item.id));
+
+  const offlineSubmenuItems = [
+    { id: 'offlineSubmissions', label: 'Retailer Submissions', icon: '📁' },
+    { id: 'offlineForms', label: 'Offline Form Manager', icon: '📑' },
   ].filter(item => hasStaffModuleAccess(item.id));
 
   const standaloneItems = [
@@ -4072,6 +4524,38 @@ const AdminPanel = () => {
               {isPanSubmenuOpen && (
                 <div className="admin-submenu-items">
                   {panSubmenuItems.map(item => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`admin-nav-sub-btn ${activeTab === item.id ? 'active' : ''}`}
+                      onClick={() => handleTabChange(item.id)}
+                    >
+                      <span className="nav-icon" style={{ fontSize: '15px', marginRight: '8px' }}>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Submenu: Offline Work Management */}
+          {offlineSubmenuItems.length > 0 && (
+            <div className="admin-submenu-group">
+              <button
+                type="button"
+                className={`admin-nav-parent-btn ${offlineSubmenuItems.some(i => i.id === activeTab) ? 'active-group' : ''}`}
+                onClick={() => setIsOfflineSubmenuOpen(!isOfflineSubmenuOpen)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span className="nav-icon">📁</span>
+                  <span>Offline Work</span>
+                </div>
+                <span className={`submenu-arrow ${isOfflineSubmenuOpen ? 'open' : ''}`}>▼</span>
+              </button>
+              {isOfflineSubmenuOpen && (
+                <div className="admin-submenu-items">
+                  {offlineSubmenuItems.map(item => (
                     <button
                       key={item.id}
                       type="button"
@@ -4405,10 +4889,7 @@ const AdminPanel = () => {
                           {m.isActive ? 'ON' : 'OFF'}
                         </button>
                         {hasStaffActionAccess('sidebarMenus.edit') && (
-                          <button className="modern-edit-btn" onClick={() => startEditMenu(m)} style={{ marginRight: '8px', background: '#3b82f6', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Edit</button>
-                        )}
-                        {hasStaffActionAccess('sidebarMenus.delete') && (
-                          <button className="modern-delete-btn" onClick={() => deleteItem(`${API_URL}/api/sidebar-menus`, m._id)}>Delete</button>
+                          <button className="modern-edit-btn" onClick={() => startEditMenu(m)} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer' }}>Edit</button>
                         )}
                       </div>
                     </div>
@@ -4538,18 +5019,26 @@ const AdminPanel = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  overflowX: 'auto',
-                  padding: '4px 2px 12px',
-                  scrollbarWidth: 'thin'
+                  flexWrap: 'wrap',
+                  padding: '4px 2px 12px'
                 }}>
-                  {allLinkMenusList.map(m => {
+                  {allLinkMenusList.map((m, index) => {
                     const isSelected = activeTab === m.key;
                     const isDyn = m.key !== 'quickLinks';
+                    const isBeingDragged = draggedMenuTabIdx === index;
                     return (
                       <button
                         key={m.key}
                         type="button"
-                        onClick={() => handleTabChange(m.key)}
+                        draggable
+                        onDragStart={(e) => handleMenuTabDragStart(e, index)}
+                        onDragEnter={(e) => handleMenuTabDragEnter(e, index)}
+                        onDragEnd={handleMenuTabDragEnd}
+                        onDragOver={(e) => e.preventDefault()}
+                        onClick={() => {
+                          if (isDraggingMenuTabRef.current) return;
+                          handleTabChange(m.key);
+                        }}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -4561,12 +5050,17 @@ const AdminPanel = () => {
                           color: isSelected ? '#ffffff' : '#334155',
                           fontWeight: isSelected ? 800 : 600,
                           fontSize: '12.5px',
-                          cursor: 'pointer',
+                          cursor: 'grab',
                           whiteSpace: 'nowrap',
                           boxShadow: isSelected ? '0 4px 12px rgba(2, 132, 199, 0.25)' : '0 1px 3px rgba(0,0,0,0.04)',
-                          transition: 'all 0.18s ease'
+                          transition: 'all 0.18s ease',
+                          opacity: isBeingDragged ? 0.35 : 1,
+                          transform: isBeingDragged ? 'scale(0.96)' : 'none',
+                          userSelect: 'none'
                         }}
+                        title="Drag ☰ to reorder position / Click to view"
                       >
+                        <span style={{ fontSize: '12px', color: isSelected ? 'rgba(255,255,255,0.7)' : '#94a3b8', cursor: 'grab', marginRight: '-2px' }}>☰</span>
                         <span style={{ fontSize: '14px' }}>{m.icon}</span>
                         <span>{m.label}</span>
                         {isDyn && (
@@ -4701,7 +5195,7 @@ const AdminPanel = () => {
                         {/* Turn ON / OFF Status Button */}
                         <button
                           type="button"
-                          onClick={() => toggleSidebarMenuStatus(matchingSm)}
+                          onClick={() => toggleSidebarMenuStatus(matchingSm, currentMenuKey)}
                           style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -5309,7 +5803,7 @@ const AdminPanel = () => {
                               }}
                             />
                             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                              {['🌐', '📋', '💼', '📊', '🏛️', '📦', '🎓', '🛠️', '🪪', '⚡'].map(ic => (
+                              {['🌐', '📋', '💼', '📊', '🏛️', '📦', '🎓', '🛠️', '🎫', '⚡'].map(ic => (
                                 <button
                                   type="button"
                                   key={ic}
@@ -6863,6 +7357,21 @@ const AdminPanel = () => {
             </div>
           )}
 
+          {/* Offline Work Submissions Tab */}
+          {activeTab === 'offlineSubmissions' && (
+            <OfflineSubmissionsManager
+              hasStaffActionAccess={hasStaffActionAccess}
+              users={users}
+            />
+          )}
+
+          {/* Offline Work Forms Manager Tab */}
+          {activeTab === 'offlineForms' && (
+            <OfflineFormsManager
+              hasStaffActionAccess={hasStaffActionAccess}
+            />
+          )}
+
           {/* Wallet Requests Tab */}
           {activeTab === 'walletRequests' && (
             <div className="admin-panel-grid" style={{ gridTemplateColumns: hasStaffActionAccess('walletRequests.upiConfig') ? undefined : '1fr' }}>
@@ -7309,6 +7818,7 @@ const AdminPanel = () => {
                           <th>Wallet Balance</th>
                           <th>Status</th>
                           <th>Registered</th>
+                          <th style={{ textAlign: 'center' }}>Services Access</th>
                           <th style={{ textAlign: 'right' }}>Actions</th>
                         </tr>
                       </thead>
@@ -7414,6 +7924,58 @@ const AdminPanel = () => {
                               {/* Registered Date */}
                               <td style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>
                                 {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                              </td>
+
+                              {/* Services Access */}
+                              <td style={{ textAlign: 'center' }}>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleOpenUserPermissions(u)}
+                                  style={{
+                                    padding: '5px 12px',
+                                    background: '#fff7ed',
+                                    color: '#ea580c',
+                                    border: '1.5px solid #fed7aa',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                    fontWeight: 800,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    boxShadow: '0 1px 3px rgba(234, 88, 12, 0.08)',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  title={`Configure Service Access & Permissions for ${u.name || u.userId}`}
+                                >
+                                  <span>🛡️</span>
+                                  <span>Services Access</span>
+                                  {Array.isArray(u.permissions) && u.permissions.includes('none') ? (
+                                    <span style={{
+                                      background: '#ef4444',
+                                      color: '#ffffff',
+                                      borderRadius: '10px',
+                                      padding: '1px 7px',
+                                      fontSize: '10px',
+                                      fontWeight: 800
+                                    }}
+                                    title="All service permissions revoked (0 active)">
+                                      0
+                                    </span>
+                                  ) : Array.isArray(u.permissions) && u.permissions.length > 0 ? (
+                                    <span style={{
+                                      background: '#ea580c',
+                                      color: '#ffffff',
+                                      borderRadius: '10px',
+                                      padding: '1px 7px',
+                                      fontSize: '10px',
+                                      fontWeight: 800
+                                    }}
+                                    title={`${u.permissions.length} services / sub-permissions allowed`}>
+                                      {u.permissions.length}
+                                    </span>
+                                  ) : null}
+                                </button>
                               </td>
 
                               {/* Actions */}
@@ -7593,6 +8155,24 @@ const AdminPanel = () => {
                               style={{ flex: '1 1 30%' }}
                             >
                               ✏️ Edit
+                            </button>
+
+                            <button 
+                              className="user-mini-btn"
+                              onClick={() => handleOpenUserPermissions(u)}
+                              style={{ flex: '1 1 100%', background: '#fff7ed', color: '#ea580c', border: '1.5px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 800 }}
+                              title={`Configure Service Access & Permissions for ${u.name || u.userId}`}
+                            >
+                              <span>🛡️ Services Access</span>
+                              {Array.isArray(u.permissions) && u.permissions.includes('none') ? (
+                                <span style={{ background: '#ef4444', color: '#ffffff', borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 800 }}>
+                                  0
+                                </span>
+                              ) : Array.isArray(u.permissions) && u.permissions.length > 0 ? (
+                                <span style={{ background: '#ea580c', color: '#ffffff', borderRadius: '10px', padding: '1px 7px', fontSize: '10px', fontWeight: 800 }}>
+                                  {u.permissions.length}
+                                </span>
+                              ) : null}
                             </button>
 
                             {hasStaffActionAccess('users.delete') && (
@@ -10046,6 +10626,256 @@ const AdminPanel = () => {
                   style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}
                 >
                   💾 Save User Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* USER SERVICE ACCESS & PERMISSIONS MODAL */}
+      {isUserPermsModalOpen && selectedUserForPerms && (
+        <div className="staff-modal-overlay">
+          <div className="staff-modal-box">
+            <div className="staff-modal-header" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffffff 100%)', borderBottom: '1.5px solid #ffedd5' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="user-avatar" style={{ width: '44px', height: '44px', fontSize: '17px', background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)', color: '#ffffff' }}>
+                  {(selectedUserForPerms.name || selectedUserForPerms.userId || 'U').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                    🛡️ User Service Access &amp; Permissions
+                  </h3>
+                  <div style={{ fontSize: '12.5px', color: '#ea580c', fontWeight: 700, marginTop: '2px' }}>
+                    {selectedUserForPerms.name || 'User'} ({selectedUserForPerms.userId}) {selectedUserForPerms.shopName ? `• ${selectedUserForPerms.shopName}` : ''}
+                  </div>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                className="staff-modal-close" 
+                onClick={() => setIsUserPermsModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUserPermissions}>
+              <div className="staff-modal-body">
+                {/* User Summary Info Row */}
+                <div className="staff-input-row">
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Full Name</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      value={selectedUserForPerms.name || ''} 
+                      disabled 
+                      style={{ background: '#f8fafc', color: '#334155', fontWeight: 700 }}
+                    />
+                  </div>
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>User ID / Retailer UID</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      value={selectedUserForPerms.userId || ''} 
+                      disabled 
+                      style={{ background: '#f8fafc', color: '#0284c7', fontWeight: 800 }}
+                    />
+                  </div>
+                </div>
+
+                <div className="staff-input-row">
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Mobile Number</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      value={selectedUserForPerms.mobile || 'Not provided'} 
+                      disabled 
+                      style={{ background: '#f8fafc', color: '#334155' }}
+                    />
+                  </div>
+                  <div className="staff-input-group">
+                    <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155' }}>Email Address</label>
+                    <input 
+                      type="text" 
+                      className="staff-input-field" 
+                      value={selectedUserForPerms.email || 'Not provided'} 
+                      disabled 
+                      style={{ background: '#f8fafc', color: '#334155' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Modules & Permissions Card Container */}
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '18px', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                      ALLOWED MODULES &amp; SUB-ACCESS PERMISSIONS
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => handleToggleAllUserPermissions(true)}
+                        style={{ padding: '5px 12px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
+                      >
+                        Select All
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => handleToggleAllUserPermissions(false)}
+                        style={{ padding: '5px 12px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
+                      >
+                        Deselect All
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={handleToggleCollapseAllUserModules}
+                        style={{ padding: '5px 12px', background: '#ffffff', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '11.5px', fontWeight: 700, color: '#334155', cursor: 'pointer' }}
+                      >
+                        {AVAILABLE_USER_MODULES.some(m => !collapsedUserModules[m.id]) ? 'Collapse All' : 'Expand All'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>
+                    {AVAILABLE_USER_MODULES.map(mod => {
+                      const subIds = mod.subPermissions ? mod.subPermissions.map(s => s.id) : [];
+                      const selectedSubCount = subIds.filter(id => (userPermsFormData.permissions || []).includes(id)).length;
+                      const isParentDirect = (userPermsFormData.permissions || []).includes(mod.id);
+                      const isAnySelected = isParentDirect || selectedSubCount > 0;
+                      const isFullySelected = subIds.length > 0 ? selectedSubCount === subIds.length : isParentDirect;
+                      const isCollapsed = !!collapsedUserModules[mod.id];
+
+                      return (
+                        <div 
+                          key={mod.id}
+                          style={{
+                            border: isAnySelected ? '1.5px solid #ea580c' : '1.5px solid #e2e8f0',
+                            borderRadius: '14px',
+                            background: isAnySelected ? '#fffcf9' : '#ffffff',
+                            boxShadow: isAnySelected ? '0 2px 8px rgba(234, 88, 12, 0.08)' : 'none',
+                            overflow: 'hidden',
+                            transition: 'border-color 0.2s, box-shadow 0.2s'
+                          }}
+                        >
+                          {/* Module Header */}
+                          <div 
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '10px 14px',
+                              background: isAnySelected ? '#fff7ed' : '#f8fafc',
+                              borderBottom: isCollapsed ? 'none' : (isAnySelected ? '1px solid #fed7aa' : '1px solid #e2e8f0'),
+                              userSelect: 'none'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <input 
+                                type="checkbox"
+                                checked={isFullySelected}
+                                onChange={(e) => handleToggleUserModuleAll(mod, e.target.checked)}
+                                style={{ width: '16px', height: '16px', accentColor: '#ea580c', cursor: 'pointer' }}
+                              />
+                              <span 
+                                onClick={() => handleToggleUserModuleCollapse(mod.id)}
+                                style={{
+                                  fontWeight: 800,
+                                  fontSize: '13.5px',
+                                  color: isAnySelected ? '#9a3412' : '#0f172a',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <span>{mod.icon}</span>
+                                <span>{mod.label}</span>
+                              </span>
+                            </div>
+
+                            <span 
+                              onClick={() => handleToggleUserModuleCollapse(mod.id)}
+                              style={{
+                                background: isAnySelected ? '#ffedd5' : '#f1f5f9',
+                                color: isAnySelected ? '#c2410c' : '#64748b',
+                                border: isAnySelected ? '1px solid #fed7aa' : '1px solid #cbd5e1',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              {selectedSubCount}/{subIds.length} {isCollapsed ? '▼' : '▲'}
+                            </span>
+                          </div>
+
+                          {/* Sub-permissions List */}
+                          {!isCollapsed && mod.subPermissions && mod.subPermissions.length > 0 && (
+                            <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '6px', background: '#ffffff' }}>
+                              {mod.subPermissions.map(sub => {
+                                const isSubChecked = (userPermsFormData.permissions || []).includes(sub.id);
+                                return (
+                                  <label 
+                                    key={sub.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '10px',
+                                      padding: '7px 12px',
+                                      borderRadius: '8px',
+                                      border: isSubChecked ? '1px solid #fdba74' : '1px solid #e2e8f0',
+                                      background: isSubChecked ? '#fff7ed' : '#ffffff',
+                                      cursor: 'pointer',
+                                      transition: 'all 0.15s ease',
+                                      userSelect: 'none'
+                                    }}
+                                  >
+                                    <input 
+                                      type="checkbox"
+                                      checked={isSubChecked}
+                                      onChange={() => handleToggleUserSubPermission(mod, sub.id)}
+                                      style={{ width: '15px', height: '15px', accentColor: '#ea580c', cursor: 'pointer' }}
+                                    />
+                                    <span style={{ fontSize: '13px' }}>{sub.icon}</span>
+                                    <span style={{ fontSize: '12.5px', fontWeight: isSubChecked ? 800 : 600, color: isSubChecked ? '#9a3412' : '#334155' }}>
+                                      {sub.label}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="staff-modal-footer">
+                <button 
+                  type="button" 
+                  className="staff-modal-cancel-btn"
+                  onClick={() => setIsUserPermsModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="staff-modal-save-btn"
+                  disabled={userPermsSaving}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <span>💾</span>
+                  <span>{userPermsSaving ? 'Saving...' : 'Save Services Access'}</span>
                 </button>
               </div>
             </form>

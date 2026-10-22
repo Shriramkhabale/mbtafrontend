@@ -441,7 +441,6 @@ const AdminPanel = () => {
                     >
                       <div style={{ marginRight: '10px', color: '#9ca3af', fontSize: '20px' }}>☰</div>
                       <span className="item-name">{m.label || '(Empty Block)'} {m.isActive && '★'}</span>
-                      <button className="modern-delete-btn" onClick={() => deleteItem('http:REACT_APP_API_URL/api/sidebar-menus', m._id)}>Delete</button>
                     </div>
                   ))}
                 </div>

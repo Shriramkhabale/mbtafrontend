@@ -7,9 +7,11 @@ import WalletModal from '../wallet/WalletModal';
 import LedgerView from '../ledger/LedgerView';
 import PanCardView from '../pancard/PanCardView';
 import QuickLinksView from '../quicklinks/QuickLinksView';
+import OfflineWorkView from '../offlinework/OfflineWorkView';
 import NotificationBell from '../../context/NotificationBell';
 import { API_URL } from '../../utils/apiClient';
 import { DYNAMIC_LINK_MENUS, findDynamicMenu, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
+import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 
 // eslint-disable-next-line no-unused-vars
 const Toast = Swal.mixin({
@@ -45,6 +47,9 @@ const getMenuIcon = (label, url) => {
   if (l.includes('link') || l.includes('quick')) return <span className="icon-badge icon-teal">🔗</span>;
   if (l.includes('user') || l.includes('profile')) return <span className="icon-badge icon-teal">👤</span>;
   if (l.includes('setting')) return <span className="icon-badge icon-slate">⚙️</span>;
+  if (l.includes('verify') || l.includes('verification')) return <span className="icon-badge icon-teal">✓</span>;
+  if (l.includes('pdf')) return <span className="icon-badge icon-orange">📄</span>;
+  if (l.includes('offline') || l.includes('work')) return <span className="icon-badge icon-blue">📁</span>;
   return <span className="icon-badge icon-orange">⚡</span>;
 };
 
@@ -62,6 +67,45 @@ const getTabIcon = (label) => {
   return <span className="tab-icon">🚀</span>;
 };
 
+const AccessRestrictedNotice = ({ title = 'Service', onBack }) => (
+  <div style={{
+    padding: '60px 24px',
+    textAlign: 'center',
+    background: '#ffffff',
+    borderRadius: '18px',
+    margin: '30px auto',
+    maxWidth: '520px',
+    boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+    border: '1.5px solid #fed7aa'
+  }}>
+    <div style={{ fontSize: '50px', marginBottom: '14px' }}>🔒</div>
+    <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#9a3412', marginBottom: '8px' }}>
+      Access Restricted
+    </h2>
+    <p style={{ color: '#64748b', fontSize: '14px', lineHeight: '1.6', margin: '0 auto 22px' }}>
+      You do not have permission to access <strong>{title}</strong>. If you need access to this service, please contact your administrator.
+    </p>
+    {onBack && (
+      <button 
+        type="button"
+        onClick={onBack}
+        style={{
+          padding: '10px 24px',
+          borderRadius: '10px',
+          background: 'linear-gradient(135deg, #ea580c, #c2410c)',
+          color: '#ffffff',
+          border: 'none',
+          fontWeight: 800,
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(234, 88, 12, 0.25)'
+        }}
+      >
+        ← Go to Dashboard
+      </button>
+    )}
+  </div>
+);
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -69,6 +113,9 @@ const Dashboard = () => {
   const isWalletRoute = location.pathname === '/wallet';
   const isPanCardRoute = location.pathname === '/pancard' || location.pathname === '/pan-card';
   const isQuickLinksRoute = location.pathname === '/quick-links' || location.pathname === '/view-links';
+  const isOfflineWorkRoute = location.pathname === '/offline-work' || location.pathname === '/offlinework';
+
+  const [userPermissions, setUserPermissions] = useState(getStoredUserPermissions);
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('appTheme') || 'light';
@@ -86,6 +133,11 @@ const Dashboard = () => {
     if (std) return std;
     const customMatch = (sidebarMenuData || []).find(m => {
       if (!m.url || !m.url.startsWith('/')) return false;
+      const lowerUrl = (m.url || '').toLowerCase();
+      const lowerLabel = (m.label || '').toLowerCase();
+      if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan')) {
+        return false;
+      }
       const cleanPath = location.pathname.toLowerCase().replace(/\/+$/, '');
       const cleanUrl = m.url.toLowerCase().replace(/\/+$/, '');
       return cleanPath === cleanUrl;
@@ -102,7 +154,7 @@ const Dashboard = () => {
     return null;
   }, [location.pathname, sidebarMenuData]);
   const isDynLinkMenuRoute = Boolean(activeDynLinkMenu);
-  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute;
+  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute || isOfflineWorkRoute;
   const [activeCardId, setActiveCardId] = useState(null);
   const [activeBannerId, setActiveBannerId] = useState(null);
 
@@ -196,7 +248,7 @@ const Dashboard = () => {
 
         if (!hasQuick) {
           const panIdx = menus.findIndex(m => m.label && m.label.toLowerCase().includes('pan'));
-          const quickMenuItem = { _id: 'menu_quick_links', label: 'QUICK LINKS', url: '/quick-links', isActive: false };
+          const quickMenuItem = { _id: 'menu_quick_links', label: 'QUICK LINKS', url: '/quick-links', isActive: false, dynamicActive: true };
           if (panIdx >= 0) {
             menus.splice(panIdx + 1, 0, quickMenuItem);
           } else {
@@ -215,7 +267,8 @@ const Dashboard = () => {
               _id: `dyn_menu_${dyn.key}`,
               label: dyn.label,
               url: dyn.route,
-              isActive: false
+              isActive: false,
+              dynamicActive: true
             });
           }
         });
@@ -254,7 +307,8 @@ const Dashboard = () => {
                 ...m,
                 label: (m.label && m.label.trim()) ? m.label.trim() : matchedDyn.label,
                 url: matchedDyn.route,
-                isActive: m.isActive !== undefined ? Boolean(m.isActive) : true
+                isActive: m.isActive !== undefined ? Boolean(m.isActive) : true,
+                dynamicActive: m.dynamicActive !== undefined ? Boolean(m.dynamicActive) : true
               });
             }
           } else {
@@ -267,11 +321,16 @@ const Dashboard = () => {
                 dedupedMenus.push({
                   ...m,
                   label: (m.label && m.label.trim()) ? m.label.trim() : 'QUICK LINKS',
-                  url: '/quick-links'
+                  url: '/quick-links',
+                  isActive: m.isActive !== undefined ? Boolean(m.isActive) : true,
+                  dynamicActive: m.dynamicActive !== undefined ? Boolean(m.dynamicActive) : true
                 });
               }
             } else {
-              dedupedMenus.push(m);
+              dedupedMenus.push({
+                ...m,
+                dynamicActive: m.dynamicActive !== undefined ? Boolean(m.dynamicActive) : true
+              });
             }
           }
         });
@@ -308,6 +367,13 @@ const Dashboard = () => {
       })
       .catch(() => {});
 
+    fetch(`${API_URL}/api/offline-work/tabs`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setOfflineTabsData(data);
+      })
+      .catch(() => {});
+
     // Setup an interval to periodically fetch wallet balance
     const currentUser = localStorage.getItem('currentUser');
     if (currentUser) {
@@ -318,7 +384,13 @@ const Dashboard = () => {
             if (data.walletBalance !== undefined) {
               setWalletBalance(data.walletBalance);
             }
-
+            if (Array.isArray(data.permissions)) {
+              setUserPermissions(data.permissions);
+              localStorage.setItem('userPermissions', JSON.stringify(data.permissions));
+            }
+            if (data.role) {
+              localStorage.setItem('userRole', data.role);
+            }
           })
           .catch(err => console.error(err));
       };
@@ -334,6 +406,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [quickLinksData, setQuickLinksData] = useState([]);
   const [panTabsData, setPanTabsData] = useState([]);
+  const [offlineTabsData, setOfflineTabsData] = useState([]);
   const searchContainerRef = useRef(null);
   const searchInputRef = useRef(null);
 
@@ -447,6 +520,15 @@ const Dashboard = () => {
           window.open(link.url, '_blank', 'noopener,noreferrer');
         }
       }
+    })),
+    // Offline Work Services (Dynamic)
+    ...(offlineTabsData || []).map(off => ({
+      id: `offline_${off.id || off._id}`,
+      title: off.label || off.title,
+      subtitle: off.description || off.badge || 'Offline Work Service',
+      category: 'Offline Work',
+      icon: off.icon || '📁',
+      action: () => navigate('/offline-work')
     }))
   ];
 
@@ -577,17 +659,19 @@ const Dashboard = () => {
           </div>
 
           <NotificationBell dark={theme === 'dark'} />
-          <div
-            className="top-wallet-box"
-            onClick={() => { setWalletTab('directPayment'); navigate('/wallet'); }}
-            title="Click to view My Wallet & Load Wallet Requisition"
-          >
-            <span className="wallet-icon">💼</span>
-            <span className="wallet-label-text">Wallet Balance:</span>
-            <span className="wallet-amount-text">
-              {showBalance ? `₹ ${parseFloat(walletBalance).toFixed(2)}` : '₹ •••••'}
-            </span>
-          </div>
+          {hasUserAccess(userPermissions, 'walletModule') && hasUserAccess(userPermissions, 'wallet.balance') && (
+            <div
+              className="top-wallet-box"
+              onClick={() => { setWalletTab('directPayment'); navigate('/wallet'); }}
+              title="Click to view My Wallet & Load Wallet Requisition"
+            >
+              <span className="wallet-icon">💼</span>
+              <span className="wallet-label-text">Wallet Balance:</span>
+              <span className="wallet-amount-text">
+                {showBalance ? `₹ ${parseFloat(walletBalance).toFixed(2)}` : '₹ •••••'}
+              </span>
+            </div>
+          )}
 
           <button
             className="top-profile-btn"
@@ -600,34 +684,40 @@ const Dashboard = () => {
 
           {showProfileMenu && (
             <div className="profile-dropdown-card">
-              <div className="dropdown-user-info">
-                <div className="user-info-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="user-info-label">Wallet Balance</span>
-                  <span
-                    style={{ cursor: 'pointer', fontSize: '15px' }}
-                    onClick={toggleShowBalance}
-                    title={showBalance ? "Hide Balance" : "Show Balance"}
-                  >
-                    {showBalance ? '🔒' : '👁️'}
-                  </span>
+              {hasUserAccess(userPermissions, 'walletModule') && hasUserAccess(userPermissions, 'wallet.balance') && (
+                <div className="dropdown-user-info">
+                  <div className="user-info-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="user-info-label">Wallet Balance</span>
+                    <span
+                      style={{ cursor: 'pointer', fontSize: '15px' }}
+                      onClick={toggleShowBalance}
+                      title={showBalance ? "Hide Balance" : "Show Balance"}
+                    >
+                      {showBalance ? '🔒' : '👁️'}
+                    </span>
+                  </div>
+                  <div className="user-info-amount">
+                    {showBalance ? `₹ ${parseFloat(walletBalance).toFixed(2)}` : '₹ •••••'}
+                  </div>
                 </div>
-                <div className="user-info-amount">
-                  {showBalance ? `₹ ${parseFloat(walletBalance).toFixed(2)}` : '₹ •••••'}
-                </div>
-              </div>
+              )}
               <div className="dropdown-divider"></div>
-              <button
-                className="dropdown-action-item"
-                onClick={() => { setWalletTab('directPayment'); setShowProfileMenu(false); navigate('/wallet'); }}
-              >
-                💼 Load Wallet / Request
-              </button>
-              <button
-                className="dropdown-action-item"
-                onClick={() => { setShowProfileMenu(false); navigate('/ledger'); }}
-              >
-                📒 Ledger
-              </button>
+              {hasUserAccess(userPermissions, 'walletModule') && (
+                <button
+                  className="dropdown-action-item"
+                  onClick={() => { setWalletTab('directPayment'); setShowProfileMenu(false); navigate('/wallet'); }}
+                >
+                  💼 Load Wallet / Request
+                </button>
+              )}
+              {(hasUserAccess(userPermissions, 'ledgerModule') || hasUserAccess(userPermissions, 'ledger.view')) && (
+                <button
+                  className="dropdown-action-item"
+                  onClick={() => { setShowProfileMenu(false); navigate('/ledger'); }}
+                >
+                  📒 Ledger
+                </button>
+              )}
               <div className="dropdown-divider"></div>
               <div className="dropdown-theme-section">
                 <div style={{ padding: '4px 20px', fontSize: '11px', fontWeight: 800, color: theme === 'light' ? '#ea580c' : '#fb923c', letterSpacing: '0.5px' }}>THEME OPTIONS</div>
@@ -730,14 +820,21 @@ const Dashboard = () => {
               const u = (menu.url || '').toLowerCase();
               const isDash = l.includes('dash');
               const isPan = l.includes('pan');
+              const isOffline = l.includes('offline');
               const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
 
-              // Only show Dashboard, Pan Card, and Quick Links in the sidebar
-              return isDash || isPan || isQuick;
+              // Check user service access permissions
+              if (isPan && !hasUserAccess(userPermissions, 'panCard')) return false;
+              if (isOffline && !hasUserAccess(userPermissions, 'offlineWork')) return false;
+              if (isQuick && !hasUserAccess(userPermissions, 'quickLinksModule') && !hasUserAccess(userPermissions, 'quickLinks.view')) return false;
+
+              // Render all active menus configured in Admin Panel's Sidebar Menus
+              return true;
             }).map((menu) => {
               const menuId = menu._id || menu.id;
               const isPan = menu.label && menu.label.toLowerCase().includes('pan');
               const isDash = menu.label && menu.label.toLowerCase().includes('dash');
+              const isOffline = menu.label && menu.label.toLowerCase().includes('offline');
               const matchedDyn = getDynamicMenuForSidebarItem(menu) || findDynamicMenu(menu.url || menu.label);
               const isQuick = !matchedDyn && (
                 menu.url === '/quick-links' ||
@@ -745,7 +842,8 @@ const Dashboard = () => {
                 (menu.label && (menu.label.toLowerCase().includes('quick') || menu.label.toLowerCase() === 'view links'))
               );
               const isDynSelected = matchedDyn && activeDynLinkMenu && matchedDyn.key === activeDynLinkMenu.key;
-              const isSelected = isDynSelected ? true : (isPan ? isPanCardRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId)));
+              const isUrlMatched = Boolean(menu.url && menu.url.trim() !== '' && location.pathname.toLowerCase() === menu.url.trim().toLowerCase());
+              const isSelected = isDynSelected ? true : (isUrlMatched ? true : (isPan ? isPanCardRoute : (isOffline ? isOfflineWorkRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId)))));
 
               return (
                 <div
@@ -758,6 +856,8 @@ const Dashboard = () => {
                       navigate(matchedDyn.route);
                     } else if (isPan) {
                       navigate('/pancard');
+                    } else if (isOffline) {
+                      navigate('/offline-work');
                     } else if (isQuick) {
                       navigate('/quick-links');
                     } else if (menu.url && menu.url.trim() !== '') {
@@ -815,9 +915,14 @@ const Dashboard = () => {
         <div className="content-area-new">
 
           {/* Top Header Tabs */}
-          {topTabsData.length > 0 && (
+          {hasUserAccess(userPermissions, 'dashboardNavModule') && hasUserAccess(userPermissions, 'dashboard.topTabs') && topTabsData.length > 0 && (
             <div className="top-tabs-new">
-              {topTabsData.map((tab) => {
+              {topTabsData.filter((tab) => {
+                const label = (tab.label || '').toLowerCase();
+                if (label.includes('wallet') && !label.includes('ledger') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+                if ((label.includes('ledger') || label.includes('report')) && !hasUserAccess(userPermissions, 'ledgerModule') && !hasUserAccess(userPermissions, 'ledger.view')) return false;
+                return true;
+              }).map((tab) => {
                 const tabId = tab._id || tab.id;
                 const label = (tab.label || '').toLowerCase();
                 const isSelected = 
@@ -851,7 +956,7 @@ const Dashboard = () => {
           )}
 
           {/* Action Cards Marquee Showcase (Only show on Dashboard, hide on Ledger & Wallet routes) */}
-          {!isStandaloneRoute && (
+          {!isStandaloneRoute && hasUserAccess(userPermissions, 'dashboardNavModule') && hasUserAccess(userPermissions, 'dashboard.actionCards') && (
             <div className="action-cards-container">
               <div className="action-cards-wrapper">
                 <div className="action-cards-track-scroll">
@@ -898,26 +1003,55 @@ const Dashboard = () => {
 
           {/* Main Content Display: Ledger View, Wallet View, or Banner Showcase */}
           {isLedgerRoute ? (
-            <LedgerView currentUser={localStorage.getItem('currentUser')} walletBalance={walletBalance} />
+            (!hasUserAccess(userPermissions, 'ledgerModule') && !hasUserAccess(userPermissions, 'ledger.view')) ? (
+              <AccessRestrictedNotice title="Wallet Ledger" onBack={() => navigate('/dashboard')} />
+            ) : (
+              <LedgerView currentUser={localStorage.getItem('currentUser')} walletBalance={walletBalance} userPermissions={userPermissions} />
+            )
           ) : isWalletRoute ? (
-            <WalletModal
-              isOpen={true}
-              inlineMode={true}
-              onClose={() => navigate('/dashboard')}
-              currentUser={localStorage.getItem('currentUser')}
-              initialTab={walletTab}
-              walletBalance={walletBalance}
-              onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
-              theme={theme}
-            />
+            !hasUserAccess(userPermissions, 'walletModule') ? (
+              <AccessRestrictedNotice title="My Wallet" onBack={() => navigate('/dashboard')} />
+            ) : (
+              <WalletModal
+                isOpen={true}
+                inlineMode={true}
+                onClose={() => navigate('/dashboard')}
+                currentUser={localStorage.getItem('currentUser')}
+                initialTab={walletTab}
+                walletBalance={walletBalance}
+                onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+                theme={theme}
+                userPermissions={userPermissions}
+              />
+            )
           ) : isPanCardRoute ? (
-            <PanCardView
-              currentUser={localStorage.getItem('currentUser')}
-              walletBalance={walletBalance}
-              onClose={() => navigate('/dashboard')}
-              theme={theme}
-            />
+            !hasUserAccess(userPermissions, 'panCard') ? (
+              <AccessRestrictedNotice title="PAN Card Services" onBack={() => navigate('/dashboard')} />
+            ) : (
+              <PanCardView
+                currentUser={localStorage.getItem('currentUser')}
+                walletBalance={walletBalance}
+                onClose={() => navigate('/dashboard')}
+                theme={theme}
+                userPermissions={userPermissions}
+              />
+            )
+          ) : isOfflineWorkRoute ? (
+            !hasUserAccess(userPermissions, 'offlineWork') ? (
+              <AccessRestrictedNotice title="Offline Work Services" onBack={() => navigate('/dashboard')} />
+            ) : (
+              <OfflineWorkView
+                currentUser={localStorage.getItem('currentUser')}
+                walletBalance={walletBalance}
+                onClose={() => navigate('/dashboard')}
+                theme={theme}
+                userPermissions={userPermissions}
+              />
+            )
           ) : isQuickLinksRoute ? (() => {
+            if (!hasUserAccess(userPermissions, 'quickLinksModule') && !hasUserAccess(userPermissions, 'quickLinks.view')) {
+              return <AccessRestrictedNotice title="Quick Links" onBack={() => navigate('/dashboard')} />;
+            }
             const quickItem = (sidebarMenuData || []).find(m => {
               const d = getDynamicMenuForSidebarItem(m);
               if (d) return false;
@@ -936,15 +1070,20 @@ const Dashboard = () => {
                 walletBalance={walletBalance}
                 onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
                 sidebarMenus={sidebarMenuData}
+                userPermissions={userPermissions}
               />
             );
           })() : isDynLinkMenuRoute ? (() => {
+            const dynPermKey = `dyn.${activeDynLinkMenu.key}`;
+            if (!hasUserAccess(userPermissions, 'dynamicMenus') && !hasUserAccess(userPermissions, dynPermKey)) {
+              return <AccessRestrictedNotice title={activeDynLinkMenu.label || 'Dynamic Portal'} onBack={() => navigate('/dashboard')} />;
+            }
             const currentDynItem = (sidebarMenuData || []).find(m => {
               if (m.url && activeDynLinkMenu.route && m.url.toLowerCase().trim() === activeDynLinkMenu.route.toLowerCase().trim()) return true;
               const d = getDynamicMenuForSidebarItem(m);
               return d && d.key === activeDynLinkMenu.key;
             });
-            const isMenuOff = currentDynItem && currentDynItem.isActive === false;
+            const isMenuOff = currentDynItem && currentDynItem.dynamicActive === false;
             const dynTitle = (currentDynItem && currentDynItem.label && currentDynItem.label.trim()) || activeDynLinkMenu.label;
 
             if (isMenuOff) {
@@ -977,10 +1116,11 @@ const Dashboard = () => {
                 walletBalance={walletBalance}
                 onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
                 sidebarMenus={sidebarMenuData}
+                userPermissions={userPermissions}
               />
             );
           })() : (
-            bannersData.length > 0 && (
+            bannersData.length > 0 && hasUserAccess(userPermissions, 'dashboardNavModule') && hasUserAccess(userPermissions, 'dashboard.banners') && (
               <div className={`banner-area-new ${activeBannerId ? 'active' : ''}`}>
                 {bannersData.map((banner) => {
                   const bannerId = banner._id || banner.id;
