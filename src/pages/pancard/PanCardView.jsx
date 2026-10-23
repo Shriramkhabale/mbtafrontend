@@ -3079,6 +3079,21 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                               <span style={{ ...statusStyle, padding: '3px 7px', borderRadius: '16px', fontSize: '10px', fontWeight: '800', display: 'inline-block', textTransform: 'capitalize' }}>
                                 ● {app.status || 'Submitted'}
                               </span>
+                              {app.remarks && String(app.applicationType || '').toLowerCase().includes('e-pan') && (
+                                <div
+                                  title={app.remarks}
+                                  style={{
+                                    maxWidth: '180px',
+                                    margin: '4px auto 0',
+                                    color: isLightTheme ? '#b91c1c' : '#fca5a5',
+                                    fontSize: '9px',
+                                    lineHeight: 1.3,
+                                    whiteSpace: 'normal'
+                                  }}
+                                >
+                                  {app.remarks}
+                                </div>
+                              )}
                             </td>
 
                             {/* NSDL RECEIPT */}
