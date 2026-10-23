@@ -39,7 +39,7 @@ describe('ETDSResultPage', () => {
     });
   });
 
-  test('does not return to history for an unsuccessful provider response', async () => {
+  test('returns to history after a failed provider response', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -53,6 +53,8 @@ describe('ETDSResultPage', () => {
     );
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-    expect(mockNavigate).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/pancard?tab=history', { replace: true });
+    });
   });
 });
