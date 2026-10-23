@@ -15,6 +15,7 @@ import { DYNAMIC_LINK_MENUS, getDynamicMenuForSidebarItem, toMenuKey, getCustomM
 import { normalizePermissions } from '../../utils/userPermissions';
 import OfflineFormsManager from './OfflineFormsManager';
 import OfflineSubmissionsManager from './OfflineSubmissionsManager';
+import ServiceLogsPanel from './ServiceLogsPanel';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -4221,9 +4222,12 @@ const AdminPanel = () => {
     { id: 'banners', label: 'Banners', icon: '🖼️' },
     { id: 'newsImages', label: 'Login News Images', icon: '📰' },
     { id: 'quickLinks', label: 'Quick Links', icon: '🔗' },
+    { id: 'quickLinkServiceLogs', label: 'Quick Links Service Logs', icon: '📜', adminOnly: true },
     { id: 'panSubmissions', label: 'Retailer PAN Submissions', icon: '📇' },
+    { id: 'panServiceLogs', label: 'PAN Service Logs', icon: '📜', adminOnly: true },
     { id: 'panForms', label: 'PAN Form Manager', icon: '📝' },
     { id: 'offlineSubmissions', label: 'Retailer Offline Submissions', icon: '📁' },
+    { id: 'offlineServiceLogs', label: 'Offline Work Service Logs', icon: '📜', adminOnly: true },
     { id: 'offlineForms', label: 'Offline Form Manager', icon: '📑' },
     { id: 'walletRequests', label: 'Wallet Requests', icon: '💼' },
     { id: 'payInHistory', label: 'Pay-In History', icon: '📥' },
@@ -4275,17 +4279,20 @@ const AdminPanel = () => {
     { id: 'banners', label: 'Banners', icon: '🖼️' },
     { id: 'newsImages', label: 'Login News Images', icon: '📰' },
     { id: 'quickLinks', label: (allLinkMenusList.find(m => m.key === 'quickLinks') || {}).label || 'Quick Links', icon: '🔗' },
-  ].filter(item => hasStaffModuleAccess(item.id));
+    { id: 'quickLinkServiceLogs', label: 'Quick Links Service Logs', icon: '📜', adminOnly: true },
+  ].filter(item => (userRole === 'admin' || !item.adminOnly) && (userRole === 'admin' || hasStaffModuleAccess(item.id)));
 
   const panSubmenuItems = [
     { id: 'panSubmissions', label: 'Retailer PAN Submissions', icon: '📇' },
+    { id: 'panServiceLogs', label: 'PAN Service Logs', icon: '📜', adminOnly: true },
     { id: 'panForms', label: 'PAN Form Manager', icon: '📝' },
-  ].filter(item => hasStaffModuleAccess(item.id));
+  ].filter(item => (userRole === 'admin' || !item.adminOnly) && (userRole === 'admin' || hasStaffModuleAccess(item.id)));
 
   const offlineSubmenuItems = [
     { id: 'offlineSubmissions', label: 'Retailer Submissions', icon: '📁' },
+    { id: 'offlineServiceLogs', label: 'Offline Work Service Logs', icon: '📜', adminOnly: true },
     { id: 'offlineForms', label: 'Offline Form Manager', icon: '📑' },
-  ].filter(item => hasStaffModuleAccess(item.id));
+  ].filter(item => (userRole === 'admin' || !item.adminOnly) && (userRole === 'admin' || hasStaffModuleAccess(item.id)));
 
   const standaloneItems = [
     { id: 'walletRequests', label: 'Wallet Requests', icon: '💼' },
@@ -4673,10 +4680,10 @@ const AdminPanel = () => {
       <main className="admin-main">
         <header className="admin-topbar">
           <h1>{dynamicLinkMenusList.find(m => m.key === activeTab)?.label || (activeTab === 'quickLinks' ? (allLinkMenusList.find(m => m.key === 'quickLinks')?.label || 'Quick Links') : (allMenuItems.find(m => m.id === activeTab)?.label || 'Dashboard'))}</h1>
-          <div className="admin-topbar-actions" style={{ display: 'flex', gap: '25px', alignItems: 'center' }}>
+          <div className="admin-topbar-actions" style={{ display: 'flex', gap: '18px', alignItems: 'center' }}>
             <NotificationBell />
-            <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', background: '#f4f7fe', padding: '8px 15px', borderRadius: '20px', fontWeight: '600', color: '#2b3674' }}>
-              <span style={{ fontSize: '18px' }}>{userRole === 'staff' ? '👔' : '👨‍💼'}</span>
+            <div className="user-profile" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '7px 14px', borderRadius: '20px', fontWeight: '700', color: '#0f172a', fontSize: '13px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+              <span style={{ fontSize: '16px' }}>{userRole === 'staff' ? '👔' : '👨‍💼'}</span>
               <span>{userRole === 'staff' ? `Staff: ${staffName || 'Member'}` : 'Admin Profile'}</span>
             </div>
             <button 
@@ -4698,7 +4705,7 @@ const AdminPanel = () => {
 
                 navigate('/admin-login');
               }} 
-              style={{ padding: '8px 15px', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}
+              style={{ padding: '7px 14px', background: 'rgba(239, 68, 68, 0.08)', color: '#dc2626', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.18s ease' }}
             >
               <span>🚪</span> Logout
             </button>
@@ -5866,6 +5873,11 @@ const AdminPanel = () => {
               </div>
             );
           })()}
+
+          {/* Separate Service Logs Tabs */}
+          {activeTab === 'panServiceLogs' && <ServiceLogsPanel service="pan" />}
+          {activeTab === 'offlineServiceLogs' && <ServiceLogsPanel service="offline" />}
+          {activeTab === 'quickLinkServiceLogs' && <ServiceLogsPanel service="quickLinks" />}
 
           {/* Retailer PAN Card Submissions Tab */}
           {activeTab === 'panSubmissions' && (
