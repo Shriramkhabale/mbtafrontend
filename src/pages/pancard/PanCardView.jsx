@@ -560,7 +560,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
     if (EPAN_SERVICE_TABS.includes(activeTab)) {
       switchTab('services_landing');
     } else if (activeTab === 'manual_new_pan' || (activeTab !== 'services_landing' && activeTab !== 'new_app_landing' && activeTab !== 'epan_correction' && activeTab !== 'history')) {
-      switchTab('new_app_landing');
+      switchTab('services_landing');
     } else if (activeTab === 'new_app_landing' || activeTab === 'epan_correction' || activeTab === 'history') {
       switchTab('services_landing');
     } else {
@@ -2294,9 +2294,13 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
       <div className={`pancard-card theme-${currentTheme}`}>
 
         {/* Header Bar */}
-        <div className="pancard-header">
+        {(activeTab !== 'manual_new_pan' && activeTab !== 'epan_correction' && activeTab !== 'manual_pan_correction') && (
+        <div
+          className="pancard-header"
+          style={EPAN_SERVICE_TABS.includes(activeTab) || activeTab === 'history' ? { borderBottom: 'none', paddingBottom: '0', marginBottom: '12px', justifyContent: 'flex-end' } : {}}
+        >
           <div className="pancard-header-left">
-            {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing') && (
+            {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing' && !EPAN_SERVICE_TABS.includes(activeTab) && activeTab !== 'history') && (
               <div className="pancard-brand-row">
                 <div className="pancard-title-badge">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -2333,9 +2337,10 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             )}
           </div>
         </div>
+        )}
 
         {/* Dynamic Sub-Tabs Bar (Clean Official Navigation) */}
-        {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing') && (
+        {(activeTab !== 'services_landing' && activeTab !== 'new_app_landing' && activeTab !== 'manual_new_pan' && activeTab !== 'epan_correction' && activeTab !== 'manual_pan_correction' && activeTab !== 'history') && (
           <div className="pancard-tabs-bar">
             {EPAN_SERVICE_TABS.includes(activeTab) ? (
               <>
@@ -2382,7 +2387,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               </>
             ) : (
               <>
-                {activeTab === 'manual_new_pan' && (
+                {activeTab === 'manual_new_pan' && false && (
                   <button
                     type="button"
                     className="pancard-tab-btn active"
@@ -2440,7 +2445,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             <div className="pan-landing-overview-grid">
               <div
                 className="pan-overview-card"
-                onClick={() => switchTab('new_app_landing')}
+                onClick={() => switchTab('manual_new_pan')}
               >
                 <div className="pan-card-image-wrap">
                   <img
@@ -4148,6 +4153,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
             isSubmitting={isSubmitting}
             customFields={getCustomFieldsForCurrentForm('epan_correction')}
             tabs={tabs}
+            onBack={onClose ? handleBackStep : null}
           />
 
         ) : activeTab === 'manual_new_pan' ? (
@@ -4159,8 +4165,38 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
               <h3 style={{ margin: 0, color: '#0284c7', fontSize: '18px', fontWeight: '800' }}>
                 New Pan Application
               </h3>
-              <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                <span>Home</span> &gt; <span style={{ color: '#0284c7', fontWeight: '700' }}>Pan New Application</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <span
+                  className="hero-fee-pill"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    padding: '7px 14px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+                    color: '#ffffff',
+                    boxShadow: '0 2px 8px rgba(234, 88, 12, 0.3)',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Fee: ₹{tabs.find(t => t.id === 'manual_new_pan')?.fee ?? currentTabObj?.fee ?? 107}
+                </span>
+                {onClose && (
+                  <button
+                    type="button"
+                    className="pancard-back-btn"
+                    onClick={handleBackStep}
+                    title="Back to Dashboard"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="19" y1="12" x2="5" y2="12"></line>
+                      <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    <span>Back to Dashboard</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -4409,9 +4445,7 @@ const PanCardView = ({ currentUser, walletBalance = 0, onClose, theme: propTheme
                     <div className="hero-card-header">
                       <h4 className="hero-form-title" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                         <span>{currentTabObj?.icon || '💳'} {currentTabObj?.label || 'PAN Application'} Form</span>
-                        {!PAPERLESS_PAN_TABS.includes(activeTab) && (
-                          <span className="hero-fee-pill" style={{ marginLeft: '4px' }}>Fee: ₹{currentTabObj?.fee ?? 107}</span>
-                        )}
+                        <span className="hero-fee-pill" style={{ marginLeft: '4px' }}>Fee: ₹{currentTabObj?.fee ?? 107}</span>
                       </h4>
                       <p className="hero-form-desc">
                         {PAPERLESS_PAN_TABS.includes(activeTab)

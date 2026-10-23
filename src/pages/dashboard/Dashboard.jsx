@@ -175,6 +175,7 @@ const Dashboard = () => {
 
 
   const [walletBalance, setWalletBalance] = useState(0);
+  const [retailerName, setRetailerName] = useState('');
   const [showBalance, setShowBalance] = useState(() => {
     return localStorage.getItem('showWalletBalance') === 'true';
   });
@@ -383,6 +384,11 @@ const Dashboard = () => {
           .then(data => {
             if (data.walletBalance !== undefined) {
               setWalletBalance(data.walletBalance);
+            }
+            if (data.name) {
+              setRetailerName(data.name);
+            } else if (data.shopName) {
+              setRetailerName(data.shopName);
             }
             if (Array.isArray(data.permissions)) {
               setUserPermissions(data.permissions);
@@ -686,6 +692,11 @@ const Dashboard = () => {
             <div className="profile-dropdown-card">
               {hasUserAccess(userPermissions, 'walletModule') && hasUserAccess(userPermissions, 'wallet.balance') && (
                 <div className="dropdown-user-info">
+                  {retailerName && (
+                    <div style={{ padding: '4px 0 8px', fontSize: '13px', fontWeight: 700, color: '#ea580c' }}>
+                      👤 {retailerName}
+                    </div>
+                  )}
                   <div className="user-info-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="user-info-label">Wallet Balance</span>
                     <span

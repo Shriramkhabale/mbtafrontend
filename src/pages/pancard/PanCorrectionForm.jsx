@@ -31,7 +31,7 @@ const SelectField = ({ label, name, value, onChange, children, required = false 
   </div>
 );
 
-const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload, isSubmitting, customFields = [], tabs = [] }) => {
+const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload, isSubmitting, customFields = [], tabs = [], onBack }) => {
   const isIndividual = !data.category || data.category === 'INDIVIDUAL';
   const tabObj = (Array.isArray(tabs) ? tabs.find(t => t.id === 'epan_correction' || t.id === 'manual_pan_correction') : null) || {
     label: 'PAN Correction',
@@ -43,15 +43,43 @@ const PanCorrectionForm = ({ data, onChange, onFileChange, onSubmit, onDownload,
 
   return (
     <form onSubmit={onSubmit} className="manual-pan-form">
-      {/* Top Header Card */}
-      <div className="pancard-form-hero-card" style={{ marginBottom: '20px' }}>
-        <div className="hero-card-header">
-          <h4 className="hero-form-title">
-            {tabObj.icon || '📝'} {tabObj.label || 'PAN Correction'} <span className="hero-fee-pill">Fee: ₹{tabObj.fee ?? 107}</span>
-          </h4>
-          <p className="hero-form-desc">
-            {tabObj.description || 'Request changes or corrections to an existing PAN record for Individual (Form 93) or Non-Individual Entities (Form 94).'}
-          </p>
+      {/* Top Header Row (Exact match for Screenshot 2 / New Pan Application) */}
+      <div className="manual-pan-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '10px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <h3 style={{ margin: 0, color: '#0284c7', fontSize: '18px', fontWeight: '800' }}>
+          {tabObj.label || 'PAN Correction'}
+        </h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <span
+            className="hero-fee-pill"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              fontSize: '13px',
+              fontWeight: '800',
+              padding: '7px 14px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
+              color: '#ffffff',
+              boxShadow: '0 2px 8px rgba(234, 88, 12, 0.3)',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Fee: ₹{tabObj.fee ?? 107}
+          </span>
+          {onBack && (
+            <button
+              type="button"
+              className="pancard-back-btn"
+              onClick={onBack}
+              title="Back to Dashboard"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+              <span>Back to Dashboard</span>
+            </button>
+          )}
         </div>
       </div>
 

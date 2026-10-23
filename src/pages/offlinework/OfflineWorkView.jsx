@@ -4,6 +4,25 @@ import { API_URL } from '../../utils/apiClient';
 import './OfflineWorkView.css';
 
 const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
+  const [currentTheme, setCurrentTheme] = useState(() => theme || localStorage.getItem('appTheme') || 'light');
+
+  useEffect(() => {
+    if (theme) setCurrentTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const handleStorage = () => {
+      const saved = localStorage.getItem('appTheme') || 'light';
+      setCurrentTheme(saved);
+    };
+    window.addEventListener('storage', handleStorage);
+    const interval = setInterval(handleStorage, 500);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      clearInterval(interval);
+    };
+  }, []);
+
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState('');
   const [loadingTabs, setLoadingTabs] = useState(true);
@@ -412,7 +431,7 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
   };
 
   return (
-    <div className={`offline-work-container ${theme === 'dark' ? 'theme-dark' : ''}`}>
+    <div className={`offline-work-container theme-${currentTheme} ${currentTheme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
       
       {/* Top Header Card */}
       <div className="offline-header-card">
@@ -645,7 +664,7 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
               Your offline work request has been received and queued for processing.
             </p>
 
-            <div style={{ background: '#f8fafc', border: '1.5px dashed #cbd5e1', borderRadius: '16px', padding: '18px 24px', textAlign: 'left', marginBottom: '24px' }}>
+            <div className="offline-ack-summary-card" style={{ background: '#f8fafc', border: '1.5px dashed #cbd5e1', borderRadius: '16px', padding: '18px 24px', textAlign: 'left', marginBottom: '24px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', fontSize: '13.5px' }}>
                 <div>
                   <span style={{ color: '#64748b', display: 'block', fontSize: '11px', fontWeight: 700 }}>ACKNOWLEDGEMENT NO.</span>
@@ -706,7 +725,7 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
             <div className="offline-modal-header">
               <div>
                 <span className="offline-title-badge">APPLICATION DETAILS</span>
-                <h3 style={{ margin: '4px 0 0', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                <h3 className="offline-modal-title" style={{ margin: '4px 0 0', fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
                   {selectedAppForModal.applicationType}
                 </h3>
               </div>
@@ -719,7 +738,7 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px', background: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+            <div className="offline-modal-details-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '14px', marginBottom: '20px', background: '#f8fafc', padding: '16px', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
               <div>
                 <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 800 }}>ACK NUMBER:</span>
                 <div style={{ fontWeight: 800, color: '#0284c7', fontFamily: 'monospace' }}>{selectedAppForModal.ackNumber}</div>
@@ -754,7 +773,7 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
 
             {/* Admin Remarks if any */}
             {selectedAppForModal.adminRemarks && (
-              <div style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', padding: '14px', borderRadius: '12px', marginBottom: '20px' }}>
+              <div className="offline-admin-remarks-box" style={{ background: '#fff7ed', border: '1.5px solid #fed7aa', padding: '14px', borderRadius: '12px', marginBottom: '20px' }}>
                 <span style={{ fontSize: '11.5px', fontWeight: 800, color: '#c2410c', display: 'block', marginBottom: '4px' }}>
                   ADMIN REMARKS & UPDATE:
                 </span>
@@ -766,7 +785,7 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
 
             {/* Admin Result / Receipt if uploaded */}
             {selectedAppForModal.receiptUrl && (
-              <div style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', padding: '14px', borderRadius: '12px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="offline-receipt-box" style={{ background: '#ecfdf5', border: '1.5px solid #a7f3d0', padding: '14px', borderRadius: '12px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <b style={{ color: '#065f46', fontSize: '13.5px' }}>✓ Completion Certificate / Receipt Attached</b>
                   <div style={{ fontSize: '11.5px', color: '#047857' }}>Admin uploaded completion file for this application.</div>
@@ -783,16 +802,16 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
             )}
 
             {/* Dynamic Details breakdown */}
-            <h4 style={{ margin: '0 0 10px', fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
+            <h4 className="offline-modal-subtitle" style={{ margin: '0 0 10px', fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>
               Form Input Fields Data:
             </h4>
-            <div style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px' }}>
+            <div className="offline-modal-fields-container" style={{ maxHeight: '240px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px' }}>
               {selectedAppForModal.details && Object.keys(selectedAppForModal.details).length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
                   {Object.entries(selectedAppForModal.details).map(([k, v]) => {
                     const isFileVal = typeof v === 'string' && (v.startsWith('data:') || v.startsWith('http'));
                     return (
-                      <div key={k} style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                      <div key={k} className="offline-modal-field-item" style={{ background: '#f8fafc', padding: '8px 10px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
                         <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', display: 'block' }}>
                           {k}
                         </span>
