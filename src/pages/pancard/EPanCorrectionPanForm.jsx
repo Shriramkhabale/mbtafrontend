@@ -291,8 +291,7 @@ const EPanCorrectionPanForm = ({ onBack, onSubmit, serviceLabel = 'E-PAN Correct
           }}
         >
           After submission, you will be redirected to the provider to authorize {serviceLabel}.
-          The application fee is debited only after the backend has validated your request and
-          prepared the provider handoff.
+          The application fee is debited only after the provider confirms your request was successful.
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginTop: '18px' }}>

@@ -16,7 +16,7 @@ import { API_URL, apiFetch } from '../../utils/apiClient';
 
 const PAPERLESS_PAN_TABS = ['epan_kyc', 'epan_correction_otp', 'epan_sign_photo', 'epan_correction_sign_photo'];
 const EPAN_SERVICE_TABS = ['find_pan_aadhaar', ...PAPERLESS_PAN_TABS];
-const ETDS_PROVIDER_MESSAGE = 'Complete the customer details to continue to the provider authorization page. Your wallet fee is debited only after the backend accepts the request.';
+const ETDS_PROVIDER_MESSAGE = 'Complete the customer details to continue to the provider authorization page. Your wallet fee is debited only after the provider confirms success.';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');

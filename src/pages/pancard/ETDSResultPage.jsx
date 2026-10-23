@@ -59,7 +59,11 @@ const ETDSResultPage = () => {
         if (!active) return;
         setResult(data);
 
-        if (['success', 'failed', 'unknown'].includes(data.status)) return;
+        if (data.status === 'success') {
+          navigate('/pancard?tab=history', { replace: true });
+          return;
+        }
+        if (['failed', 'unknown'].includes(data.status)) return;
         if (Date.now() - startedAt >= POLL_TIMEOUT_MS) {
           setTimedOut(true);
           return;
