@@ -49,7 +49,7 @@ export const findDynamicMenu = (term, customMenus = []) => {
   const raw = String(term).trim().toLowerCase();
   const t = raw.split('?')[0].replace(/\/+$/, '');
   const tNoSlash = t.replace(/^\/+/, '');
-  if (t.includes('offline') || t.includes('pan')) return null;
+  if (t.includes('offline') || t.includes('pan') || t.includes('tool')) return null;
 
   // Check custom dynamic menus first if passed
   if (Array.isArray(customMenus) && customMenus.length > 0) {
@@ -123,7 +123,7 @@ export const getDynamicMenuForSidebarItem = (menuItem, customMenus = []) => {
   if (!menuItem) return null;
   const lowerUrl = (menuItem.url || '').toLowerCase();
   const lowerLabel = (menuItem.label || '').toLowerCase();
-  if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan')) {
+  if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan') || lowerUrl.includes('tool') || lowerLabel.includes('tool')) {
     return null;
   }
   if (menuItem.url) {

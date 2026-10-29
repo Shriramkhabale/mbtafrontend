@@ -8,6 +8,7 @@ import LedgerView from '../ledger/LedgerView';
 import PanCardView from '../pancard/PanCardView';
 import QuickLinksView from '../quicklinks/QuickLinksView';
 import OfflineWorkView from '../offlinework/OfflineWorkView';
+import ToolsView from '../tools/ToolsView';
 import NotificationBell from '../../context/NotificationBell';
 import { API_URL } from '../../utils/apiClient';
 import { DYNAMIC_LINK_MENUS, findDynamicMenu, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
@@ -114,6 +115,7 @@ const Dashboard = () => {
   const isPanCardRoute = location.pathname === '/pancard' || location.pathname === '/pan-card';
   const isQuickLinksRoute = location.pathname === '/quick-links' || location.pathname === '/view-links';
   const isOfflineWorkRoute = location.pathname === '/offline-work' || location.pathname === '/offlinework';
+  const isToolsRoute = location.pathname.toLowerCase() === '/tools';
 
   const [userPermissions, setUserPermissions] = useState(getStoredUserPermissions);
 
@@ -135,7 +137,7 @@ const Dashboard = () => {
       if (!m.url || !m.url.startsWith('/')) return false;
       const lowerUrl = (m.url || '').toLowerCase();
       const lowerLabel = (m.label || '').toLowerCase();
-      if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan')) {
+      if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan') || lowerUrl.includes('tool') || lowerLabel.includes('tool')) {
         return false;
       }
       const cleanPath = location.pathname.toLowerCase().replace(/\/+$/, '');
@@ -154,7 +156,7 @@ const Dashboard = () => {
     return null;
   }, [location.pathname, sidebarMenuData]);
   const isDynLinkMenuRoute = Boolean(activeDynLinkMenu);
-  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute || isOfflineWorkRoute;
+  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute || isOfflineWorkRoute || isToolsRoute;
   const [activeCardId, setActiveCardId] = useState(null);
   const [activeBannerId, setActiveBannerId] = useState(null);
 
@@ -284,8 +286,9 @@ const Dashboard = () => {
           const u = (m.url || '').toLowerCase();
           const isPan = l.includes('pan');
           const isDash = l.includes('dash');
+          const isTools = l.includes('tool');
           const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
-          if (!isPan && !isDash && !isQuick && (m.url && m.url.startsWith('/'))) {
+          if (!isPan && !isDash && !isQuick && !isTools && (m.url && m.url.startsWith('/'))) {
             const customKey = m.url.replace(/^\/+/, '').replace(/[^a-zA-Z0-9]/g, '');
             customDynMenus.push({
               key: customKey,
@@ -846,6 +849,7 @@ const Dashboard = () => {
               const isPan = menu.label && menu.label.toLowerCase().includes('pan');
               const isDash = menu.label && menu.label.toLowerCase().includes('dash');
               const isOffline = menu.label && menu.label.toLowerCase().includes('offline');
+              const isTools = menu.label && menu.label.toLowerCase().includes('tool');
               const matchedDyn = getDynamicMenuForSidebarItem(menu) || findDynamicMenu(menu.url || menu.label);
               const isQuick = !matchedDyn && (
                 menu.url === '/quick-links' ||
@@ -854,7 +858,7 @@ const Dashboard = () => {
               );
               const isDynSelected = matchedDyn && activeDynLinkMenu && matchedDyn.key === activeDynLinkMenu.key;
               const isUrlMatched = Boolean(menu.url && menu.url.trim() !== '' && location.pathname.toLowerCase() === menu.url.trim().toLowerCase());
-              const isSelected = isDynSelected ? true : (isUrlMatched ? true : (isPan ? isPanCardRoute : (isOffline ? isOfflineWorkRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId)))));
+              const isSelected = isDynSelected ? true : (isUrlMatched ? true : (isPan ? isPanCardRoute : (isOffline ? isOfflineWorkRoute : (isTools ? isToolsRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId))))));
 
               return (
                 <div
@@ -863,7 +867,9 @@ const Dashboard = () => {
                   onClick={() => {
                     setActiveMenuId(menuId);
                     setIsMobileMenuOpen(false);
-                    if (matchedDyn) {
+                    if (isTools || menu.url === '/tools') {
+                      navigate('/tools');
+                    } else if (matchedDyn) {
                       navigate(matchedDyn.route);
                     } else if (isPan) {
                       navigate('/pancard');
@@ -1084,7 +1090,15 @@ const Dashboard = () => {
                 userPermissions={userPermissions}
               />
             );
-          })() : isDynLinkMenuRoute ? (() => {
+          })() : isToolsRoute ? (
+            <ToolsView
+              theme={theme}
+              currentUser={localStorage.getItem('currentUser')}
+              walletBalance={walletBalance}
+              onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+              onClose={() => navigate('/dashboard')}
+            />
+          ) : isDynLinkMenuRoute ? (() => {
             const dynPermKey = `dyn.${activeDynLinkMenu.key}`;
             if (!hasUserAccess(userPermissions, 'dynamicMenus') && !hasUserAccess(userPermissions, dynPermKey)) {
               return <AccessRestrictedNotice title={activeDynLinkMenu.label || 'Dynamic Portal'} onBack={() => navigate('/dashboard')} />;
