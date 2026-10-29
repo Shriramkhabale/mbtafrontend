@@ -60,7 +60,13 @@ export const PERMISSION_ALIASES = {
   // Offline Work aliases
   'offline_work': 'offlineWork',
   'offlineWork': 'offlineWork',
-  'offlinework': 'offlineWork'
+  'offlinework': 'offlineWork',
+
+  // Tools aliases
+  'tools': 'toolsModule',
+  'tool': 'toolsModule',
+  'tools_module': 'toolsModule',
+  'toolsModule': 'toolsModule'
 };
 
 // Map each module to its sub-permissions
@@ -197,6 +203,13 @@ export const hasUserAccess = (userOrPermissions, permissionId, userRole = null) 
   // 3. For offlineWork: grant access by default to all active users unless explicitly revoked
   if (target === 'offlineWork' || target.startsWith('offlineWork.')) {
     if (!normalized.includes('!offlineWork') && !normalized.includes('none')) {
+      return true;
+    }
+  }
+
+  // 4. For tools: grant access by default to all active users unless explicitly revoked
+  if (target === 'tools' || target === 'toolsModule' || target.startsWith('tools.')) {
+    if (!normalized.includes('!tools') && !normalized.includes('none')) {
       return true;
     }
   }

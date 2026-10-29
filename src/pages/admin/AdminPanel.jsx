@@ -1988,6 +1988,24 @@ const AdminPanel = () => {
     gridSpan: 1,
     optionsRaw: ''
   });
+
+  // Tools Management States
+  const [adminTools, setAdminTools] = useState([]);
+  const [isToolsServiceActive, setIsToolsServiceActive] = useState(true);
+  const [isSavingTool, setIsSavingTool] = useState(false);
+  const [editingToolId, setEditingToolId] = useState(null);
+  const [toolSearch, setToolSearch] = useState('');
+  const [toolForm, setToolForm] = useState({
+    title: '',
+    url: '',
+    apiUrl: '',
+    icon: '⚡',
+    category: 'Card Cutter',
+    badge: 'AI API',
+    fee: 0,
+    description: '',
+    isActive: true
+  });
   
   const [draggedIndex, setDraggedIndex] = useState(null);
 
@@ -2874,6 +2892,135 @@ const AdminPanel = () => {
       if (data && data.success && data.value) {
         setMarqueeInput(data.value);
       }
+    });
+    load('/api/tools', data => {
+      if (Array.isArray(data)) setAdminTools(data);
+    });
+    load('/api/tools/service-status', data => {
+      if (data && data.isActive !== undefined) setIsToolsServiceActive(Boolean(data.isActive));
+    });
+  };
+
+  const handleToggleToolsMasterService = async () => {
+    const newStatus = !isToolsServiceActive;
+    try {
+      const res = await fetch(`${API_URL}/api/tools/toggle-service`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newStatus })
+      });
+      if (res.ok) {
+        setIsToolsServiceActive(newStatus);
+        fetchAll();
+        showCustomToast(
+          `Tools Service is now ${newStatus ? 'ON (Active)' : 'OFF (Paused)'}`,
+          newStatus ? 'All tools are now visible and accessible to retailers.' : 'Tools section is now hidden/disabled for retailers.',
+          newStatus ? 'success' : 'warning',
+          2500
+        );
+      }
+    } catch (err) {
+      console.error('Failed to toggle tools master service:', err);
+      Swal.fire({ icon: 'error', text: 'Failed to update service status.' });
+    }
+  };
+
+  const handleToggleSingleTool = async (tool) => {
+    if (!tool || !tool._id) return;
+    const newActive = !tool.isActive;
+    try {
+      setAdminTools(prev => prev.map(t => t._id === tool._id ? { ...t, isActive: newActive } : t));
+      await fetch(`${API_URL}/api/tools/${tool._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: newActive })
+      });
+      showCustomToast(
+        `${tool.title} ${newActive ? 'Enabled' : 'Disabled'}`,
+        newActive ? 'Tool is now active in user panel.' : 'Tool is now hidden from user panel.',
+        newActive ? 'success' : 'warning',
+        1800
+      );
+    } catch (err) {
+      console.error('Failed to toggle tool:', err);
+    }
+  };
+
+  const handleSaveTool = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!toolForm.title.trim()) {
+      return Swal.fire({ icon: 'warning', text: 'Please enter a title for the tool.' });
+    }
+    setIsSavingTool(true);
+    try {
+      if (editingToolId) {
+        const res = await fetch(`${API_URL}/api/tools/${editingToolId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(toolForm)
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setAdminTools(prev => prev.map(t => t._id === editingToolId ? updated : t));
+          setEditingToolId(null);
+          setToolForm({ title: '', url: '', apiUrl: '', icon: '⚡', category: 'Card Cutter', badge: 'AI API', fee: 0, description: '', isActive: true });
+          showCustomToast('Tool Updated', `"${updated.title}" was updated successfully.`, 'success', 2000);
+        }
+      } else {
+        const res = await fetch(`${API_URL}/api/tools`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(toolForm)
+        });
+        if (res.ok) {
+          const created = await res.json();
+          setAdminTools(prev => [...prev, created]);
+          setToolForm({ title: '', url: '', apiUrl: '', icon: '⚡', category: 'Card Cutter', badge: 'AI API', fee: 0, description: '', isActive: true });
+          showCustomToast('Tool Added', `"${created.title}" was created successfully.`, 'success', 2000);
+        }
+      }
+    } catch (err) {
+      console.error('Error saving tool:', err);
+      Swal.fire({ icon: 'error', text: 'Failed to save tool.' });
+    } finally {
+      setIsSavingTool(false);
+    }
+  };
+
+  const handleDeleteTool = async (toolId, toolTitle) => {
+    const confirmRes = await Swal.fire({
+      title: `Delete "${toolTitle}"?`,
+      text: 'Are you sure you want to remove this tool from the suite?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete',
+      confirmButtonColor: '#ef4444',
+      cancelButtonText: 'Cancel'
+    });
+    if (!confirmRes.isConfirmed) return;
+    try {
+      const res = await fetch(`${API_URL}/api/tools/${toolId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setAdminTools(prev => prev.filter(t => t._id !== toolId));
+        showCustomToast('Tool Deleted', `"${toolTitle}" was removed.`, 'success', 1800);
+      }
+    } catch (err) {
+      console.error('Error deleting tool:', err);
+    }
+  };
+
+  const handleStartEditTool = (tool) => {
+    setEditingToolId(tool._id);
+    setToolForm({
+      title: tool.title || '',
+      url: tool.url || '',
+      apiUrl: tool.apiUrl || '',
+      icon: tool.icon || '⚡',
+      category: tool.category || 'Card Cutter',
+      badge: tool.badge || 'AI API',
+      fee: tool.fee || 0,
+      description: tool.description || '',
+      isActive: tool.isActive !== undefined ? tool.isActive : true
     });
   };
 
@@ -4578,6 +4725,31 @@ const AdminPanel = () => {
             </div>
           )}
 
+          {/* Tools & AI Utilities Management Navigation */}
+          <div className="admin-submenu-group">
+            <button
+              type="button"
+              className={`admin-nav-parent-btn ${activeTab === 'toolsManagement' ? 'active-group' : ''}`}
+              onClick={() => handleTabChange('toolsManagement')}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="nav-icon">⚡</span>
+                <span>Tools Management</span>
+              </div>
+              <span style={{
+                fontSize: '9.5px',
+                padding: '2px 7px',
+                borderRadius: '8px',
+                fontWeight: 800,
+                background: isToolsServiceActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                color: isToolsServiceActive ? '#10b981' : '#ef4444',
+                marginLeft: 'auto'
+              }}>
+                {isToolsServiceActive ? 'ON' : 'OFF'}
+              </span>
+            </button>
+          </div>
+
           {/* Submenu 3: Fees Management */}
           {feesSubmenuItems.length > 0 && (
             <div className="admin-submenu-group">
@@ -5009,6 +5181,304 @@ const AdminPanel = () => {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tools & AI Utilities Suite Management Tab */}
+          {activeTab === 'toolsManagement' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Top Master Service Control Card */}
+              <div className="admin-card" style={{
+                background: isToolsServiceActive 
+                  ? 'linear-gradient(135deg, rgba(240, 253, 244, 0.9) 0%, rgba(220, 252, 231, 0.6) 100%)' 
+                  : 'linear-gradient(135deg, rgba(254, 242, 242, 0.9) 0%, rgba(254, 226, 226, 0.6) 100%)',
+                border: isToolsServiceActive ? '1.5px solid #86efac' : '1.5px solid #fca5a5',
+                borderRadius: '16px',
+                padding: '20px 24px',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.04)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '24px' }}>⚡</span>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
+                        Tools & AI Utilities Suite Master Control
+                      </h3>
+                      <span style={{
+                        padding: '3px 10px',
+                        borderRadius: '20px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        background: isToolsServiceActive ? '#15803d' : '#b91c1c',
+                        color: '#ffffff'
+                      }}>
+                        {isToolsServiceActive ? '🟢 SUITE ACTIVE' : '🔴 SUITE PAUSED'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#475569', maxWidth: '680px' }}>
+                      Control whole service visibility in the User Panel. When ON, the Tools option appears in the retailer sidebar and gives retailers access to all active AI cutter APIs, background removers, validators, and converters.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleToolsMasterService}
+                    style={{
+                      padding: '10px 22px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: isToolsServiceActive ? '#dc2626' : '#16a34a',
+                      color: '#ffffff',
+                      fontSize: '13px',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      boxShadow: isToolsServiceActive ? '0 4px 12px rgba(220, 38, 38, 0.25)' : '0 4px 12px rgba(22, 163, 74, 0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <span>{isToolsServiceActive ? '⏸️' : '▶️'}</span>
+                    <span>{isToolsServiceActive ? 'Pause Whole Service' : 'Activate Whole Service'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid: Left = Add/Edit Form, Right = Configured Tools List */}
+              <div className="admin-panel-grid" style={{ gridTemplateColumns: 'minmax(320px, 420px) 1fr' }}>
+                {/* Form Card */}
+                <div className="admin-card form-card">
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>{editingToolId ? '✏️ Edit Tool' : '➕ Add Tool'}</span>
+                  </h3>
+                  <div className="modern-form">
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Tool Title *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. AADHAR CARD PDF CUTTER AI API"
+                        value={toolForm.title}
+                        onChange={e => setToolForm({ ...toolForm, title: e.target.value })}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Category</label>
+                        <select
+                          value={toolForm.category}
+                          onChange={e => setToolForm({ ...toolForm, category: e.target.value })}
+                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                        >
+                          <option value="Card Cutter">Card Cutter</option>
+                          <option value="Image AI">Image AI</option>
+                          <option value="Validation">Validation</option>
+                          <option value="OCR / Text">OCR / Text</option>
+                          <option value="Converter">Converter</option>
+                          <option value="General">General</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Icon</label>
+                        <input
+                          type="text"
+                          placeholder="Icon (e.g. 🪪, ✂️, ⚡)"
+                          value={toolForm.icon}
+                          onChange={e => setToolForm({ ...toolForm, icon: e.target.value })}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Badge Label</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. AI API"
+                          value={toolForm.badge}
+                          onChange={e => setToolForm({ ...toolForm, badge: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Service Fee (₹)</label>
+                        <input
+                          type="number"
+                          placeholder="0 for Free"
+                          value={toolForm.fee}
+                          onChange={e => setToolForm({ ...toolForm, fee: parseFloat(e.target.value) || 0 })}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Redirect / Web App URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://... (URL opens when user clicks Open Tool)"
+                        value={toolForm.url}
+                        onChange={e => setToolForm({ ...toolForm, url: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>API Endpoint (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="https://api.example.com/v1/cutter"
+                        value={toolForm.apiUrl}
+                        onChange={e => setToolForm({ ...toolForm, apiUrl: e.target.value })}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Description</label>
+                      <textarea
+                        rows="2"
+                        placeholder="Brief summary of what this tool does..."
+                        value={toolForm.description}
+                        onChange={e => setToolForm({ ...toolForm, description: e.target.value })}
+                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <label className="modern-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '6px 0' }}>
+                      <input
+                        type="checkbox"
+                        checked={toolForm.isActive}
+                        onChange={e => setToolForm({ ...toolForm, isActive: e.target.checked })}
+                      />
+                      <span style={{ fontWeight: 700, fontSize: '13px' }}>
+                        User Panel Visibility: {toolForm.isActive ? <span style={{ color: '#10b981' }}>🟢 ON (Visible)</span> : <span style={{ color: '#ef4444' }}>⚪ OFF (Hidden)</span>}
+                      </span>
+                    </label>
+
+                    <button
+                      type="button"
+                      className="modern-submit-btn"
+                      disabled={isSavingTool}
+                      onClick={handleSaveTool}
+                    >
+                      {editingToolId ? 'Update Tool' : 'Add Tool'}
+                    </button>
+                    {editingToolId && (
+                      <button
+                        type="button"
+                        className="modern-submit-btn"
+                        style={{ background: '#64748b', marginTop: '6px' }}
+                        onClick={() => {
+                          setEditingToolId(null);
+                          setToolForm({ title: '', url: '', apiUrl: '', icon: '⚡', category: 'Card Cutter', badge: 'AI API', fee: 0, description: '', isActive: true });
+                        }}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* List Card */}
+                <div className="admin-card list-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
+                    <h3 style={{ margin: 0 }}>
+                      Configured Tools ({adminTools.length})
+                    </h3>
+                    <input
+                      type="text"
+                      placeholder="Filter tools..."
+                      value={toolSearch}
+                      onChange={e => setToolSearch(e.target.value)}
+                      style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '12px', minWidth: '180px' }}
+                    />
+                  </div>
+
+                  <div className="modern-list" style={{ maxHeight: '680px', overflowY: 'auto' }}>
+                    {adminTools
+                      .filter(t => {
+                        if (!toolSearch.trim()) return true;
+                        const q = toolSearch.toLowerCase();
+                        return (t.title || '').toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q);
+                      })
+                      .map((t, index) => (
+                        <div
+                          className="list-item"
+                          key={t._id || index}
+                          style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}
+                        >
+                          <div style={{ fontSize: '22px', width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(234, 88, 12, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {t.icon || '⚡'}
+                          </div>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 800, fontSize: '13.5px', color: '#0f172a' }}>
+                                {t.title}
+                              </span>
+                              <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '6px', background: '#e0f2fe', color: '#0369a1', fontWeight: 700 }}>
+                                {t.badge || t.category || 'AI API'}
+                              </span>
+                              {t.fee > 0 && (
+                                <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '6px', background: '#fef3c7', color: '#b45309', fontWeight: 800 }}>
+                                  ₹{t.fee}
+                                </span>
+                              )}
+                            </div>
+                            {t.url ? (
+                              <span style={{ fontSize: '11px', color: '#3b82f6', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                🔗 {t.url}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                                ⚡ Standard AI Endpoint
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSingleTool(t)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '5px 12px',
+                                borderRadius: '16px',
+                                border: 'none',
+                                fontSize: '11.5px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                background: t.isActive ? '#10b981' : '#e2e8f0',
+                                color: t.isActive ? '#ffffff' : '#64748b'
+                              }}
+                              title={t.isActive ? 'Turn OFF for user panel' : 'Turn ON for user panel'}
+                            >
+                              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: t.isActive ? '#fff' : '#94a3b8' }}></span>
+                              {t.isActive ? 'ON' : 'OFF'}
+                            </button>
+
+                            <button
+                              type="button"
+                              className="modern-edit-btn"
+                              onClick={() => handleStartEditTool(t)}
+                              style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              type="button"
+                              className="modern-delete-btn"
+                              onClick={() => handleDeleteTool(t._id, t.title)}
+                              style={{ background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               </div>
             </div>
