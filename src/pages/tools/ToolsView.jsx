@@ -751,7 +751,6 @@ const ToolsView = ({
         confirmButtonColor: '#ea580c'
       });
     }
-
     // Check fee if specified
     if (tool.fee && tool.fee > 0) {
       const currentBal = parseFloat(walletBalance) || 0;
@@ -878,6 +877,12 @@ const ToolsView = ({
       if (res.ok) {
         resultData = await res.json();
       } else {
+        const isBackgroundRemover = (selectedTool?.title || '').toLowerCase().includes('background remover')
+          || (selectedTool?.title || '').toLowerCase().includes('remove bg');
+        if (isBackgroundRemover) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'Background removal failed');
+        }
         resultData = {
           success: true,
           toolTitle: selectedTool?.title,

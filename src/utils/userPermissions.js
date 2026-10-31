@@ -270,6 +270,13 @@ export const hasUserAccess = (userOrPermissions, permissionId, userRole = null) 
     }
   }
 
+  // 4. For tools: grant access by default to all active users unless explicitly revoked
+  if (target === 'tools' || target === 'toolsModule' || target.startsWith('tools.')) {
+    if (!normalized.includes('!tools') && !normalized.includes('none')) {
+      return true;
+    }
+  }
+
   return false;
 };
 
