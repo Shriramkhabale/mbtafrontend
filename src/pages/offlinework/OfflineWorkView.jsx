@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { API_URL } from '../../utils/apiClient';
+import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 import './OfflineWorkView.css';
 
-const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
+const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme, userPermissions }) => {
+  const effectivePermissions = userPermissions || getStoredUserPermissions();
   const [currentTheme, setCurrentTheme] = useState(() => theme || localStorage.getItem('appTheme') || 'light');
 
   useEffect(() => {
@@ -184,6 +186,15 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
 
     const feeAmount = typeof activeTab.fee === 'number' ? activeTab.fee : 0;
     const currentBal = Number(walletBalance || 0);
+
+    if (!hasUserAccess(effectivePermissions, 'offlineWork.submit')) {
+      return Swal.fire({
+        icon: 'error',
+        title: 'Access Restricted',
+        text: 'You do not have permission to submit offline applications.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
 
     if (feeAmount > 0 && currentBal < feeAmount) {
       return Swal.fire({
@@ -483,17 +494,19 @@ const OfflineWorkView = ({ currentUser, walletBalance, onClose, theme }) => {
         ))}
 
         {/* History Tab */}
-        <button
-          type="button"
-          className={`offline-tab-pill ${activeTabId === 'history' ? 'active' : ''}`}
-          onClick={() => setActiveTabId('history')}
-        >
-          <span>📋</span>
-          <span>My Application History</span>
-          {historyList.length > 0 && (
-            <span className="offline-tab-badge-fee">{historyList.length}</span>
-          )}
-        </button>
+        {hasUserAccess(effectivePermissions, 'offlineWork.history') && (
+          <button
+            type="button"
+            className={`offline-tab-pill ${activeTabId === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTabId('history')}
+          >
+            <span>📋</span>
+            <span>My Application History</span>
+            {historyList.length > 0 && (
+              <span className="offline-tab-badge-fee">{historyList.length}</span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* RENDER ACTIVE VIEW */}

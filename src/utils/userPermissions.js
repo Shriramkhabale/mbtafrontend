@@ -9,8 +9,29 @@ export const PERMISSION_ALIASES = {
   'pan_card': 'panCard',
   'pan.new': 'pan.manualNew',
   'pan_manual': 'pan.manualNew',
+  'pan.manual_new': 'pan.manualNew',
+  'manual_new_pan': 'pan.manualNew',
+  'pan.epan_kyc': 'pan.epanKyc',
+  'epan_kyc': 'pan.epanKyc',
+  'pan.epan_correction_otp': 'pan.epanCorrectionOtp',
+  'epan_correction_otp': 'pan.epanCorrectionOtp',
+  'pan.epan_sign_photo': 'pan.epanSignPhoto',
+  'epan_sign_photo': 'pan.epanSignPhoto',
+  'pan.epan_correction_sign_photo': 'pan.epanCorrectionSignPhoto',
+  'epan_correction_sign_photo': 'pan.epanCorrectionSignPhoto',
+  'pan.correction': 'pan.correction',
   'pan_correction': 'pan.correction',
+  'epan_correction': 'pan.correction',
+  'manual_pan_correction': 'pan.correction',
+  'pan.findPan': 'pan.findPan',
   'pan_find': 'pan.findPan',
+  'find_pan_aadhaar': 'pan.findPan',
+  'pan.merger': 'pan.merger',
+  'stamp_signature_merger': 'pan.merger',
+  'pan.submissions': 'pan.submissions',
+  'pan.history': 'pan.submissions',
+  'pan_history': 'pan.submissions',
+  'history': 'pan.submissions',
 
   // Quick Links & Portals aliases
   'view_quick_links_dashboard': 'quickLinks.view',
@@ -66,13 +87,50 @@ export const PERMISSION_ALIASES = {
   'tools': 'toolsModule',
   'tool': 'toolsModule',
   'tools_module': 'toolsModule',
-  'toolsModule': 'toolsModule'
+  'toolsModule': 'toolsModule',
+  'tools.view': 'tools.view',
+  'tools_view': 'tools.view',
+  'tools.aadhar': 'tools.aadharCutter',
+  'tools.all_id': 'tools.allIdCutter',
+  'tools.background': 'tools.bgRemover',
+  'tools.signature': 'tools.signValidation',
+  'tools.ocr': 'tools.ocrConverter',
+  'tools.enhance': 'tools.imageEnhancer',
+  'tools.ration': 'tools.rationCutter',
+  'tools.pan': 'tools.panCutter',
+  'tools.voter': 'tools.voterCutter',
+  'tools.ayushman': 'tools.ayushmanCutter'
 };
 
 // Map each module to its sub-permissions
 export const MODULE_SUB_MAP = {
   offlineWork: ['offlineWork.view', 'offlineWork.submit', 'offlineWork.history'],
-  panCard: ['pan.manualNew', 'pan.epanKyc', 'pan.correction', 'pan.findPan', 'pan.merger', 'pan.submissions'],
+  panCard: [
+    'pan.manualNew',
+    'pan.epanKyc',
+    'pan.epanCorrectionOtp',
+    'pan.epanSignPhoto',
+    'pan.epanCorrectionSignPhoto',
+    'pan.correction',
+    'pan.findPan',
+    'pan.merger',
+    'pan.submissions'
+  ],
+  toolsModule: [
+    'tools.view',
+    'tools.aadharCutter',
+    'tools.allIdCutter',
+    'tools.bgRemover',
+    'tools.signValidation',
+    'tools.autoCrop',
+    'tools.ocrConverter',
+    'tools.imageEnhancer',
+    'tools.rationCutter',
+    'tools.panCutter',
+    'tools.voterCutter',
+    'tools.pdf2Html',
+    'tools.ayushmanCutter'
+  ],
   dynamicMenus: [
     'dyn.servicesLink', 'dyn.jobLinks', 'dyn.admitCard', 'dyn.formLinks', 
     'dyn.vedioLink', 'dyn.trainingLinks', 'dyn.productLinks', 'dyn.govtLinks', 
@@ -200,19 +258,35 @@ export const hasUserAccess = (userOrPermissions, permissionId, userRole = null) 
     return true;
   }
 
-  // 3. For offlineWork: grant access by default to all active users unless explicitly revoked
-  if (target === 'offlineWork' || target.startsWith('offlineWork.')) {
-    if (!normalized.includes('!offlineWork') && !normalized.includes('none')) {
-      return true;
-    }
-  }
-
-  // 4. For tools: grant access by default to all active users unless explicitly revoked
-  if (target === 'tools' || target === 'toolsModule' || target.startsWith('tools.')) {
-    if (!normalized.includes('!tools') && !normalized.includes('none')) {
-      return true;
+  // 3. If target is a sub-permission, check if its parent module is granted
+  for (const [parentId, subList] of Object.entries(MODULE_SUB_MAP)) {
+    if (subList.includes(target) && normalized.includes(parentId)) {
+      // If the user's permissions array contains ANY sub-permission of this module,
+      // then granular permissions are active and an unchecked sub-permission must NOT be granted!
+      const hasGranularSubs = subList.some(subId => normalized.includes(subId));
+      if (!hasGranularSubs) {
+        return true;
+      }
     }
   }
 
   return false;
+};
+
+/**
+ * Maps a PAN Card sub-tab ID to its normalized user permission key.
+ */
+export const getPanTabPermissionKey = (tabId) => {
+  if (!tabId) return 'panCard';
+  const clean = String(tabId).replace(/^pan_/, '').toLowerCase().trim();
+  if (clean === 'manual_new_pan' || clean === 'manualnew' || clean === 'pan.manualnew') return 'pan.manualNew';
+  if (clean === 'epan_kyc' || clean === 'epankyc' || clean === 'pan.epankyc') return 'pan.epanKyc';
+  if (clean === 'epan_correction_otp' || clean === 'epancorrectionotp' || clean === 'pan.epancorrectionotp') return 'pan.epanCorrectionOtp';
+  if (clean === 'epan_sign_photo' || clean === 'epansignphoto' || clean === 'pan.epansignphoto') return 'pan.epanSignPhoto';
+  if (clean === 'epan_correction_sign_photo' || clean === 'epancorrectionsignphoto' || clean === 'pan.epancorrectionsignphoto') return 'pan.epanCorrectionSignPhoto';
+  if (clean === 'epan_correction' || clean === 'manual_pan_correction' || clean === 'correction' || clean === 'pan.correction') return 'pan.correction';
+  if (clean === 'find_pan_aadhaar' || clean === 'findpan' || clean === 'pan.findpan') return 'pan.findPan';
+  if (clean === 'stamp_signature_merger' || clean === 'merger' || clean === 'pan.merger') return 'pan.merger';
+  if (clean === 'history' || clean === 'submissions' || clean === 'pan.submissions') return 'pan.submissions';
+  return `pan.${clean}`;
 };

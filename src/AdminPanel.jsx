@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './AdminPanel.css';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http:REACT_APP_API_URL';
+import { API_URL } from './utils/apiClient';
 
 const Toast = Swal.mixin({
   toast: true,

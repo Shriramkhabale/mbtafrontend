@@ -120,7 +120,7 @@ const QuickLinksView = ({
       if (m.key === 'quickLinks') {
         return hasUserAccess(effectivePermissions, 'quickLinksModule') && hasUserAccess(effectivePermissions, 'quickLinks.view');
       }
-      return hasUserAccess(effectivePermissions, 'dynamicMenus') || hasUserAccess(effectivePermissions, `dyn.${m.key}`);
+      return hasUserAccess(effectivePermissions, `dyn.${m.key}`);
     });
     setMenuTabs(activeOnly);
 

@@ -2,6 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import './ToolsView.css';
 import { API_URL } from '../../utils/apiClient';
+import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
+
+export const getToolPermissionKey = (tool) => {
+  const t = (tool?.title || '').toLowerCase();
+  if (t.includes('aadhar') || t.includes('aadhaar')) return 'tools.aadharCutter';
+  if (t.includes('automatic') || t.includes('cropping') || t.includes('auto crop')) return 'tools.autoCrop';
+  if (t.includes('all type') || t.includes('all identity') || t.includes('id card crop')) return 'tools.allIdCutter';
+  if (t.includes('background') || t.includes('remover')) return 'tools.bgRemover';
+  if (t.includes('signature') || t.includes('validation') || t.includes('sign')) return 'tools.signValidation';
+  if (t.includes('image to text') || t.includes('text converter') || t.includes('ocr')) return 'tools.ocrConverter';
+  if (t.includes('enhancer') || t.includes('upscaler')) return 'tools.imageEnhancer';
+  if (t.includes('ration')) return 'tools.rationCutter';
+  if (t.includes('pan card') || (t.includes('pan') && t.includes('cutter'))) return 'tools.panCutter';
+  if (t.includes('voter') || t.includes('epic')) return 'tools.voterCutter';
+  if (t.includes('pdf 2 html') || t.includes('pdf to html') || t.includes('convert')) return 'tools.pdf2Html';
+  if (t.includes('ayushman') || t.includes('pmjay')) return 'tools.ayushmanCutter';
+  return null;
+};
 
 // Distinct SVG banner for each tool in Dashboard (matching PanCardView photo 2 style)
 // Distinct SVG banner for each tool in Dashboard (matches both White and Dark theme)
@@ -628,8 +646,10 @@ const ToolsView = ({
   currentUser,
   walletBalance = 0,
   onBalanceUpdate,
-  onClose
+  onClose,
+  userPermissions
 }) => {
+  const effectivePermissions = userPermissions || getStoredUserPermissions();
   const [tools, setTools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isServiceActive, setIsServiceActive] = useState(true);
@@ -721,6 +741,16 @@ const ToolsView = ({
   // Launch tool -> Enter Step 2 (Upload)
   const handleSelectTool = async (tool) => {
     if (!tool) return;
+
+    const permKey = getToolPermissionKey(tool);
+    if (permKey && !hasUserAccess(effectivePermissions, permKey)) {
+      return Swal.fire({
+        icon: 'error',
+        title: 'Access Restricted',
+        text: 'You do not have permission to access this tool.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
 
     // Check fee if specified
     if (tool.fee && tool.fee > 0) {
@@ -928,6 +958,10 @@ const ToolsView = ({
 
   const activeTools = tools.filter(t => {
     if (t.isActive === false) return false;
+    const permKey = getToolPermissionKey(t);
+    if (permKey && !hasUserAccess(effectivePermissions, permKey)) {
+      return false;
+    }
     const title = (t.title || '').toLowerCase();
     if (studioFilter === 'photo') {
       return title.includes('photo') || title.includes('background') || title.includes('enhancer') || title.includes('image');
@@ -1008,7 +1042,7 @@ const ToolsView = ({
                 className={`studio-filter-btn ${studioFilter === 'all' ? 'active' : ''}`}
                 onClick={() => setStudioFilter('all')}
               >
-                <span>All Tools ({tools.filter(t => t.isActive !== false).length})</span>
+                <span>All Tools ({tools.filter(t => t.isActive !== false && (!getToolPermissionKey(t) || hasUserAccess(effectivePermissions, getToolPermissionKey(t)))).length})</span>
               </button>
               <button
                 type="button"

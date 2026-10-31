@@ -954,7 +954,10 @@ const AdminPanel = () => {
       subPermissions: [
         { id: 'pan.manualNew', label: 'Physical New PAN (Form 49A / Form 93)', icon: '📝' },
         { id: 'pan.epanKyc', label: 'Instant E-PAN KYC (Biometric / OTP)', icon: '⚡' },
-        { id: 'pan.correction', label: 'PAN Correction & Changes (CSF)', icon: '✏️' },
+        { id: 'pan.epanCorrectionOtp', label: 'Paperless E-Pan Correction (OTP Base)', icon: '⚡' },
+        { id: 'pan.epanSignPhoto', label: 'Paperless E-Pan (Upload Photo & Sign)', icon: '📸' },
+        { id: 'pan.epanCorrectionSignPhoto', label: 'Paperless E-Pan Correction (Photo with Sign)', icon: '✍️' },
+        { id: 'pan.correction', label: 'PAN Correction & Changes (CSF Form)', icon: '✏️' },
         { id: 'pan.findPan', label: 'Find PAN Number by Aadhaar', icon: '🔍' },
         { id: 'pan.merger', label: 'Stamp & Signature PDF Merger Tool', icon: '📎' },
         { id: 'pan.submissions', label: 'View Submissions & Status Tracking', icon: '📊' }
@@ -968,6 +971,26 @@ const AdminPanel = () => {
         { id: 'offlineWork.view', label: 'Access Offline Work Portal', icon: '👁️' },
         { id: 'offlineWork.submit', label: 'Submit Offline Applications', icon: '📝' },
         { id: 'offlineWork.history', label: 'View Submission History & Receipts', icon: '📜' }
+      ]
+    },
+    {
+      id: 'toolsModule',
+      label: 'Tools & AI Utilities',
+      icon: '⚡',
+      subPermissions: [
+        { id: 'tools.view', label: 'Access Tools & AI Utilities Portal', icon: '👁️' },
+        { id: 'tools.aadharCutter', label: 'Aadhaar Card PDF Cutter AI API', icon: '🪪' },
+        { id: 'tools.allIdCutter', label: 'All Type ID Card Crop/Cutter AI API', icon: '✂️' },
+        { id: 'tools.bgRemover', label: 'Background Remover Image AI API', icon: '🖼️' },
+        { id: 'tools.signValidation', label: 'Digital Signature PDF Validation Tool', icon: '✍️' },
+        { id: 'tools.autoCrop', label: 'All Identity Card Auto Cropping Tool', icon: '📐' },
+        { id: 'tools.ocrConverter', label: 'Image to Text (OCR) Converter Online API', icon: '📝' },
+        { id: 'tools.imageEnhancer', label: 'AI Image Enhancer & 4K Upscaler API', icon: '✨' },
+        { id: 'tools.rationCutter', label: 'Mera Ration Card PDF Crop/Cutter AI API', icon: '🌾' },
+        { id: 'tools.panCutter', label: 'PAN Card PDF Crop/Cutter AI API', icon: '💳' },
+        { id: 'tools.voterCutter', label: 'Voter ID (EPIC) PDF Crop/Cutter AI API', icon: '🗳️' },
+        { id: 'tools.pdf2Html', label: 'PDF to HTML Convert API', icon: '🌐' },
+        { id: 'tools.ayushmanCutter', label: 'PMJAY Ayushman Card Cutter AI API', icon: '🏥' }
       ]
     },
     {
@@ -3567,18 +3590,21 @@ const AdminPanel = () => {
     setUserPermsFormData(prev => {
       const current = prev.permissions || [];
       const isCurrentlyChecked = current.includes(subId);
+      const subIds = (mod.subPermissions || []).map(s => s.id);
       let updated;
 
       if (isCurrentlyChecked) {
-        updated = current.filter(id => id !== subId);
-        const otherSubs = (mod.subPermissions || []).map(s => s.id).filter(id => id !== subId);
-        const hasOtherChecked = otherSubs.some(id => updated.includes(id));
-        if (!hasOtherChecked) {
-          updated = updated.filter(id => id !== mod.id);
-        }
+        // Unchecking this sub-permission: remove subId and remove mod.id since not all are selected
+        updated = current.filter(id => id !== subId && id !== mod.id);
       } else {
-        const set = new Set([...current, subId, mod.id]);
-        updated = Array.from(set);
+        // Checking this sub-permission:
+        const nextList = [...current.filter(id => id !== mod.id), subId];
+        // Only include parent mod.id if ALL sub-permissions of this module are selected
+        const allChecked = subIds.length > 0 && subIds.every(id => nextList.includes(id));
+        if (allChecked) {
+          nextList.push(mod.id);
+        }
+        updated = Array.from(new Set(nextList));
       }
 
       return { ...prev, permissions: updated };
