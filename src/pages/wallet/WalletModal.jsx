@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 import './WalletModal.css';
 import { API_URL } from '../../utils/apiClient';
 
@@ -109,17 +110,44 @@ const PlusIcon = () => (
   </svg>
 );
 
-const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'light' }) => {
-  const [activeTab, setActiveTab] = useState(initialTab); // 'directPayment', 'payout', 'requisition'
+const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'light', userPermissions }) => {
+  const effectivePermissions = userPermissions || getStoredUserPermissions();
+
+  const canAccessWalletTab = (tab) => {
+    if (tab === 'directPayment') return hasUserAccess(effectivePermissions, 'wallet.upiPayment');
+    if (tab === 'payout') return hasUserAccess(effectivePermissions, 'wallet.payout');
+    if (tab === 'requisition') return hasUserAccess(effectivePermissions, 'wallet.requisition');
+    if (tab === 'history' || tab === 'payInHistory' || tab === 'payOutHistory') return hasUserAccess(effectivePermissions, 'wallet.history');
+    return true;
+  };
+
+  const getFirstAllowedTab = () => {
+    if (canAccessWalletTab('directPayment')) return 'directPayment';
+    if (canAccessWalletTab('requisition')) return 'requisition';
+    if (canAccessWalletTab('payout')) return 'payout';
+    if (canAccessWalletTab('history')) return 'history';
+    return 'directPayment';
+  };
+
+  const [activeTab, setActiveTab] = useState(() => {
+    if (initialTab && initialTab !== 'ledger' && canAccessWalletTab(initialTab)) {
+      return initialTab;
+    }
+    return getFirstAllowedTab();
+  });
   const currentTheme = theme || localStorage.getItem('appTheme') || 'light';
 
   useEffect(() => {
     if (initialTab && initialTab !== 'ledger') {
-      setActiveTab(initialTab);
+      if (canAccessWalletTab(initialTab)) {
+        setActiveTab(initialTab);
+      } else {
+        setActiveTab(getFirstAllowedTab());
+      }
     } else {
-      setActiveTab('directPayment');
+      setActiveTab(getFirstAllowedTab());
     }
-  }, [initialTab]);
+  }, [initialTab, effectivePermissions]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -627,58 +655,74 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
       {/* Segmented Pill Navigation Tabs: Pay-In, Pay-Out, Requisition */}
       <div className="wallet-tabs-container">
         <div className="wallet-tabs-bar">
-          <button
-            type="button"
-            className={`wallet-tab-btn ${activeTab === 'directPayment' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('directPayment');
-              setPaymentSuccessData(null);
-            }}
-          >
-            <DirectPayIcon />
-            <span>Pay-In (Add Funds)</span>
-          </button>
-          <button
-            type="button"
-            className={`wallet-tab-btn ${activeTab === 'payout' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('payout');
-              setPayoutSuccessData(null);
-            }}
-          >
-            <PayoutIcon />
-            <span>Pay-Out (Bank Transfer)</span>
-          </button>
-          <button
-            type="button"
-            className={`wallet-tab-btn ${activeTab === 'requisition' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('requisition');
-              setPaymentSuccessData(null);
-            }}
-          >
-            <RequisitionIcon />
-            <span>Requisition</span>
-          </button>
-          <button
-            type="button"
-            className={`wallet-tab-btn ${(activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('history');
-              setPaymentSuccessData(null);
-            }}
-          >
-            <HistoryIcon />
-            <span>History</span>
-          </button>
+          {canAccessWalletTab('directPayment') && (
+            <button
+              type="button"
+              className={`wallet-tab-btn ${activeTab === 'directPayment' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('directPayment');
+                setPaymentSuccessData(null);
+              }}
+            >
+              <DirectPayIcon />
+              <span>Pay-In (Add Funds)</span>
+            </button>
+          )}
+          {canAccessWalletTab('payout') && (
+            <button
+              type="button"
+              className={`wallet-tab-btn ${activeTab === 'payout' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('payout');
+                setPayoutSuccessData(null);
+              }}
+            >
+              <PayoutIcon />
+              <span>Pay-Out (Bank Transfer)</span>
+            </button>
+          )}
+          {canAccessWalletTab('requisition') && (
+            <button
+              type="button"
+              className={`wallet-tab-btn ${activeTab === 'requisition' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('requisition');
+                setPaymentSuccessData(null);
+              }}
+            >
+              <RequisitionIcon />
+              <span>Requisition</span>
+            </button>
+          )}
+          {canAccessWalletTab('history') && (
+            <button
+              type="button"
+              className={`wallet-tab-btn ${(activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('history');
+                setPaymentSuccessData(null);
+              }}
+            >
+              <HistoryIcon />
+              <span>History</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Modal Scrollable Content Body */}
       <div className="wallet-modal-body">
         
+        {!canAccessWalletTab(activeTab) && (
+          <div style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🔒</div>
+            <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#1e293b', marginBottom: '6px' }}>Service Access Restricted</h3>
+            <p style={{ fontSize: '14px', maxWidth: '380px', margin: '0 auto' }}>You do not have administrative permission to access this wallet service.</p>
+          </div>
+        )}
+
         {/* TAB 1: PAY-IN (DIRECT PAYMENT) */}
-        {activeTab === 'directPayment' && (
+        {canAccessWalletTab(activeTab) && activeTab === 'directPayment' && (
           <div className="form-card-box">
             
             {/* 1. PAYMENT SUCCESS RECEIPT SCREEN */}
@@ -964,7 +1008,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         )}
 
         {/* TAB 2: PAY-OUT (BANK TRANSFER / SETTLEMENT) */}
-        {activeTab === 'payout' && (
+        {canAccessWalletTab(activeTab) && activeTab === 'payout' && (
           <div className="form-card-box">
             
             {payoutSuccessData ? (
@@ -1245,7 +1289,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         )}
 
         {/* TAB 3: REQUISITION */}
-        {activeTab === 'requisition' && (
+        {canAccessWalletTab(activeTab) && activeTab === 'requisition' && (
           <div className="form-card-box">
             <div className="form-section-header">
               <div className="section-header-icon">
@@ -1361,7 +1405,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         )}
 
         {/* TAB 4: HISTORY */}
-        {(activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') && (
+        {canAccessWalletTab(activeTab) && (activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory') && (
           <div className="form-card-box">
             <div className="form-section-header" style={{ marginBottom: '16px' }}>
               <div className="section-header-icon" style={{ background: historySubTab === 'payIn' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)', borderColor: historySubTab === 'payIn' ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)', color: historySubTab === 'payIn' ? '#22c55e' : '#ef4444' }}>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './LedgerView.css';
 import { API_URL } from '../../utils/apiClient';
+import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 
 const Toast = Swal.mixin({
   toast: true,
@@ -15,7 +16,8 @@ const Toast = Swal.mixin({
   iconColor: '#ea580c'
 });
 
-const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false }) => {
+const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false, userPermissions }) => {
+  const effectivePermissions = userPermissions || getStoredUserPermissions();
   const navigate = useNavigate();
 
   const [transactions, setTransactions] = useState([]);
@@ -95,6 +97,10 @@ const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false }) =
   };
 
   const handleExportCSV = () => {
+    if (!hasUserAccess(effectivePermissions, 'ledger.exportPdf')) {
+      Toast.fire({ icon: 'error', title: 'Export permission restricted by administrator.' });
+      return;
+    }
     if (transactions.length === 0) {
       Toast.fire({ icon: 'warning', title: 'No transactions to export.' });
       return;
@@ -123,6 +129,10 @@ const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false }) =
   };
 
   const handlePrintPDF = () => {
+    if (!hasUserAccess(effectivePermissions, 'ledger.exportPdf')) {
+      Toast.fire({ icon: 'error', title: 'Print / Export permission restricted by administrator.' });
+      return;
+    }
     if (transactions.length === 0) {
       Toast.fire({ icon: 'warning', title: 'No transactions to print.' });
       return;
@@ -319,30 +329,34 @@ const LedgerView = ({ currentUser = 'RETAILER_USER_001', inlineMode = false }) =
             </div>
 
             <div className="ledger-filter-actions-row">
-              <button
-                type="button"
-                className="ledger-btn-reset"
-                onClick={handleResetFilters}
-              >
-                Reset Filters
-              </button>
+              {hasUserAccess(effectivePermissions, 'ledger.filter') && (
+                <button
+                  type="button"
+                  className="ledger-btn-reset"
+                  onClick={handleResetFilters}
+                >
+                  Reset Filters
+                </button>
+              )}
 
-              <div className="ledger-export-btns">
-                <button
-                  type="button"
-                  className="ledger-btn-export-csv"
-                  onClick={handleExportCSV}
-                >
-                  📥 Export CSV
-                </button>
-                <button
-                  type="button"
-                  className="ledger-btn-print-pdf"
-                  onClick={handlePrintPDF}
-                >
-                  🖨️ Print PDF
-                </button>
-              </div>
+              {hasUserAccess(effectivePermissions, 'ledger.exportPdf') && (
+                <div className="ledger-export-btns">
+                  <button
+                    type="button"
+                    className="ledger-btn-export-csv"
+                    onClick={handleExportCSV}
+                  >
+                    📥 Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    className="ledger-btn-print-pdf"
+                    onClick={handlePrintPDF}
+                  >
+                    🖨️ Print PDF
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
