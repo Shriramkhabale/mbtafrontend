@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import QRCode from 'qrcode';
 import Swal from 'sweetalert2';
 import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
@@ -112,23 +112,26 @@ const PlusIcon = () => (
 );
 
 const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'light', userPermissions }) => {
-  const effectivePermissions = userPermissions || getStoredUserPermissions();
+  const effectivePermissions = useMemo(
+    () => userPermissions || getStoredUserPermissions(),
+    [userPermissions]
+  );
 
-  const canAccessWalletTab = (tab) => {
+  const canAccessWalletTab = useCallback((tab) => {
     if (tab === 'directPayment') return hasUserAccess(effectivePermissions, 'wallet.upiPayment');
     if (tab === 'payout') return hasUserAccess(effectivePermissions, 'wallet.payout');
     if (tab === 'requisition') return hasUserAccess(effectivePermissions, 'wallet.requisition');
     if (tab === 'history' || tab === 'payInHistory' || tab === 'payOutHistory') return hasUserAccess(effectivePermissions, 'wallet.history');
     return true;
-  };
+  }, [effectivePermissions]);
 
-  const getFirstAllowedTab = () => {
+  const getFirstAllowedTab = useCallback(() => {
     if (canAccessWalletTab('directPayment')) return 'directPayment';
     if (canAccessWalletTab('requisition')) return 'requisition';
     if (canAccessWalletTab('payout')) return 'payout';
     if (canAccessWalletTab('history')) return 'history';
     return 'directPayment';
-  };
+  }, [canAccessWalletTab]);
 
   const [activeTab, setActiveTab] = useState(() => {
     if (initialTab && initialTab !== 'ledger' && canAccessWalletTab(initialTab)) {
@@ -137,18 +140,20 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     return getFirstAllowedTab();
   });
   const currentTheme = theme || localStorage.getItem('appTheme') || 'light';
+  const wasOpenRef = useRef(false);
+  const onBalanceUpdateRef = useRef(onBalanceUpdate);
 
   useEffect(() => {
-    if (initialTab && initialTab !== 'ledger') {
-      if (canAccessWalletTab(initialTab)) {
-        setActiveTab(initialTab);
-      } else {
-        setActiveTab(getFirstAllowedTab());
-      }
-    } else {
-      setActiveTab(getFirstAllowedTab());
+    onBalanceUpdateRef.current = onBalanceUpdate;
+  }, [onBalanceUpdate]);
+
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      const requestedTab = initialTab && initialTab !== 'ledger' ? initialTab : 'directPayment';
+      setActiveTab(canAccessWalletTab(requestedTab) ? requestedTab : getFirstAllowedTab());
     }
-  }, [initialTab, effectivePermissions]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, initialTab, canAccessWalletTab, getFirstAllowedTab]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -276,6 +281,29 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         .catch(err => console.warn('Error fetching beneficiaries:', err));
     }
   }, [isOpen, currentUser, onBalanceUpdate]);
+
+  useEffect(() => {
+    if (!isOpen || !currentUser) return undefined;
+
+    let isSubscribed = true;
+    fetch(`${API_URL}/api/qr-payment/reconcile/${encodeURIComponent(currentUser)}`, {
+      method: 'POST'
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Could not reconcile QR payments.');
+        }
+        if (isSubscribed && data.walletBalance !== undefined && onBalanceUpdateRef.current) {
+          onBalanceUpdateRef.current(data.walletBalance);
+        }
+      })
+      .catch((error) => {
+        console.error('Error reconciling QR wallet payments:', error);
+      });
+
+    return () => { isSubscribed = false; };
+  }, [isOpen, currentUser]);
 
   // Fetch user transaction history when History tab is activated
   useEffect(() => {
