@@ -641,6 +641,44 @@ const PRESETS = [
   { id: 'web_portal_200k', name: 'Gov Portal Fast Upload', desc: 'Auto compressed under 200 KB', widthMm: 85.6, heightMm: 54.0, dpi: 150 }
 ];
 
+const MAX_TOOL_IMAGE_PAYLOAD_BYTES = 400 * 1024;
+
+const prepareImageForUpload = async (file) => {
+  const imageBitmap = await createImageBitmap(file);
+  try {
+    let scale = Math.min(1, 1600 / Math.max(imageBitmap.width, imageBitmap.height));
+
+    while (scale >= 0.2) {
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(imageBitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(imageBitmap.height * scale));
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Your browser could not prepare the image for upload.');
+      context.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+
+      for (const quality of [0.82, 0.68, 0.54, 0.4]) {
+        const compressedBlob = await new Promise((resolve) => {
+          canvas.toBlob(resolve, 'image/jpeg', quality);
+        });
+        if (compressedBlob && compressedBlob.size <= MAX_TOOL_IMAGE_PAYLOAD_BYTES) {
+          return await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Could not read the compressed image.'));
+            reader.readAsDataURL(compressedBlob);
+          });
+        }
+      }
+
+      scale *= 0.75;
+    }
+  } finally {
+    imageBitmap.close();
+  }
+
+  throw new Error('Could not compress this image enough to upload. Please try a smaller image.');
+};
+
 const ToolsView = ({
   theme = 'light',
   currentUser,
@@ -739,8 +777,8 @@ const ToolsView = ({
   };
 
   // Launch tool -> Enter Step 2 (Upload)
-  const handleSelectTool = async (tool) => {
-    if (!tool) return;
+  const handleSelectTool = async (tool, inputImageUrl = null) => {
+    if (!tool) return false;
 
     const permKey = getToolPermissionKey(tool);
     if (permKey && !hasUserAccess(effectivePermissions, permKey)) {
@@ -755,18 +793,19 @@ const ToolsView = ({
     if (tool.fee && tool.fee > 0) {
       const currentBal = parseFloat(walletBalance) || 0;
       if (currentBal < tool.fee) {
-        return Swal.fire({
+        await Swal.fire({
           icon: 'warning',
           title: 'Insufficient Balance',
           text: `This tool requires ₹${tool.fee.toFixed(2)}. Your wallet balance is ₹${currentBal.toFixed(2)}. Please recharge your wallet.`,
           confirmButtonColor: '#ea580c'
         });
+        return false;
       }
     }
 
     setSelectedTool(tool);
-    setUploadedFile(null);
-    setFilePreviewUrl('');
+    setUploadedFile(inputImageUrl ? { name: 'processed-image.png', type: 'image/png' } : null);
+    setFilePreviewUrl(inputImageUrl || '');
     setFileError('');
     setProcessProgress(0);
     setProcessError('');
@@ -781,6 +820,7 @@ const ToolsView = ({
     }
 
     setCurrentStep(2); // Advance to Step 2: Upload
+    return true;
   };
 
   // Step 2 File Validation & Handler
@@ -796,9 +836,15 @@ const ToolsView = ({
     // Validate File Type based on chosen tool
     const tTitle = (selectedTool?.title || '').toLowerCase();
     const expectsPdfOnly = tTitle.includes('pdf 2 html');
+    const expectsImageOnly = tTitle.includes('background remover') || tTitle.includes('remove bg');
 
     if (expectsPdfOnly && !isPdf) {
       setFileError('Invalid file type! This tool requires a valid .PDF document.');
+      return;
+    }
+
+    if (expectsImageOnly && !isImage) {
+      setFileError('Invalid file type! Background removal requires an image file.');
       return;
     }
 
@@ -827,10 +873,16 @@ const ToolsView = ({
   };
 
   // Step 4 Execution Pipeline
-  const runProcessingPipeline = async () => {
+  const runProcessingPipeline = async (toolOverride = null, imageOverride = null) => {
     setCurrentStep(4);
-    setProcessProgress(10);
-    setProcessStage('Validating document integrity and checking buffers...');
+    const activeTool = toolOverride || selectedTool;
+    let imageInput = imageOverride || filePreviewUrl;
+    const isBackgroundRemover = (activeTool?.title || '').toLowerCase().includes('background remover')
+      || (activeTool?.title || '').toLowerCase().includes('remove bg');
+    setProcessProgress(isBackgroundRemover ? 20 : 10);
+    setProcessStage(isBackgroundRemover
+      ? 'Uploading image securely and contacting the background removal API...'
+      : 'Validating document integrity and checking buffers...');
     setProcessError('');
 
     const presetObj = PRESETS.find(p => p.id === selectedPreset) || PRESETS[0];
@@ -839,53 +891,83 @@ const ToolsView = ({
     const dpi = isCustomMode ? parseInt(customSettings.dpi, 10) || 300 : presetObj.dpi;
 
     try {
-      // Stage 1: Reading file
-      await new Promise(r => setTimeout(r, 600));
-      setProcessProgress(35);
-      setProcessStage('Scanning boundary detection & contours...');
+      if (!imageOverride && typeof File !== 'undefined'
+        && uploadedFile instanceof File && uploadedFile.type.startsWith('image/')) {
+        setProcessStage(isBackgroundRemover
+          ? 'Compressing image for secure upload...'
+          : 'Preparing image for upload...');
+        imageInput = await prepareImageForUpload(uploadedFile);
+      }
 
-      // Stage 2: Processing AI Crop
-      await new Promise(r => setTimeout(r, 700));
-      setProcessProgress(65);
-      setProcessStage('Applying precision cropping & DPI resolution formatting...');
+      if (!isBackgroundRemover) {
+        await new Promise(r => setTimeout(r, 600));
+        setProcessProgress(35);
+        setProcessStage('Scanning boundary detection & contours...');
 
-      // Stage 3: Call backend process endpoint (ready for live third-party APIs)
+        await new Promise(r => setTimeout(r, 700));
+        setProcessProgress(65);
+        setProcessStage('Applying precision cropping & DPI resolution formatting...');
+      }
+
       const sessionToken = sessionStorage.getItem('sessionToken');
       const headers = { 'Content-Type': 'application/json' };
       if (sessionToken) {
         headers['Authorization'] = `Bearer ${sessionToken}`;
       }
 
-      const res = await fetch(`${API_URL}/api/tools/process`, {
+      const res = await fetch(`${API_URL}${isBackgroundRemover ? '/api/tools/bg-remover' : '/api/tools/process'}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          toolId: selectedTool?._id,
-          toolTitle: selectedTool?.title,
+        body: JSON.stringify(isBackgroundRemover ? {
+          image_url: imageInput || null
+        } : {
+          toolId: activeTool?._id,
+          toolTitle: activeTool?.title,
           preset: presetObj.name,
           settings: { widthMm, heightMm, dpi },
           fileName: uploadedFile?.name,
-          fileData: filePreviewUrl || null
+          fileData: imageInput || null
         })
       });
 
       setProcessProgress(90);
-      setProcessStage('Generating high-resolution print-ready output...');
-      await new Promise(r => setTimeout(r, 500));
+      setProcessStage(isBackgroundRemover
+        ? 'Receiving the background-removed image...'
+        : 'Generating high-resolution print-ready output...');
+      if (!isBackgroundRemover) await new Promise(r => setTimeout(r, 500));
 
       let resultData;
       if (res.ok) {
-        resultData = await res.json();
+        const responseData = await res.json();
+        if (isBackgroundRemover && responseData.success === false) {
+          throw new Error(responseData.message || 'Background removal failed');
+        }
+        resultData = isBackgroundRemover
+          ? {
+            success: responseData.success,
+            toolTitle: activeTool?.title,
+            outputUrl: responseData.outputUrl || null,
+            outputFileName: 'background_removed.png',
+            apiData: responseData.data
+          }
+          : responseData;
       } else {
-        const isBackgroundRemover = (selectedTool?.title || '').toLowerCase().includes('background remover')
-          || (selectedTool?.title || '').toLowerCase().includes('remove bg');
         if (isBackgroundRemover) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || 'Background removal failed');
+          const responseText = await res.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(responseText);
+          } catch {
+            errorData = null;
+          }
+          if (res.status === 413) {
+            throw new Error('The server rejected the image as too large. Please retry with a smaller image.');
+          }
+          throw new Error(errorData?.message || responseText || 'Background removal failed');
         }
         resultData = {
           success: true,
-          toolTitle: selectedTool?.title,
+          toolTitle: activeTool?.title,
           preset: presetObj.name,
           dimensions: {
             widthMm: widthMm.toFixed(1),
@@ -895,7 +977,7 @@ const ToolsView = ({
             heightPx: Math.round((heightMm / 25.4) * dpi)
           },
           outputFileName: `${(selectedTool?.title || 'document').replace(/[^a-zA-Z0-9]/g, '_')}_output.pdf`,
-          outputUrl: filePreviewUrl || null
+          outputUrl: imageInput || null
         };
       }
 
@@ -916,7 +998,31 @@ const ToolsView = ({
 
   // Step 6 Action Handlers
   const handleDownloadOutput = () => {
+    const isBackgroundRemover = (selectedTool?.title || '').toLowerCase().includes('background remover')
+      || (selectedTool?.title || '').toLowerCase().includes('remove bg');
+    const outputUrl = outputResult?.outputUrl;
+    if (isBackgroundRemover && !outputUrl) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No processed image returned',
+        text: 'The API did not return a downloadable output image. Check the API response or contact support.'
+      });
+      return;
+    }
+
     const filename = outputResult?.outputFileName || 'processed_tool_output.pdf';
+    if (isBackgroundRemover) {
+      const link = document.createElement('a');
+      link.href = outputUrl;
+      link.download = filename;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
     const fakeContent = 'Processed Tool Document Content';
     const blob = new Blob([fakeContent], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
@@ -1420,9 +1526,15 @@ const ToolsView = ({
             <div className="workflow-card-box">
               <div className="workflow-box-header">
                 <span className="workflow-step-tag">Step 5 of 6</span>
-                <h2 className="workflow-box-title">Output Preview & Dimensions Verification</h2>
+                <h2 className="workflow-box-title">
+                  {(selectedTool?.title || '').toLowerCase().includes('background remover')
+                    ? 'Background Removal Preview'
+                    : 'Output Preview & Dimensions Verification'}
+                </h2>
                 <p className="workflow-box-desc">
-                  Inspect the processed document output, boundary lines, and verified print dimensions.
+                  {(selectedTool?.title || '').toLowerCase().includes('background remover')
+                    ? 'Inspect the processed image returned by the background removal API.'
+                    : 'Inspect the processed document output, boundary lines, and verified print dimensions.'}
                 </p>
               </div>
 
@@ -1434,8 +1546,8 @@ const ToolsView = ({
                     <span className="crop-corner top-right" />
                     <span className="crop-corner bottom-left" />
                     <span className="crop-corner bottom-right" />
-                    {filePreviewUrl ? (
-                      <img src={filePreviewUrl} alt="Output Preview" className="preview-document-img" />
+                    {outputResult?.outputUrl || filePreviewUrl ? (
+                      <img src={outputResult?.outputUrl || filePreviewUrl} alt="Processed output preview" className="preview-document-img" />
                     ) : (
                       <div className="preview-placeholder-doc">
                         <div className="placeholder-header-strip" />
@@ -1451,24 +1563,26 @@ const ToolsView = ({
                 </div>
 
                 {/* Dimensions Metadata Bar */}
-                <div className="dimensions-meta-grid">
-                  <div className="dim-meta-item">
-                    <span className="dim-label">Physical Size</span>
-                    <span className="dim-val">{outputResult?.dimensions?.widthMm || '85.6'} × {outputResult?.dimensions?.heightMm || '54.0'} mm</span>
+                {(selectedTool?.title || '').toLowerCase().includes('background remover') ? null : (
+                  <div className="dimensions-meta-grid">
+                    <div className="dim-meta-item">
+                      <span className="dim-label">Physical Size</span>
+                      <span className="dim-val">{outputResult?.dimensions?.widthMm || '85.6'} × {outputResult?.dimensions?.heightMm || '54.0'} mm</span>
+                    </div>
+                    <div className="dim-meta-item">
+                      <span className="dim-label">Pixel Dimension</span>
+                      <span className="dim-val">{outputResult?.dimensions?.widthPx || '1011'} × {outputResult?.dimensions?.heightPx || '638'} px</span>
+                    </div>
+                    <div className="dim-meta-item">
+                      <span className="dim-label">Resolution</span>
+                      <span className="dim-val">{outputResult?.dimensions?.dpi || '300'} DPI Print Ready</span>
+                    </div>
+                    <div className="dim-meta-item">
+                      <span className="dim-label">Status</span>
+                      <span className="dim-val" style={{ color: '#22c55e' }}>✅ Verified</span>
+                    </div>
                   </div>
-                  <div className="dim-meta-item">
-                    <span className="dim-label">Pixel Dimension</span>
-                    <span className="dim-val">{outputResult?.dimensions?.widthPx || '1011'} × {outputResult?.dimensions?.heightPx || '638'} px</span>
-                  </div>
-                  <div className="dim-meta-item">
-                    <span className="dim-label">Resolution</span>
-                    <span className="dim-val">{outputResult?.dimensions?.dpi || '300'} DPI Print Ready</span>
-                  </div>
-                  <div className="dim-meta-item">
-                    <span className="dim-label">Status</span>
-                    <span className="dim-val" style={{ color: '#22c55e' }}>✅ Verified</span>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Navigation buttons */}
@@ -1504,7 +1618,9 @@ const ToolsView = ({
                   🎉 Ready for Export!
                 </h2>
                 <p className="workflow-box-desc">
-                  Your document has been successfully processed, cropped, and verified.
+                  {(selectedTool?.title || '').toLowerCase().includes('background remover')
+                    ? 'Your background-removed image is ready to download.'
+                    : 'Your document has been successfully processed, cropped, and verified.'}
                 </p>
               </div>
 
@@ -1516,7 +1632,11 @@ const ToolsView = ({
                     <span style={{ fontSize: '24px' }}>📥</span>
                   </div>
                   <h3 className="export-card-title">Download Output</h3>
-                  <p className="export-card-desc">Download high-resolution print-ready file (.PDF / .PNG)</p>
+                  <p className="export-card-desc">
+                    {(selectedTool?.title || '').toLowerCase().includes('background remover')
+                      ? 'Download the processed background-free image.'
+                      : 'Download high-resolution print-ready file (.PDF / .PNG)'}
+                  </p>
                   <button type="button" className="export-card-btn green">Download File</button>
                 </div>
 
@@ -1547,12 +1667,39 @@ const ToolsView = ({
                     `,
                     showCancelButton: true,
                     confirmButtonText: 'Open in Tool',
-                    confirmButtonColor: '#ea580c'
-                  }).then((res) => {
-                    if (res.isConfirmed) {
-                      const found = tools.find(t => t.title.toLowerCase().includes('background')) || tools[0];
-                      if (found) handleSelectTool(found);
+                    confirmButtonColor: '#ea580c',
+                    preConfirm: () => document.getElementById('swalNextTool')?.value || 'bg'
+                  }).then(async (res) => {
+                    if (!res.isConfirmed) return;
+
+                    const inputImageUrl = outputResult?.outputUrl || filePreviewUrl;
+                    if (!inputImageUrl) {
+                      await Swal.fire({
+                        icon: 'error',
+                        title: 'No output image available',
+                        text: 'Process an image first, then send the result to another tool.'
+                      });
+                      return;
                     }
+
+                    const selectedNextTool = {
+                      bg: title => title.includes('background remover') || title.includes('remove bg'),
+                      enhance: title => title.includes('enhancer') || title.includes('improve image'),
+                      sign: title => title.includes('digital signature') || title.includes('signature validation'),
+                      pdf: title => title.includes('pdf 2 html') || title.includes('pdf to html')
+                    }[res.value];
+                    const found = tools.find(tool => selectedNextTool?.((tool.title || '').toLowerCase()));
+                    if (!found) {
+                      await Swal.fire({
+                        icon: 'error',
+                        title: 'Tool unavailable',
+                        text: 'The selected tool is not configured in the Tools dashboard.'
+                      });
+                      return;
+                    }
+
+                    if (!(await handleSelectTool(found, inputImageUrl))) return;
+                    await runProcessingPipeline(found, inputImageUrl);
                   });
                 }}>
                   <div className="export-card-icon-wrap" style={{ background: 'rgba(168,85,247,0.15)', borderColor: '#a855f7' }}>
