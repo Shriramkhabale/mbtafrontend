@@ -12,7 +12,7 @@ import ToolsView from '../tools/ToolsView';
 import NotificationBell from '../../context/NotificationBell';
 import { API_URL } from '../../utils/apiClient';
 import { DYNAMIC_LINK_MENUS, findDynamicMenu, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
-import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
+import { hasUserAccess, getStoredUserPermissions, getPanTabPermissionKey } from '../../utils/userPermissions';
 
 // eslint-disable-next-line no-unused-vars
 const Toast = Swal.mixin({
@@ -491,7 +491,9 @@ const Dashboard = () => {
       }
     })),
     // Dynamic Menus direct entries
-    ...DYNAMIC_LINK_MENUS.map(dyn => ({
+    ...DYNAMIC_LINK_MENUS
+      .filter(dyn => hasUserAccess(userPermissions, `dyn.${dyn.key}`))
+      .map(dyn => ({
       id: `dyn_${dyn.key}`,
       title: dyn.label,
       category: 'Service Category',
@@ -509,7 +511,9 @@ const Dashboard = () => {
       { id: 'manual_pan_correction', label: 'Manual PAN Correction', icon: '📑', description: 'Manual Form CSF Correction' },
       { id: 'stamp_signature_merger', label: 'Crop Photo / Signature', icon: '✂️', description: 'Crop & Stamp Signature Merger Tool' },
       { id: 'history', label: 'PAN Application History', icon: '📋', description: 'Track submitted PAN applications' }
-    ]).map(pan => ({
+    ])
+    .filter(pan => hasUserAccess(userPermissions, getPanTabPermissionKey(pan.id)))
+    .map(pan => ({
       id: `pan_${pan.id || pan._id}`,
       title: pan.label || pan.title,
       subtitle: pan.description || pan.badge || 'PAN Card Service',
@@ -778,6 +782,7 @@ const Dashboard = () => {
           walletBalance={walletBalance}
           onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
           theme={theme}
+          userPermissions={userPermissions}
         />
       )}
 
@@ -835,13 +840,14 @@ const Dashboard = () => {
               const isDash = l.includes('dash');
               const isPan = l.includes('pan');
               const isOffline = l.includes('offline');
+              const isTools = l.includes('tool') || u === '/tools';
               const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
 
               // Check user service access permissions
               if (isPan && !hasUserAccess(userPermissions, 'panCard')) return false;
               if (isOffline && !hasUserAccess(userPermissions, 'offlineWork')) return false;
+              if (isTools && !hasUserAccess(userPermissions, 'toolsModule') && !hasUserAccess(userPermissions, 'tools.view')) return false;
               if (isQuick && !hasUserAccess(userPermissions, 'quickLinksModule') && !hasUserAccess(userPermissions, 'quickLinks.view')) return false;
-
               // Render all active menus configured in Admin Panel's Sidebar Menus
               return true;
             }).map((menu) => {
@@ -936,8 +942,12 @@ const Dashboard = () => {
             <div className="top-tabs-new">
               {topTabsData.filter((tab) => {
                 const label = (tab.label || '').toLowerCase();
+                const url = (tab.url || '').toLowerCase();
                 if (label.includes('wallet') && !label.includes('ledger') && !hasUserAccess(userPermissions, 'walletModule')) return false;
                 if ((label.includes('ledger') || label.includes('report')) && !hasUserAccess(userPermissions, 'ledgerModule') && !hasUserAccess(userPermissions, 'ledger.view')) return false;
+                if ((label.includes('tool') || url.includes('/tools')) && !hasUserAccess(userPermissions, 'toolsModule') && !hasUserAccess(userPermissions, 'tools.view')) return false;
+                if (label.includes('pan') && !hasUserAccess(userPermissions, 'panCard')) return false;
+                if (label.includes('offline') && !hasUserAccess(userPermissions, 'offlineWork')) return false;
                 return true;
               }).map((tab) => {
                 const tabId = tab._id || tab.id;
@@ -1091,16 +1101,21 @@ const Dashboard = () => {
               />
             );
           })() : isToolsRoute ? (
-            <ToolsView
-              theme={theme}
-              currentUser={localStorage.getItem('currentUser')}
-              walletBalance={walletBalance}
-              onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
-              onClose={() => navigate('/dashboard')}
-            />
+            (!hasUserAccess(userPermissions, 'toolsModule') && !hasUserAccess(userPermissions, 'tools.view')) ? (
+              <AccessRestrictedNotice title="Tools & AI Utilities" onBack={() => navigate('/dashboard')} />
+            ) : (
+              <ToolsView
+                theme={theme}
+                currentUser={localStorage.getItem('currentUser')}
+                walletBalance={walletBalance}
+                onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+                onClose={() => navigate('/dashboard')}
+                userPermissions={userPermissions}
+              />
+            )
           ) : isDynLinkMenuRoute ? (() => {
             const dynPermKey = `dyn.${activeDynLinkMenu.key}`;
-            if (!hasUserAccess(userPermissions, 'dynamicMenus') && !hasUserAccess(userPermissions, dynPermKey)) {
+            if (!hasUserAccess(userPermissions, dynPermKey)) {
               return <AccessRestrictedNotice title={activeDynLinkMenu.label || 'Dynamic Portal'} onBack={() => navigate('/dashboard')} />;
             }
             const currentDynItem = (sidebarMenuData || []).find(m => {
