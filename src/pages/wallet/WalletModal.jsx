@@ -1020,14 +1020,6 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                     <span>📲 Pay Directly via UPI App</span>
                   </a>
                 )}
-                {checkoutData.gateway === 'EkQR' && Object.entries(checkoutData.upiIntent || {}).map(([app, link]) => (
-                  link ? (
-                    <a key={app} href={link} className="upi-intent-button">
-                      <span>📲 Pay with {app.replace('_link', '').toUpperCase()}</span>
-                    </a>
-                  ) : null
-                ))}
-
                 <div className="qr-status-pulse">
                   <span className="pulse-indicator"></span>
                   <span>Awaiting {checkoutData.gateway === 'EkQR' ? 'QR payment' : 'PaySprint'} confirmation ({formatTime(timeLeft)})</span>
