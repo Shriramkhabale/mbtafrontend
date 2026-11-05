@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import QRCode from 'qrcode';
 import Swal from 'sweetalert2';
 import './WalletModal.css';
@@ -113,14 +113,19 @@ const PlusIcon = () => (
 const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'light' }) => {
   const [activeTab, setActiveTab] = useState(initialTab); // 'directPayment', 'payout', 'requisition'
   const currentTheme = theme || localStorage.getItem('appTheme') || 'light';
+  const wasOpenRef = useRef(false);
+  const onBalanceUpdateRef = useRef(onBalanceUpdate);
 
   useEffect(() => {
-    if (initialTab && initialTab !== 'ledger') {
-      setActiveTab(initialTab);
-    } else {
-      setActiveTab('directPayment');
+    onBalanceUpdateRef.current = onBalanceUpdate;
+  }, [onBalanceUpdate]);
+
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      setActiveTab(initialTab && initialTab !== 'ledger' ? initialTab : 'directPayment');
     }
-  }, [initialTab]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, initialTab]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -248,6 +253,29 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
         .catch(err => console.warn('Error fetching beneficiaries:', err));
     }
   }, [isOpen, currentUser, onBalanceUpdate]);
+
+  useEffect(() => {
+    if (!isOpen || !currentUser) return undefined;
+
+    let isSubscribed = true;
+    fetch(`${API_URL}/api/qr-payment/reconcile/${encodeURIComponent(currentUser)}`, {
+      method: 'POST'
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Could not reconcile QR payments.');
+        }
+        if (isSubscribed && data.walletBalance !== undefined && onBalanceUpdateRef.current) {
+          onBalanceUpdateRef.current(data.walletBalance);
+        }
+      })
+      .catch((error) => {
+        console.error('Error reconciling QR wallet payments:', error);
+      });
+
+    return () => { isSubscribed = false; };
+  }, [isOpen, currentUser]);
 
   // Fetch user transaction history when History tab is activated
   useEffect(() => {
