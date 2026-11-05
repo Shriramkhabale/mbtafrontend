@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import QRCode from 'qrcode';
 import Swal from 'sweetalert2';
 import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 import './WalletModal.css';
@@ -183,6 +184,8 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
   const [directPaymentGateway, setDirectPaymentGateway] = useState('PaySprint');
   const [directPaymentMethod, setDirectPaymentMethod] = useState('UPI');
   const [checkoutData, setCheckoutData] = useState(null); // { txnId, amount, qrCodeUrl, upiLink, checkoutUrl }
+  const [ekqrQrCodeUrl, setEkqrQrCodeUrl] = useState('');
+  const [ekqrQrError, setEkqrQrError] = useState('');
   const [paymentSuccessData, setPaymentSuccessData] = useState(null);
   const [isProcessingDirect, setIsProcessingDirect] = useState(false);
   const [isVerifyingNow, setIsVerifyingNow] = useState(false);
@@ -308,6 +311,33 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
       });
     }, 1000);
     return () => clearInterval(timer);
+  }, [checkoutData]);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    setEkqrQrCodeUrl('');
+    setEkqrQrError('');
+
+    if (checkoutData?.gateway !== 'EkQR') return () => { isSubscribed = false; };
+
+    const upiLink = checkoutData.upiIntent?.bhim_link;
+    if (typeof upiLink !== 'string' || !/^upi:\/\/pay\?/i.test(upiLink)) {
+      setEkqrQrError('The provider did not return a standard UPI QR payment link.');
+      return () => { isSubscribed = false; };
+    }
+
+    QRCode.toDataURL(upiLink, {
+      width: 280,
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    }).then((dataUrl) => {
+      if (isSubscribed) setEkqrQrCodeUrl(dataUrl);
+    }).catch((error) => {
+      console.error('Unable to generate EkQR payment QR code:', error);
+      if (isSubscribed) setEkqrQrError('Could not generate the payment QR code. Please open the provider checkout instead.');
+    });
+
+    return () => { isSubscribed = false; };
   }, [checkoutData]);
 
   // Polling for PaySprint payment status check
@@ -1007,9 +1037,13 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                 <div className="qr-display-box">
                   {checkoutData.qrCodeUrl ? (
                     <img src={checkoutData.qrCodeUrl} alt="Payment QR Code" className="qr-image" />
+                  ) : checkoutData.gateway === 'EkQR' && ekqrQrCodeUrl ? (
+                    <img src={ekqrQrCodeUrl} alt="Scan to pay with any UPI app" className="qr-image" />
+                  ) : checkoutData.gateway === 'EkQR' && !ekqrQrError ? (
+                    <div className="qr-placeholder">Preparing your payment QR code...</div>
                   ) : checkoutData.checkoutUrl ? (
                     <div className="qr-placeholder" style={{ padding: '20px' }}>
-                      <p>{checkoutData.gateway === 'EkQR' ? 'Your QR payment order is ready. Open the secure checkout to view the QR code.' : 'Payment checkout generated successfully.'}</p>
+                      <p>{checkoutData.gateway === 'EkQR' ? ekqrQrError || 'Your QR payment order is ready. Open the secure checkout to view the QR code.' : 'Payment checkout generated successfully.'}</p>
                       <a href={checkoutData.checkoutUrl} target="_blank" rel="noopener noreferrer" className="form-submit-btn-primary" style={{ display: 'inline-block', marginTop: '10px', textDecoration: 'none' }}>
                         {checkoutData.gateway === 'EkQR' ? 'Open QR Payment Page ↗' : 'Open PaySprint Checkout ↗'}
                       </a>
