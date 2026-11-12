@@ -989,8 +989,7 @@ const AdminPanel = () => {
         { id: 'tools.rationCutter', label: 'Mera Ration Card PDF Crop/Cutter AI API', icon: '🌾' },
         { id: 'tools.panCutter', label: 'PAN Card PDF Crop/Cutter AI API', icon: '💳' },
         { id: 'tools.voterCutter', label: 'Voter ID (EPIC) PDF Crop/Cutter AI API', icon: '🗳️' },
-        { id: 'tools.pdf2Html', label: 'PDF to HTML Convert API', icon: '🌐' },
-        { id: 'tools.ayushmanCutter', label: 'PMJAY Ayushman Card Cutter AI API', icon: '🏥' }
+        { id: 'tools.pdf2Html', label: 'PDF to HTML Convert API', icon: '🌐' }
       ]
     },
     {
@@ -2029,6 +2028,14 @@ const AdminPanel = () => {
     description: '',
     isActive: true
   });
+
+  // PDF Tools Suite Sub-Tools Control States
+  const [pdfSubToolsModalOpen, setPdfSubToolsModalOpen] = useState(false);
+  const [currentPdfTool, setCurrentPdfTool] = useState(null);
+  const [pdfSubToolsState, setPdfSubToolsState] = useState({});
+  const [pdfSubToolFilterCategory, setPdfSubToolFilterCategory] = useState('all');
+  const [pdfSubToolSearch, setPdfSubToolSearch] = useState('');
+  const [isSavingPdfSubTools, setIsSavingPdfSubTools] = useState(false);
   
   const [draggedIndex, setDraggedIndex] = useState(null);
 
@@ -2975,12 +2982,17 @@ const AdminPanel = () => {
       return Swal.fire({ icon: 'warning', text: 'Please enter a title for the tool.' });
     }
     setIsSavingTool(true);
+    const parsedFee = toolForm.fee === '' ? 0 : (parseFloat(toolForm.fee) || 0);
+    const payload = {
+      ...toolForm,
+      fee: parsedFee
+    };
     try {
       if (editingToolId) {
         const res = await fetch(`${API_URL}/api/tools/${editingToolId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(toolForm)
+          body: JSON.stringify(payload)
         });
         if (res.ok) {
           const updated = await res.json();
@@ -2993,7 +3005,7 @@ const AdminPanel = () => {
         const res = await fetch(`${API_URL}/api/tools`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(toolForm)
+          body: JSON.stringify(payload)
         });
         if (res.ok) {
           const created = await res.json();
@@ -3029,6 +3041,187 @@ const AdminPanel = () => {
       }
     } catch (err) {
       console.error('Error deleting tool:', err);
+    }
+  };
+
+  // PDF Tools Suite Sub-Tools Catalog & Helpers
+  const DEFAULT_PDF_SUBTOOLS = [
+    { id: 'image_to_pdf', category: 'conversion', title: 'JPG / PNG to PDF', badge: 'Conversion', icon: '🖼️', description: 'Combine one or multiple images into a high-quality PDF document.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'pdf_to_images', category: 'conversion', title: 'PDF to JPG / PNG', badge: 'Conversion', icon: '📸', description: 'Convert every page of your PDF into high-resolution JPG or PNG images.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'word_to_pdf', category: 'conversion', title: 'Word to PDF', badge: 'Conversion', icon: '📝', description: 'Convert Microsoft Word documents (.docx, .doc) into standard PDF documents.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'pdf_to_word', category: 'conversion', title: 'PDF to Word (Editable)', badge: 'Conversion', icon: '📄', description: 'Convert PDF documents into editable Microsoft Word (.docx) documents.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'pdf_to_excel', category: 'conversion', title: 'PDF to Excel (.xlsx)', badge: 'Conversion', icon: '📊', description: 'Extract tables and tabular contents from PDF into formatted Excel (.xlsx).', fee: 0, isActive: true, isDeleted: false },
+    { id: 'merge_pdfs', category: 'management', title: 'Merge PDF Files', badge: 'Management', icon: '📑', description: 'Combine multiple PDF documents into a single document in customized order.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'split_pdf', category: 'management', title: 'Split PDF Pages', badge: 'Management', icon: '✂️', description: 'Extract custom page ranges or separate all pages into individual PDF files.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'compress_pdf', category: 'management', title: 'Compress PDF', badge: 'Management', icon: '🗜️', description: 'Reduce PDF file size while retaining crystal-clear quality.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'rotate_pdf', category: 'management', title: 'Rotate PDF Pages', badge: 'Management', icon: '🔄', description: 'Rotate all or specific pages by 90°, 180°, or 270° clockwise.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'reorder_pdf', category: 'management', title: 'Reorder PDF Pages', badge: 'Management', icon: '🔀', description: 'Visually rearrange PDF pages in any desired sequence.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'delete_pages', category: 'management', title: 'Delete PDF Pages', badge: 'Management', icon: '🗑️', description: 'Select and remove unwanted pages or ranges from your PDF document.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'add_page_numbers', category: 'management', title: 'Add Page Numbers', badge: 'Management', icon: '🔢', description: 'Stamp professional page numbering at custom positions.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'protect_pdf', category: 'security', title: 'Protect PDF (Add Password)', badge: 'Security', icon: '🔒', description: 'Encrypt your confidential PDF files with AES-256 user password protection.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'unlock_pdf', category: 'security', title: 'Unlock PDF', badge: 'Security', icon: '🔓', description: 'Authorized PDF decryption: enter valid password to remove password restrictions.', fee: 0, isActive: true, isDeleted: false },
+    { id: 'ocr_searchable_pdf', category: 'ocr', title: 'Scan Images to Searchable PDF (OCR)', badge: 'OCR / AI', icon: '🔍', description: 'Extract and embed an invisible searchable text layer over scanned documents & photos.', fee: 0, isActive: true, isDeleted: false }
+  ];
+
+  const isPdfSuiteTool = (tool) => {
+    const t = (tool?.title || '').toLowerCase();
+    const c = (tool?.category || '').toLowerCase();
+    return t.includes('pdf tools') || t.includes('pdf suite') || t.includes('all in one pdf') || (c.includes('pdf') && t.includes('suite'));
+  };
+
+  const handleOpenPdfSubTools = (tool) => {
+    setCurrentPdfTool(tool);
+    const existing = tool?.subTools || {};
+    const initialMap = {};
+    DEFAULT_PDF_SUBTOOLS.forEach((item) => {
+      const saved = existing[item.id] || {};
+      initialMap[item.id] = {
+        id: item.id,
+        category: item.category,
+        title: saved.title || item.title,
+        badge: saved.badge || item.badge,
+        icon: item.icon,
+        description: item.description,
+        fee: saved.fee !== undefined ? saved.fee : item.fee,
+        isActive: saved.isActive !== undefined ? saved.isActive : item.isActive,
+        isDeleted: saved.isDeleted !== undefined ? saved.isDeleted : false
+      };
+    });
+    setPdfSubToolsState(initialMap);
+    setPdfSubToolFilterCategory('all');
+    setPdfSubToolSearch('');
+    setPdfSubToolsModalOpen(true);
+  };
+
+  const handleTogglePdfSubTool = (toolId) => {
+    setPdfSubToolsState((prev) => ({
+      ...prev,
+      [toolId]: {
+        ...prev[toolId],
+        isActive: !prev[toolId]?.isActive
+      }
+    }));
+  };
+
+  const handleFeeChangePdfSubTool = (toolId, feeVal) => {
+    const num = feeVal === '' ? 0 : Math.max(0, parseFloat(feeVal) || 0);
+    setPdfSubToolsState((prev) => ({
+      ...prev,
+      [toolId]: {
+        ...prev[toolId],
+        fee: num
+      }
+    }));
+  };
+
+  const handleBadgeChangePdfSubTool = (toolId, badgeVal) => {
+    setPdfSubToolsState((prev) => ({
+      ...prev,
+      [toolId]: {
+        ...prev[toolId],
+        badge: badgeVal
+      }
+    }));
+  };
+
+  const handleTitleChangePdfSubTool = (toolId, titleVal) => {
+    setPdfSubToolsState((prev) => ({
+      ...prev,
+      [toolId]: {
+        ...prev[toolId],
+        title: titleVal
+      }
+    }));
+  };
+
+  const handleDeletePdfSubTool = async (toolId) => {
+    const sub = pdfSubToolsState[toolId];
+    const result = await Swal.fire({
+      title: `Delete "${sub?.title}"?`,
+      text: 'This sub-tool will be hidden and disabled from the user portal. You can restore it anytime.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete / Hide',
+      confirmButtonColor: '#ef4444',
+      cancelButtonText: 'Cancel'
+    });
+    if (!result.isConfirmed) return;
+    setPdfSubToolsState((prev) => ({
+      ...prev,
+      [toolId]: {
+        ...prev[toolId],
+        isDeleted: true,
+        isActive: false
+      }
+    }));
+    showCustomToast('Tool Deleted', `"${sub?.title}" is now hidden from the suite.`, 'warning', 1800);
+  };
+
+  const handleRestorePdfSubTool = (toolId) => {
+    const sub = pdfSubToolsState[toolId];
+    setPdfSubToolsState((prev) => ({
+      ...prev,
+      [toolId]: {
+        ...prev[toolId],
+        isDeleted: false,
+        isActive: true
+      }
+    }));
+    showCustomToast('Tool Restored', `"${sub?.title}" is restored and active.`, 'success', 1800);
+  };
+
+  const handleBatchTogglePdfSubTools = (enableAll) => {
+    setPdfSubToolsState((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((id) => {
+        if (!next[id].isDeleted) {
+          next[id] = { ...next[id], isActive: enableAll };
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleBatchFeePdfSubTools = (feeVal) => {
+    setPdfSubToolsState((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((id) => {
+        next[id] = { ...next[id], fee: feeVal };
+      });
+      return next;
+    });
+  };
+
+  const handleSavePdfSubTools = async () => {
+    if (!currentPdfTool?._id) return;
+    setIsSavingPdfSubTools(true);
+    try {
+      const res = await fetch(`${API_URL}/api/tools/${currentPdfTool._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subTools: pdfSubToolsState
+        })
+      });
+      if (res.ok) {
+        const updatedTool = await res.json();
+        setAdminTools((prev) => prev.map((t) => (t._id === currentPdfTool._id ? updatedTool : t)));
+        setPdfSubToolsModalOpen(false);
+        showCustomToast(
+          'PDF Sub-Tools Updated',
+          'All individual tool settings, ON/OFF states, charges and visibility saved!',
+          'success',
+          2500
+        );
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        Swal.fire({ icon: 'error', text: errData.message || 'Failed to update sub-tools settings.' });
+      }
+    } catch (err) {
+      console.error('Error saving PDF subtools:', err);
+      Swal.fire({ icon: 'error', text: 'Error saving sub-tools settings.' });
+    } finally {
+      setIsSavingPdfSubTools(false);
     }
   };
 
@@ -5275,28 +5468,106 @@ const AdminPanel = () => {
               {/* Grid: Left = Add/Edit Form, Right = Configured Tools List */}
               <div className="admin-panel-grid" style={{ gridTemplateColumns: 'minmax(320px, 420px) 1fr' }}>
                 {/* Form Card */}
-                <div className="admin-card form-card">
-                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>{editingToolId ? '✏️ Edit Tool' : '➕ Add Tool'}</span>
-                  </h3>
-                  <div className="modern-form">
+                <div
+                  className="admin-card form-card"
+                  style={{
+                    borderRadius: '14px',
+                    border: editingToolId ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                    boxShadow: editingToolId ? '0 10px 25px -5px rgba(59, 130, 246, 0.15)' : '0 4px 16px rgba(0, 0, 0, 0.05)',
+                    background: '#ffffff',
+                    padding: '20px',
+                    transition: 'all 0.25s ease'
+                  }}
+                >
+                  {/* Form Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: editingToolId ? 'linear-gradient(135deg, #eff6ff, #dbeafe)' : 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+                        color: editingToolId ? '#2563eb' : '#16a34a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '18px',
+                        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)'
+                      }}>
+                        {editingToolId ? '✏️' : '➕'}
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.2px' }}>
+                          {editingToolId ? 'Edit Tool' : 'Add New Tool'}
+                        </h3>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          {editingToolId ? 'Modify configuration & service fee' : 'Register a new AI utility or API'}
+                        </span>
+                      </div>
+                    </div>
+                    {editingToolId && (
+                      <span style={{
+                        background: '#dbeafe',
+                        color: '#1e40af',
+                        fontSize: '10.5px',
+                        fontWeight: 800,
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.4px'
+                      }}>
+                        Editing
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="modern-form" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {/* Tool Title */}
                     <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Tool Title *</label>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                        <span>Tool Title <span style={{ color: '#ef4444' }}>*</span></span>
+                        <span style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 500 }}>Required</span>
+                      </label>
                       <input
                         type="text"
                         placeholder="e.g. AADHAR CARD PDF CUTTER AI API"
                         value={toolForm.title}
                         onChange={e => setToolForm({ ...toolForm, title: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          transition: 'border-color 0.2s'
+                        }}
                       />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {/* Category & Icon */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div>
-                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Category</label>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '5px' }}>Category</label>
                         <select
                           value={toolForm.category}
                           onChange={e => setToolForm({ ...toolForm, category: e.target.value })}
-                          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px' }}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #cbd5e1',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            color: '#0f172a',
+                            background: '#ffffff',
+                            boxSizing: 'border-box',
+                            outline: 'none',
+                            cursor: 'pointer'
+                          }}
                         >
                           <option value="Card Cutter">Card Cutter</option>
                           <option value="Image AI">Image AI</option>
@@ -5306,101 +5577,365 @@ const AdminPanel = () => {
                           <option value="General">General</option>
                         </select>
                       </div>
+
                       <div>
-                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Icon</label>
-                        <input
-                          type="text"
-                          placeholder="Icon (e.g. 🪪, ✂️, ⚡)"
-                          value={toolForm.icon}
-                          onChange={e => setToolForm({ ...toolForm, icon: e.target.value })}
-                        />
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '5px' }}>Icon</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '8px',
+                            background: '#f8fafc',
+                            border: '1.5px solid #e2e8f0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '18px',
+                            flexShrink: 0
+                          }}>
+                            {toolForm.icon || '⚡'}
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Emoji icon"
+                            value={toolForm.icon}
+                            onChange={e => setToolForm({ ...toolForm, icon: e.target.value })}
+                            style={{
+                              flex: 1,
+                              padding: '10px 10px',
+                              borderRadius: '8px',
+                              border: '1.5px solid #cbd5e1',
+                              fontSize: '13px',
+                              color: '#0f172a',
+                              boxSizing: 'border-box',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                        {/* Quick Icon Chips */}
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '5px', flexWrap: 'wrap' }}>
+                          {['🪪', '✂️', '⚡', '🔍', '✨', '📜', '💳', '🗳️', '🏥'].map(ico => (
+                            <button
+                              key={ico}
+                              type="button"
+                              onClick={() => setToolForm({ ...toolForm, icon: ico })}
+                              style={{
+                                background: toolForm.icon === ico ? '#e0f2fe' : '#f1f5f9',
+                                border: toolForm.icon === ico ? '1px solid #38bdf8' : '1px solid #e2e8f0',
+                                borderRadius: '5px',
+                                padding: '1px 6px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                              title={`Set icon ${ico}`}
+                            >
+                              {ico}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {/* Badge Label & Service Fee */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div>
-                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Badge Label</label>
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '5px' }}>Badge Label</label>
                         <input
                           type="text"
                           placeholder="e.g. AI API"
                           value={toolForm.badge}
                           onChange={e => setToolForm({ ...toolForm, badge: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '1.5px solid #cbd5e1',
+                            fontSize: '13px',
+                            color: '#0f172a',
+                            boxSizing: 'border-box',
+                            outline: 'none'
+                          }}
                         />
                       </div>
+
                       <div>
-                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Service Fee (₹)</label>
-                        <input
-                          type="number"
-                          placeholder="0 for Free"
-                          value={toolForm.fee}
-                          onChange={e => setToolForm({ ...toolForm, fee: parseFloat(e.target.value) || 0 })}
-                        />
+                        <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                          <span>Service Fee (₹)</span>
+                          <span style={{ fontSize: '10.5px', color: (parseFloat(toolForm.fee) > 0) ? '#b45309' : '#16a34a', fontWeight: 700 }}>
+                            {parseFloat(toolForm.fee) > 0 ? `₹${parseFloat(toolForm.fee).toFixed(2)}` : 'FREE'}
+                          </span>
+                        </label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            fontWeight: 800,
+                            color: '#64748b',
+                            fontSize: '14px',
+                            pointerEvents: 'none'
+                          }}>
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            placeholder="0 (Free)"
+                            value={toolForm.fee === '' ? '' : (toolForm.fee ?? '')}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setToolForm({ ...toolForm, fee: val });
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '10px 12px 10px 28px',
+                              borderRadius: '8px',
+                              border: parseFloat(toolForm.fee) > 0 ? '1.5px solid #f59e0b' : '1.5px solid #cbd5e1',
+                              fontSize: '13px',
+                              fontWeight: 700,
+                              color: parseFloat(toolForm.fee) > 0 ? '#b45309' : '#0f172a',
+                              background: parseFloat(toolForm.fee) > 0 ? '#fffbeb' : '#ffffff',
+                              boxSizing: 'border-box',
+                              outline: 'none'
+                            }}
+                          />
+                        </div>
+                        {/* Quick Fee chips */}
+                        <div style={{ display: 'flex', gap: '4px', marginTop: '5px' }}>
+                          {[
+                            { label: 'Free', val: 0 },
+                            { label: '₹5', val: 5 },
+                            { label: '₹10', val: 10 },
+                            { label: '₹20', val: 20 }
+                          ].map(chip => (
+                            <button
+                              key={chip.label}
+                              type="button"
+                              onClick={() => setToolForm({ ...toolForm, fee: chip.val })}
+                              style={{
+                                background: Number(toolForm.fee) === chip.val ? '#fef3c7' : '#f8fafc',
+                                border: Number(toolForm.fee) === chip.val ? '1px solid #f59e0b' : '1px solid #e2e8f0',
+                                color: Number(toolForm.fee) === chip.val ? '#b45309' : '#475569',
+                                borderRadius: '5px',
+                                padding: '2px 6px',
+                                fontSize: '10.5px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {chip.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
+                    {/* Redirect / Web App URL */}
                     <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Redirect / Web App URL</label>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '5px' }}>Redirect / Web App URL (Optional)</label>
                       <input
                         type="text"
                         placeholder="https://... (URL opens when user clicks Open Tool)"
                         value={toolForm.url}
                         onChange={e => setToolForm({ ...toolForm, url: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '12.5px',
+                          color: '#0f172a',
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          fontFamily: 'monospace'
+                        }}
                       />
                     </div>
 
+                    {/* API Endpoint */}
                     <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>API Endpoint (Optional)</label>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '5px' }}>API Endpoint (Optional)</label>
                       <input
                         type="text"
                         placeholder="https://api.example.com/v1/cutter"
                         value={toolForm.apiUrl}
                         onChange={e => setToolForm({ ...toolForm, apiUrl: e.target.value })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '12.5px',
+                          color: '#0f172a',
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          fontFamily: 'monospace'
+                        }}
                       />
                     </div>
 
+                    {/* Description */}
                     <div>
-                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '4px' }}>Description</label>
+                      <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '5px' }}>Description</label>
                       <textarea
                         rows="2"
                         placeholder="Brief summary of what this tool does..."
                         value={toolForm.description}
                         onChange={e => setToolForm({ ...toolForm, description: e.target.value })}
-                        style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '12.5px',
+                          color: '#0f172a',
+                          boxSizing: 'border-box',
+                          outline: 'none',
+                          resize: 'vertical'
+                        }}
                       />
                     </div>
 
-                    <label className="modern-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '6px 0' }}>
-                      <input
-                        type="checkbox"
-                        checked={toolForm.isActive}
-                        onChange={e => setToolForm({ ...toolForm, isActive: e.target.checked })}
-                      />
-                      <span style={{ fontWeight: 700, fontSize: '13px' }}>
-                        User Panel Visibility: {toolForm.isActive ? <span style={{ color: '#10b981' }}>🟢 ON (Visible)</span> : <span style={{ color: '#ef4444' }}>⚪ OFF (Hidden)</span>}
-                      </span>
-                    </label>
-
-                    <button
-                      type="button"
-                      className="modern-submit-btn"
-                      disabled={isSavingTool}
-                      onClick={handleSaveTool}
-                    >
-                      {editingToolId ? 'Update Tool' : 'Add Tool'}
-                    </button>
-                    {editingToolId && (
+                    {/* User Panel Visibility Switch */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: '#f8fafc',
+                      padding: '10px 14px',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0',
+                      marginTop: '2px'
+                    }}>
+                      <div>
+                        <span style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#0f172a' }}>
+                          User Panel Visibility
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>
+                          {toolForm.isActive ? 'Visible to retailers in the Tools menu' : 'Hidden from retailer panel'}
+                        </span>
+                      </div>
                       <button
                         type="button"
-                        className="modern-submit-btn"
-                        style={{ background: '#64748b', marginTop: '6px' }}
-                        onClick={() => {
-                          setEditingToolId(null);
-                          setToolForm({ title: '', url: '', apiUrl: '', icon: '⚡', category: 'Card Cutter', badge: 'AI API', fee: 0, description: '', isActive: true });
+                        onClick={() => setToolForm({ ...toolForm, isActive: !toolForm.isActive })}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '5px 12px',
+                          borderRadius: '20px',
+                          border: 'none',
+                          fontSize: '11.5px',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          background: toolForm.isActive ? '#10b981' : '#e2e8f0',
+                          color: toolForm.isActive ? '#ffffff' : '#64748b',
+                          transition: 'all 0.2s'
                         }}
                       >
-                        Cancel Edit
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: toolForm.isActive ? '#fff' : '#94a3b8' }}></span>
+                        {toolForm.isActive ? 'ON (Visible)' : 'OFF (Hidden)'}
                       </button>
+                    </div>
+
+                    {/* PDF Suite 15 Sub-Tools Control Banner */}
+                    {editingToolId && isPdfSuiteTool(adminTools.find(t => t._id === editingToolId) || toolForm) && (
+                      <div style={{
+                        background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                        border: '1.5px solid #fdba74',
+                        borderRadius: '10px',
+                        padding: '12px 14px',
+                        marginTop: '6px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '18px' }}>📑</span>
+                          <span style={{ fontWeight: 800, fontSize: '13px', color: '#9a3412' }}>
+                            PDF Suite: 15 Sub-Tools Control
+                          </span>
+                        </div>
+                        <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#7c2d12', lineHeight: '1.4' }}>
+                          Turn each tool ON/OFF, set individual service fees (charges), or delete/restore tools.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPdfSubTools(adminTools.find(t => t._id === editingToolId) || { _id: editingToolId, ...toolForm })}
+                          style={{
+                            width: '100%',
+                            background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            padding: '9px 14px',
+                            borderRadius: '7px',
+                            cursor: 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            boxShadow: '0 3px 10px rgba(234, 88, 12, 0.3)'
+                          }}
+                        >
+                          ⚙️ Manage 15 Sub-Tools (ON/OFF, Fees, Delete)
+                        </button>
+                      </div>
                     )}
+
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                      <button
+                        type="button"
+                        disabled={isSavingTool}
+                        onClick={handleSaveTool}
+                        style={{
+                          flex: 1,
+                          background: editingToolId ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : 'linear-gradient(135deg, #10b981, #059669)',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          fontSize: '13.5px',
+                          fontWeight: 700,
+                          cursor: isSavingTool ? 'not-allowed' : 'pointer',
+                          boxShadow: editingToolId ? '0 4px 12px rgba(37, 99, 235, 0.25)' : '0 4px 12px rgba(16, 185, 129, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {isSavingTool ? 'Saving...' : (editingToolId ? '✓ Update Tool' : '＋ Add Tool')}
+                      </button>
+
+                      {editingToolId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingToolId(null);
+                            setToolForm({ title: '', url: '', apiUrl: '', icon: '⚡', category: 'Card Cutter', badge: 'AI API', fee: 0, description: '', isActive: true });
+                          }}
+                          style={{
+                            background: '#f1f5f9',
+                            color: '#475569',
+                            border: '1.5px solid #cbd5e1',
+                            padding: '12px 16px',
+                            borderRadius: '8px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          ✕ Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -5408,7 +5943,7 @@ const AdminPanel = () => {
                 <div className="admin-card list-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' }}>
                     <h3 style={{ margin: 0 }}>
-                      Configured Tools ({adminTools.length})
+                      Configured Tools ({adminTools.filter(t => !/ayushman|pmjay/i.test(t.title || '')).length})
                     </h3>
                     <input
                       type="text"
@@ -5422,9 +5957,11 @@ const AdminPanel = () => {
                   <div className="modern-list" style={{ maxHeight: '680px', overflowY: 'auto' }}>
                     {adminTools
                       .filter(t => {
+                        const tTitle = (t.title || '').toLowerCase();
+                        if (tTitle.includes('ayushman') || tTitle.includes('pmjay')) return false;
                         if (!toolSearch.trim()) return true;
                         const q = toolSearch.toLowerCase();
-                        return (t.title || '').toLowerCase().includes(q) || (t.category || '').toLowerCase().includes(q);
+                        return tTitle.includes(q) || (t.category || '').toLowerCase().includes(q);
                       })
                       .map((t, index) => (
                         <div
@@ -5459,6 +5996,19 @@ const AdminPanel = () => {
                                 ⚡ Standard AI Endpoint
                               </span>
                             )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '11px', color: '#475569', background: '#f1f5f9', padding: '2px 7px', borderRadius: '4px', fontWeight: 600 }}>
+                                📊 Uses: <strong>{t.usageCount || 0}</strong>
+                              </span>
+                              <span style={{ fontSize: '11px', color: '#15803d', background: '#dcfce7', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                ✓ Success: <strong>{t.successCount || 0}</strong>
+                              </span>
+                              {(t.failureCount || 0) > 0 && (
+                                <span style={{ fontSize: '11px', color: '#b91c1c', background: '#fee2e2', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>
+                                  ✕ Failed: <strong>{t.failureCount || 0}</strong>
+                                </span>
+                              )}
+                            </div>
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
@@ -5484,6 +6034,31 @@ const AdminPanel = () => {
                               {t.isActive ? 'ON' : 'OFF'}
                             </button>
 
+                            {isPdfSuiteTool(t) && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPdfSubTools(t)}
+                                style={{
+                                  background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  padding: '5px 12px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '11.5px',
+                                  fontWeight: 800,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Manage individual PDF tools: Turn ON/OFF, set charges/fees, badges, or delete"
+                              >
+                                <span>📑</span> Manage 15 Sub-Tools
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               className="modern-edit-btn"
@@ -5491,15 +6066,6 @@ const AdminPanel = () => {
                               style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
                             >
                               Edit
-                            </button>
-
-                            <button
-                              type="button"
-                              className="modern-delete-btn"
-                              onClick={() => handleDeleteTool(t._id, t.title)}
-                              style={{ background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
-                            >
-                              Delete
                             </button>
                           </div>
                         </div>
@@ -11513,6 +12079,531 @@ const AdminPanel = () => {
               >
                 ✏️ Edit Profile
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF TOOLS SUITE 15 SUB-TOOLS MANAGEMENT MODAL */}
+      {pdfSubToolsModalOpen && currentPdfTool && (
+        <div
+          className="staff-modal-overlay"
+          style={{
+            zIndex: 10050,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'fixed',
+            inset: 0,
+            padding: '16px'
+          }}
+        >
+          <div
+            className="staff-modal-box"
+            style={{
+              maxWidth: '960px',
+              width: '100%',
+              maxHeight: '92vh',
+              display: 'flex',
+              flexDirection: 'column',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              background: '#ffffff',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              border: '1px solid #e2e8f0'
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              className="staff-modal-header"
+              style={{
+                background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                borderBottom: '1.5px solid #fed7aa',
+                padding: '16px 22px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: '#ea580c', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)' }}>
+                  📑
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#9a3412' }}>
+                    PDF Tools Suite — Individual Tools Management
+                  </h3>
+                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#7c2d12' }}>
+                    Turn individual tools ON/OFF, set service fees (₹), custom badges, or delete/restore tools in the suite
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPdfSubToolsModalOpen(false)}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #fed7aa',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  color: '#7c2d12',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.06)'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Toolbar: Category Filter Tabs, Search & Batch Actions */}
+            <div style={{ padding: '12px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                {/* Category Tabs */}
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {[
+                    { id: 'all', label: 'All Tools', count: DEFAULT_PDF_SUBTOOLS.length },
+                    { id: 'conversion', label: 'Conversion', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'conversion').length },
+                    { id: 'management', label: 'Management', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'management').length },
+                    { id: 'security', label: 'Security', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'security').length },
+                    { id: 'ocr', label: 'OCR / AI', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'ocr').length },
+                    {
+                      id: 'deleted',
+                      label: 'Deleted / Hidden',
+                      count: Object.values(pdfSubToolsState).filter(t => t.isDeleted).length,
+                      isDanger: true
+                    }
+                  ].map(cat => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setPdfSubToolFilterCategory(cat.id)}
+                      style={{
+                        padding: '5px 12px',
+                        borderRadius: '20px',
+                        border: pdfSubToolFilterCategory === cat.id ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
+                        background: pdfSubToolFilterCategory === cat.id ? '#ea580c' : '#ffffff',
+                        color: pdfSubToolFilterCategory === cat.id ? '#ffffff' : (cat.isDanger ? '#dc2626' : '#475569'),
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>{cat.label}</span>
+                      <span style={{
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        fontSize: '10px',
+                        fontWeight: 800,
+                        background: pdfSubToolFilterCategory === cat.id ? 'rgba(255,255,255,0.25)' : '#f1f5f9',
+                        color: pdfSubToolFilterCategory === cat.id ? '#ffffff' : '#64748b'
+                      }}>
+                        {cat.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Batch Quick Actions */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleBatchTogglePdfSubTools(true)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #86efac',
+                      background: '#f0fdf4',
+                      color: '#15803d',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title="Turn all active tools ON"
+                  >
+                    🟢 All ON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBatchTogglePdfSubTools(false)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                      color: '#64748b',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title="Turn all tools OFF"
+                  >
+                    ⚪ All OFF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBatchFeePdfSubTools(0)}
+                    style={{
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid #fed7aa',
+                      background: '#fff7ed',
+                      color: '#c2410c',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    title="Make all tools Free (₹0 fee)"
+                  >
+                    🏷️ All Free (₹0)
+                  </button>
+                </div>
+              </div>
+
+              {/* Search input */}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Search sub-tools (e.g. Word, Compress, Password, Split, OCR)..."
+                  value={pdfSubToolSearch}
+                  onChange={e => setPdfSubToolSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '7px 12px',
+                    borderRadius: '8px',
+                    border: '1.5px solid #cbd5e1',
+                    fontSize: '12px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Sub-Tools List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#f8fafc' }}>
+              {DEFAULT_PDF_SUBTOOLS
+                .filter(def => {
+                  const state = pdfSubToolsState[def.id] || def;
+                  if (pdfSubToolFilterCategory === 'deleted') {
+                    return state.isDeleted === true;
+                  }
+                  if (state.isDeleted) return false;
+                  if (pdfSubToolFilterCategory !== 'all' && def.category !== pdfSubToolFilterCategory) return false;
+                  if (pdfSubToolSearch.trim()) {
+                    const q = pdfSubToolSearch.toLowerCase();
+                    return (
+                      (state.title || def.title).toLowerCase().includes(q) ||
+                      (state.badge || def.badge).toLowerCase().includes(q) ||
+                      def.description.toLowerCase().includes(q)
+                    );
+                  }
+                  return true;
+                })
+                .map(def => {
+                  const state = pdfSubToolsState[def.id] || def;
+                  const isDel = state.isDeleted === true;
+                  return (
+                    <div
+                      key={def.id}
+                      style={{
+                        background: isDel ? '#fef2f2' : (state.isActive ? '#ffffff' : '#f8fafc'),
+                        border: isDel ? '1.5px solid #fecaca' : (state.isActive ? '1.5px solid #e2e8f0' : '1.5px dashed #cbd5e1'),
+                        borderRadius: '12px',
+                        padding: '12px 16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '14px',
+                        boxShadow: state.isActive && !isDel ? '0 2px 6px rgba(0,0,0,0.03)' : 'none',
+                        opacity: isDel ? 0.8 : (state.isActive ? 1 : 0.75),
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {/* Icon & Title */}
+                      <div style={{
+                        fontSize: '22px',
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        background: isDel ? '#fee2e2' : (state.isActive ? '#fff7ed' : '#f1f5f9'),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        {def.icon}
+                      </div>
+
+                      {/* Info & Title edit */}
+                      <div style={{ flex: 1.4, minWidth: '180px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            disabled={isDel}
+                            value={state.title || def.title}
+                            onChange={e => handleTitleChangePdfSubTool(def.id, e.target.value)}
+                            style={{
+                              fontWeight: 800,
+                              fontSize: '13.5px',
+                              color: isDel ? '#991b1b' : '#0f172a',
+                              border: '1px solid transparent',
+                              background: 'transparent',
+                              padding: '2px 4px',
+                              borderRadius: '4px',
+                              maxWidth: '220px'
+                            }}
+                            onFocus={e => { e.target.style.border = '1px solid #cbd5e1'; e.target.style.background = '#ffffff'; }}
+                            onBlur={e => { e.target.style.border = '1px solid transparent'; e.target.style.background = 'transparent'; }}
+                            title="Click to rename sub-tool title"
+                          />
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            background: '#f1f5f9',
+                            color: '#475569',
+                            fontWeight: 700,
+                            textTransform: 'uppercase'
+                          }}>
+                            {def.category}
+                          </span>
+                          {isDel ? (
+                            <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '6px', background: '#fee2e2', color: '#b91c1c', fontWeight: 800 }}>
+                              DELETED / HIDDEN
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '10px',
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              background: state.isActive ? '#dcfce7' : '#f1f5f9',
+                              color: state.isActive ? '#15803d' : '#64748b',
+                              fontWeight: 800
+                            }}>
+                              {state.isActive ? 'ACTIVE' : 'OFF'}
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: '1.3' }}>
+                          {def.description}
+                        </p>
+                      </div>
+
+                      {/* Service Fee Controls */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '160px' }}>
+                        <label style={{ fontSize: '10.5px', fontWeight: 700, color: '#475569' }}>
+                          Service Charge / Fee (₹)
+                        </label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <div style={{ position: 'relative', width: '75px' }}>
+                            <span style={{ position: 'absolute', left: '7px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: '#64748b', fontWeight: 800 }}>₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              disabled={isDel}
+                              value={state.fee !== undefined ? state.fee : 0}
+                              onChange={e => handleFeeChangePdfSubTool(def.id, e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '5px 6px 5px 18px',
+                                borderRadius: '6px',
+                                border: '1px solid #cbd5e1',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          </div>
+                          {/* Quick chips */}
+                          <div style={{ display: 'flex', gap: '3px' }}>
+                            {[0, 5, 10].map(amt => (
+                              <button
+                                key={amt}
+                                type="button"
+                                disabled={isDel}
+                                onClick={() => handleFeeChangePdfSubTool(def.id, amt)}
+                                style={{
+                                  padding: '3px 6px',
+                                  borderRadius: '4px',
+                                  border: (state.fee || 0) === amt ? '1px solid #ea580c' : '1px solid #e2e8f0',
+                                  background: (state.fee || 0) === amt ? '#fff7ed' : '#ffffff',
+                                  color: (state.fee || 0) === amt ? '#ea580c' : '#475569',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {amt === 0 ? 'Free' : `₹${amt}`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Custom Badge Label Input */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '110px' }}>
+                        <label style={{ fontSize: '10.5px', fontWeight: 700, color: '#475569' }}>
+                          Badge Label
+                        </label>
+                        <input
+                          type="text"
+                          disabled={isDel}
+                          value={state.badge || ''}
+                          placeholder={def.badge}
+                          onChange={e => handleBadgeChangePdfSubTool(def.id, e.target.value)}
+                          style={{
+                            padding: '5px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #cbd5e1',
+                            fontSize: '11.5px',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+
+                      {/* Action Buttons: ON/OFF Toggle & Delete/Restore */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
+                        {!isDel ? (
+                          <>
+                            {/* ON/OFF Switch */}
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePdfSubTool(def.id)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '5px 12px',
+                                borderRadius: '16px',
+                                border: 'none',
+                                fontSize: '11.5px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                background: state.isActive ? '#10b981' : '#e2e8f0',
+                                color: state.isActive ? '#ffffff' : '#64748b'
+                              }}
+                              title={state.isActive ? 'Turn OFF this tool' : 'Turn ON this tool'}
+                            >
+                              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: state.isActive ? '#fff' : '#94a3b8' }}></span>
+                              {state.isActive ? 'ON' : 'OFF'}
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePdfSubTool(def.id)}
+                              style={{
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fecaca',
+                                padding: '5px 10px',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title="Delete / Hide tool from user panel"
+                            >
+                              🗑️ Delete
+                            </button>
+                          </>
+                        ) : (
+                          /* Restore Button */
+                          <button
+                            type="button"
+                            onClick={() => handleRestorePdfSubTool(def.id)}
+                            style={{
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              border: '1px solid #86efac',
+                              padding: '6px 14px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '11.5px',
+                              fontWeight: 800,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px'
+                            }}
+                            title="Restore this tool back to the suite"
+                          >
+                            ↩️ Restore Tool
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              className="staff-modal-footer"
+              style={{
+                padding: '14px 22px',
+                background: '#ffffff',
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <span style={{ fontSize: '12px', color: '#64748b' }}>
+                💡 Changes take effect immediately in the User Panel upon saving.
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="staff-modal-cancel-btn"
+                  onClick={() => setPdfSubToolsModalOpen(false)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    color: '#475569',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingPdfSubTools}
+                  onClick={handleSavePdfSubTools}
+                  style={{
+                    padding: '8px 22px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: 800,
+                    cursor: isSavingPdfSubTools ? 'not-allowed' : 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)'
+                  }}
+                >
+                  {isSavingPdfSubTools ? 'Saving Changes...' : '💾 Save Sub-Tools Settings'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

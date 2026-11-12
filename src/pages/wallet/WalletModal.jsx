@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
 import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 import './WalletModal.css';
@@ -137,17 +137,25 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
   });
   const currentTheme = theme || localStorage.getItem('appTheme') || 'light';
 
+  const prevInitialTabRef = useRef(initialTab);
+
   useEffect(() => {
-    if (initialTab && initialTab !== 'ledger') {
-      if (canAccessWalletTab(initialTab)) {
+    // Only switch tab if parent explicitly passed a DIFFERENT initialTab prop
+    if (initialTab && initialTab !== prevInitialTabRef.current) {
+      prevInitialTabRef.current = initialTab;
+      if (initialTab !== 'ledger' && canAccessWalletTab(initialTab)) {
         setActiveTab(initialTab);
-      } else {
-        setActiveTab(getFirstAllowedTab());
+        return;
       }
-    } else {
-      setActiveTab(getFirstAllowedTab());
     }
-  }, [initialTab, effectivePermissions]);
+
+    // Preserve the user's selected activeTab if it is currently accessible
+    if (activeTab && canAccessWalletTab(activeTab)) {
+      return;
+    }
+
+    setActiveTab(getFirstAllowedTab());
+  }, [initialTab, effectivePermissions, activeTab]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

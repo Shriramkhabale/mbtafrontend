@@ -98,8 +98,7 @@ export const PERMISSION_ALIASES = {
   'tools.enhance': 'tools.imageEnhancer',
   'tools.ration': 'tools.rationCutter',
   'tools.pan': 'tools.panCutter',
-  'tools.voter': 'tools.voterCutter',
-  'tools.ayushman': 'tools.ayushmanCutter'
+  'tools.voter': 'tools.voterCutter'
 };
 
 // Map each module to its sub-permissions
@@ -128,8 +127,7 @@ export const MODULE_SUB_MAP = {
     'tools.rationCutter',
     'tools.panCutter',
     'tools.voterCutter',
-    'tools.pdf2Html',
-    'tools.ayushmanCutter'
+    'tools.pdf2Html'
   ],
   dynamicMenus: [
     'dyn.servicesLink', 'dyn.jobLinks', 'dyn.admitCard', 'dyn.formLinks', 

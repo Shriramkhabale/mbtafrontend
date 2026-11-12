@@ -1,11 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
+import PhotoCropEditor from './PhotoCropEditor';
+import IDCardCropper from '../../components/tools/IDCardCropper/IDCardCropper';
+import PdfToolsSuite from '../../components/tools/PdfTools/PdfToolsSuite';
 import './ToolsView.css';
 import { API_URL } from '../../utils/apiClient';
 import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 
+export const isPdfToolsSuite = (tool) => {
+  const t = (tool?.title || '').toLowerCase();
+  return (
+    t.includes('pdf tools') ||
+    t.includes('pdf suite') ||
+    t.includes('all in one pdf')
+  );
+};
+
+export const isIdCardCropperTool = (tool) => {
+  const t = (tool?.title || '').toLowerCase();
+  return (
+    t.includes('id card crop') ||
+    t.includes('manual crop') ||
+    (t.includes('manual') && t.includes('crop')) ||
+    (t.includes('perspective') && t.includes('crop'))
+  );
+};
+
 export const getToolPermissionKey = (tool) => {
   const t = (tool?.title || '').toLowerCase();
+  if (t.includes('pdf tools') || t.includes('pdf suite')) return 'tools.pdfTools';
   if (t.includes('aadhar') || t.includes('aadhaar')) return 'tools.aadharCutter';
   if (t.includes('automatic') || t.includes('cropping') || t.includes('auto crop')) return 'tools.autoCrop';
   if (t.includes('all type') || t.includes('all identity') || t.includes('id card crop')) return 'tools.allIdCutter';
@@ -534,6 +557,33 @@ const renderToolBanner = (tool, idx, isDark = false) => {
     );
   }
 
+  // PDF Tools — 15-in-1 Suite Banner
+  if (title.includes('pdf tools') || title.includes('pdf suite')) {
+    return (
+      <svg className="tools-card-top-img" viewBox="0 0 300 135" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={`pdfToolsBanner_${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#dc2626" />
+            <stop offset="100%" stopColor="#ea580c" />
+          </linearGradient>
+        </defs>
+        <rect width="300" height="135" fill={`url(#pdfToolsBanner_${uid})`} />
+        <rect x="22" y="18" width="70" height="96" rx="8" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2" />
+        <rect x="32" y="28" width="50" height="6" rx="2" fill="#ffffff" />
+        <rect x="32" y="40" width="40" height="4" rx="2" fill="rgba(255,255,255,0.85)" />
+        <rect x="32" y="48" width="45" height="4" rx="2" fill="rgba(255,255,255,0.85)" />
+        <rect x="32" y="56" width="30" height="4" rx="2" fill="rgba(255,255,255,0.85)" />
+        <rect x="32" y="68" width="50" height="30" rx="4" fill="rgba(255,255,255,0.22)" />
+        <text x="57" y="87" fill="#ffffff" fontSize="12" fontWeight="800" textAnchor="middle">PDF</text>
+        <text x="108" y="44" fill="#ffffff" fontSize="14.5" fontWeight="800" fontFamily="sans-serif">PDF TOOLS SUITE</text>
+        <rect x="108" y="54" width="88" height="18" rx="4" fill="#ffffff" />
+        <text x="152" y="67" fill="#dc2626" fontSize="9" fontWeight="800" textAnchor="middle">15-IN-1 ENGINE</text>
+        <text x="108" y="90" fill="rgba(255,255,255,0.95)" fontSize="9.5" fontWeight="600" fontFamily="sans-serif">Convert • Merge • Split</text>
+        <text x="108" y="104" fill="rgba(255,255,255,0.8)" fontSize="8.5" fontWeight="500" fontFamily="sans-serif">Compress • Protect • OCR</text>
+      </svg>
+    );
+  }
+
   // Fallback Modern Tech Banner
   if (!isDark) {
     return (
@@ -570,6 +620,17 @@ const renderToolBanner = (tool, idx, isDark = false) => {
 
 const getToolSvgIcon = (tool) => {
   const t = (tool.title || '').toLowerCase();
+  if (t.includes('pdf tools') || t.includes('pdf suite')) {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+    );
+  }
   if (t.includes('cut') || t.includes('crop') || t.includes('split')) {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -679,6 +740,12 @@ const ToolsView = ({
   const [studioFilter, setStudioFilter] = useState('all'); // 'all', 'photo', 'pdf'
   const [selectedTool, setSelectedTool] = useState(null);
 
+  // Photo Crop Editor State
+  const [isCroppingActive, setIsCroppingActive] = useState(false);
+  const [originalUploadFile, setOriginalUploadFile] = useState(null);
+  const [originalPreviewUrl, setOriginalPreviewUrl] = useState('');
+  const [cropParams, setCropParams] = useState(null);
+
   // Step 2: Upload State
   const [uploadedFile, setUploadedFile] = useState(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState('');
@@ -695,7 +762,20 @@ const ToolsView = ({
     format: 'pdf',
     marginMm: '0',
     autoCrop: true,
-    highQuality: true
+    highQuality: true,
+    layoutMode: 'single',
+    bgColor: 'transparent',
+    model: 'u2net_human_seg',
+    enhanceLevel: 'standard',
+    upscaleFactor: '1',
+    brightness: '1.0',
+    contrast: '1.0',
+    sharpness: '1.0',
+    languages: 'en,hi',
+    preprocess: 'standard',
+    pageRange: 'all',
+    theme: 'clean',
+    fontSize: 'medium'
   });
 
   // Step 4: Process State
@@ -717,12 +797,72 @@ const ToolsView = ({
       const res = await fetch(`${API_URL}/api/tools`);
       if (res.ok) {
         const data = await res.json();
-        setTools(Array.isArray(data) ? data : []);
+        const loadedTools = Array.isArray(data) ? data : [];
+        setTools(loadedTools);
+        checkPendingTransfer(loadedTools);
       }
     } catch (err) {
       console.error('Error fetching tools:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkPendingTransfer = async (availableTools) => {
+    try {
+      const pendingRaw = sessionStorage.getItem('mbta_active_tool_transfer');
+      if (!pendingRaw) return;
+      const transfer = JSON.parse(pendingRaw);
+      if (!transfer || !transfer.destToolId) return;
+
+      // Only restore if created within last 30 mins
+      if (Date.now() - (transfer.timestamp || 0) > 30 * 60 * 1000) {
+        sessionStorage.removeItem('mbta_active_tool_transfer');
+        return;
+      }
+
+      const dest = availableTools.find(t => t._id === transfer.destToolId);
+      if (dest) {
+        sessionStorage.removeItem('mbta_active_tool_transfer');
+        let blob = null;
+        if (transfer.fileData && transfer.fileData.startsWith('data:')) {
+          const r = await fetch(transfer.fileData);
+          blob = await r.blob();
+        } else if (transfer.fileUrl) {
+          const fullUrl = resolveFullToolUrl(transfer.fileUrl);
+          const sessionToken = sessionStorage.getItem('sessionToken');
+          const r = await fetch(fullUrl, {
+            headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}
+          });
+          if (r.ok) blob = await r.blob();
+        }
+
+        if (blob) {
+          const mimeType = transfer.mimeType || blob.type || (transfer.fileName?.endsWith('.pdf') ? 'application/pdf' : 'image/png');
+          const restoredFile = new File([blob], transfer.fileName || 'transferred_document.pdf', {
+            type: mimeType,
+            lastModified: Date.now()
+          });
+
+          setSelectedTool(dest);
+          setUploadedFile(restoredFile);
+          setFilePreviewUrl(transfer.fileData || '');
+          setOutputResult(null);
+          setProcessProgress(0);
+          setProcessError('');
+
+          const title = (dest.title || '').toLowerCase();
+          if (title.includes('photo') || title.includes('passport')) {
+            setSelectedPreset('passport_in');
+          } else {
+            setSelectedPreset('standard_cr80');
+          }
+          setCurrentStep(3); // Start at Step 3: Settings
+        }
+      }
+    } catch (e) {
+      console.error('Failed to restore tool transfer:', e);
+      sessionStorage.removeItem('mbta_active_tool_transfer');
     }
   };
 
@@ -767,6 +907,10 @@ const ToolsView = ({
     setSelectedTool(tool);
     setUploadedFile(null);
     setFilePreviewUrl('');
+    setIsCroppingActive(false);
+    setOriginalUploadFile(null);
+    setOriginalPreviewUrl('');
+    setCropParams(null);
     setFileError('');
     setProcessProgress(0);
     setProcessError('');
@@ -815,15 +959,61 @@ const ToolsView = ({
     }
 
     setUploadedFile(file);
+    setOriginalUploadFile(file);
 
-    // Generate local preview URL
-    if (isImage) {
-      const reader = new FileReader();
-      reader.onload = (e) => setFilePreviewUrl(e.target.result);
-      reader.readAsDataURL(file);
-    } else {
-      setFilePreviewUrl('');
+    // Generate local preview URL & immediately trigger Candidate Photo Crop modal for background remover
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      setFilePreviewUrl(dataUrl);
+      setOriginalPreviewUrl(dataUrl);
+
+      const title = (selectedTool?.title || '').toLowerCase();
+      const isPassportTool = title.includes('passport');
+      if (isPassportTool && isImage) {
+        setIsCroppingActive(true);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle Crop Confirmation from PhotoCropEditor
+  const handleCropConfirm = async (cropResult) => {
+    if (!cropResult) return;
+    setCropParams(cropResult);
+
+    if (cropResult.croppedFileData) {
+      setFilePreviewUrl(cropResult.croppedFileData);
+      try {
+        const res = await fetch(cropResult.croppedFileData);
+        const blob = await res.blob();
+        const ext = cropResult.settings?.format === 'jpg' ? 'jpg' : 'png';
+        const baseName = (uploadedFile?.name || 'photo').replace(/\.[^/.]+$/, '');
+        const croppedFile = new File([blob], `${baseName}_cropped.${ext}`, {
+          type: ext === 'jpg' ? 'image/jpeg' : 'image/png'
+        });
+        setUploadedFile(croppedFile);
+      } catch (e) {
+        console.warn('Could not create File object from cropped data URL:', e);
+      }
     }
+
+    if (cropResult.settings) {
+      setCustomSettings(prev => ({
+        ...prev,
+        widthMm: String(cropResult.settings.widthMm || prev.widthMm),
+        heightMm: String(cropResult.settings.heightMm || prev.heightMm),
+        dpi: String(cropResult.settings.dpi || prev.dpi),
+        format: cropResult.settings.format || prev.format,
+        bgColor: cropResult.settings.bgColor || prev.bgColor
+      }));
+      if (cropResult.preset) {
+        setSelectedPreset(cropResult.preset);
+      }
+    }
+
+    setIsCroppingActive(false);
+    setCurrentStep(3); // Advance to Step 3: Settings
   };
 
   // Step 4 Execution Pipeline
@@ -833,23 +1023,47 @@ const ToolsView = ({
     setProcessStage('Validating document integrity and checking buffers...');
     setProcessError('');
 
+    const sTitle = (selectedTool?.title || '').toLowerCase();
+    const isBgRemoverTool = sTitle.includes('background') || sTitle.includes('remove bg');
+
     const presetObj = PRESETS.find(p => p.id === selectedPreset) || PRESETS[0];
-    const widthMm = isCustomMode ? parseFloat(customSettings.widthMm) || 85.6 : presetObj.widthMm;
-    const heightMm = isCustomMode ? parseFloat(customSettings.heightMm) || 54.0 : presetObj.heightMm;
-    const dpi = isCustomMode ? parseInt(customSettings.dpi, 10) || 300 : presetObj.dpi;
+    const widthMm = isBgRemoverTool ? undefined : (isCustomMode ? (parseFloat(customSettings.widthMm) || 85.6) : presetObj.widthMm);
+    const heightMm = isBgRemoverTool ? undefined : (isCustomMode ? (parseFloat(customSettings.heightMm) || 54.0) : presetObj.heightMm);
+    const dpi = isCustomMode ? (parseInt(customSettings.dpi, 10) || 300) : presetObj.dpi;
+    const layoutMode = (!isCustomMode && selectedPreset === 'a4_multi_4') ? 'a4_multi_4' : (customSettings.layoutMode || 'single');
+
+    const effectiveSettings = {
+      preset: isBgRemoverTool ? 'original' : selectedPreset,
+      widthMm,
+      heightMm,
+      dpi,
+      format: isBgRemoverTool ? (customSettings.format === 'jpg' ? 'jpg' : 'png') : (customSettings.format || 'pdf'),
+      layoutMode,
+      bgColor: customSettings.bgColor || 'transparent',
+      model: customSettings.model || 'u2net_human_seg',
+      enhanceLevel: customSettings.enhanceLevel || (selectedTool?.title?.toLowerCase()?.includes('advanced') ? 'advanced' : 'standard'),
+      upscaleFactor: parseInt(customSettings.upscaleFactor, 10) || 1,
+      brightness: parseFloat(customSettings.brightness) || 1.0,
+      contrast: parseFloat(customSettings.contrast) || 1.0,
+      sharpness: parseFloat(customSettings.sharpness) || 1.0,
+      languages: customSettings.languages || 'en,hi',
+      preprocess: customSettings.preprocess || 'standard',
+      pageRange: customSettings.pageRange || 'all',
+      theme: customSettings.theme || 'clean',
+      fontSize: customSettings.fontSize || 'medium'
+    };
 
     try {
       // Stage 1: Reading file
-      await new Promise(r => setTimeout(r, 600));
+      await new Promise(r => setTimeout(r, 400));
       setProcessProgress(35);
-      setProcessStage('Scanning boundary detection & contours...');
+      setProcessStage('Uploading document & preparing AI engine parameters...');
 
       // Stage 2: Processing AI Crop
-      await new Promise(r => setTimeout(r, 700));
       setProcessProgress(65);
-      setProcessStage('Applying precision cropping & DPI resolution formatting...');
+      setProcessStage('Executing AI processing with provider...');
 
-      // Stage 3: Call backend process endpoint (ready for live third-party APIs)
+      // Stage 3: Call backend process endpoint
       const sessionToken = sessionStorage.getItem('sessionToken');
       const headers = { 'Content-Type': 'application/json' };
       if (sessionToken) {
@@ -862,46 +1076,28 @@ const ToolsView = ({
         body: JSON.stringify({
           toolId: selectedTool?._id,
           toolTitle: selectedTool?.title,
-          preset: presetObj.name,
-          settings: { widthMm, heightMm, dpi },
+          preset: isBgRemoverTool ? 'original' : presetObj.name,
+          settings: effectiveSettings,
+          ...effectiveSettings,
           fileName: uploadedFile?.name,
           fileData: filePreviewUrl || null
         })
       });
 
       setProcessProgress(90);
-      setProcessStage('Generating high-resolution print-ready output...');
-      await new Promise(r => setTimeout(r, 500));
+      setProcessStage('Formatting result & verifying dimensions...');
 
-      let resultData;
-      if (res.ok) {
-        resultData = await res.json();
-      } else {
-        const isBackgroundRemover = (selectedTool?.title || '').toLowerCase().includes('background remover')
-          || (selectedTool?.title || '').toLowerCase().includes('remove bg');
-        if (isBackgroundRemover) {
-          const errorData = await res.json();
-          throw new Error(errorData.message || 'Background removal failed');
-        }
-        resultData = {
-          success: true,
-          toolTitle: selectedTool?.title,
-          preset: presetObj.name,
-          dimensions: {
-            widthMm: widthMm.toFixed(1),
-            heightMm: heightMm.toFixed(1),
-            dpi,
-            widthPx: Math.round((widthMm / 25.4) * dpi),
-            heightPx: Math.round((heightMm / 25.4) * dpi)
-          },
-          outputFileName: `${(selectedTool?.title || 'document').replace(/[^a-zA-Z0-9]/g, '_')}_output.pdf`,
-          outputUrl: filePreviewUrl || null
-        };
+      const resultData = await res.json().catch(() => ({}));
+      if (!res.ok || resultData.success === false) {
+        throw new Error(resultData.message || 'Processing failed with error');
       }
 
       setProcessProgress(100);
       setProcessStage('Processing complete! Preparing preview...');
       setOutputResult(resultData);
+      if (typeof resultData.newBalance === 'number' && typeof onBalanceUpdate === 'function') {
+        onBalanceUpdate(resultData.newBalance);
+      }
 
       // Auto advance to Step 5: Preview
       setTimeout(() => {
@@ -914,30 +1110,583 @@ const ToolsView = ({
     }
   };
 
-  // Step 6 Action Handlers
-  const handleDownloadOutput = () => {
-    const filename = outputResult?.outputFileName || 'processed_tool_output.pdf';
-    const fakeContent = 'Processed Tool Document Content';
-    const blob = new Blob([fakeContent], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
+  // URL Resolver helper ensuring proper API_URL resolution
+  const resolveFullToolUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+      return url;
+    }
+    const base = (API_URL || '').replace(/\/$/, '');
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    return `${base}${cleanPath}`;
+  };
+
+  // Binary blob downloader helper
+  const triggerBinaryDownload = (blob, filename) => {
+    const blobUrl = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = filePreviewUrl || url;
+    a.style.display = 'none';
+    a.href = blobUrl;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-
-    Swal.fire({
-      icon: 'success',
-      title: 'Download Started',
-      text: `Your file "${filename}" is downloading.`,
-      timer: 2500,
-      showConfirmButton: false
-    });
+    setTimeout(() => {
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    }, 250);
   };
 
-  const handlePrintOutput = () => {
-    window.print();
+  // Step 6 Action Handlers - Bug A Fix: Download Real Processed Output
+  const handleDownloadOutput = async () => {
+    const filename = outputResult?.outputFileName || 'processed_tool_output.pdf';
+
+    // 1. Text output (Image to Text OCR)
+    if (outputResult?.extractedText) {
+      const blob = new Blob([outputResult.extractedText], { type: 'text/plain;charset=utf-8' });
+      triggerBinaryDownload(blob, filename.endsWith('.txt') ? filename : `${filename}.txt`);
+      Swal.fire({
+        icon: 'success',
+        title: 'Downloaded',
+        text: `Extracted text saved to ${filename}`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+      return;
+    }
+
+    // 2. HTML output (PDF to HTML Converter)
+    if (outputResult?.htmlContent) {
+      const blob = new Blob([outputResult.htmlContent], { type: 'text/html;charset=utf-8' });
+      triggerBinaryDownload(blob, filename.endsWith('.html') ? filename : `${filename}.html`);
+      Swal.fire({
+        icon: 'success',
+        title: 'Downloaded',
+        text: `Converted HTML saved to ${filename}`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+      return;
+    }
+
+    const rawUrl = outputResult?.outputUrl;
+    if (!rawUrl) {
+      return Swal.fire({
+        icon: 'info',
+        title: 'No Output File',
+        text: 'The processing engine did not return a valid download URL.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
+
+    // 3. Base64 Data URL (Images / in-memory PDF)
+    if (rawUrl.startsWith('data:')) {
+      try {
+        const res = await fetch(rawUrl);
+        const blob = await res.blob();
+        triggerBinaryDownload(blob, filename);
+        Swal.fire({
+          icon: 'success',
+          title: 'Download Complete',
+          text: `Your file "${filename}" has been downloaded.`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+        return;
+      } catch (err) {
+        console.error('Data URL download error:', err);
+      }
+    }
+
+    // 4. Remote / Server Download Route (Authenticated Binary Fetch)
+    try {
+      const targetUrl = resolveFullToolUrl(rawUrl);
+      const sessionToken = sessionStorage.getItem('sessionToken');
+      const headers = {};
+      if (sessionToken) {
+        headers['Authorization'] = `Bearer ${sessionToken}`;
+      }
+
+      Swal.fire({
+        title: 'Downloading...',
+        text: `Fetching "${filename}" securely...`,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      const res = await fetch(targetUrl, { headers });
+      if (!res.ok) {
+        let errMsg = `Server returned HTTP ${res.status}`;
+        try {
+          const errData = await res.json();
+          errMsg = errData.message || errMsg;
+        } catch {
+          const errText = await res.text();
+          if (errText && errText.length < 150) errMsg = errText;
+        }
+        throw new Error(errMsg);
+      }
+
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      // Guard against saving HTML error pages or JSON error objects as PDF/Images
+      if (contentType.includes('application/json') || (contentType.includes('text/html') && !filename.toLowerCase().endsWith('.html'))) {
+        const errBody = await res.text();
+        let errMsg = 'Server returned invalid file data instead of binary document.';
+        try {
+          const parsed = JSON.parse(errBody);
+          if (parsed.message) errMsg = parsed.message;
+        } catch {}
+        throw new Error(errMsg);
+      }
+
+      const blob = await res.blob();
+
+      // Binary validation: If expected to be PDF, ensure magic bytes match %PDF-
+      if (filename.toLowerCase().endsWith('.pdf')) {
+        const slice = await blob.slice(0, 5).text();
+        if (!slice.startsWith('%PDF')) {
+          throw new Error('Downloaded document header is corrupted or not a valid PDF.');
+        }
+      }
+
+      Swal.close();
+      triggerBinaryDownload(blob, filename);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Download Complete',
+        text: `Your file "${filename}" has been saved successfully.`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      Swal.close();
+      console.error('Download error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Download Failed',
+        text: err.message || 'Unable to download the processed file. Please try again.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
+  };
+
+  // Step 6 Action Handlers - Bug B Fix (Isolated Direct Printing)
+  const handlePrintOutput = async () => {
+    const rawUrl = outputResult?.outputUrl;
+    const isText = Boolean(outputResult?.extractedText);
+    const isHtml = Boolean(outputResult?.htmlContent);
+    const filename = (outputResult?.outputFileName || '').toLowerCase();
+    const isPdf = filename.endsWith('.pdf') || (rawUrl && rawUrl.includes('.pdf'));
+
+    // Remove any previous temporary print iframe
+    const oldIframe = document.getElementById('mbta-print-iframe');
+    if (oldIframe) oldIframe.remove();
+
+    // 1. Plain Text Output
+    if (isText) {
+      const iframe = document.createElement('iframe');
+      iframe.id = 'mbta-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Print Document - MB Mitra</title>
+          <style>
+            @page { margin: 15mm; size: auto; }
+            body { font-family: monospace; font-size: 13px; line-height: 1.6; margin: 0; padding: 10px; color: #111; }
+            pre { white-space: pre-wrap; word-wrap: break-word; font-family: inherit; }
+          </style>
+        </head>
+        <body>
+          <pre>${outputResult.extractedText.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m])}</pre>
+        </body>
+        </html>
+      `);
+      doc.close();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => iframe.remove(), 1000);
+      }, 300);
+      return;
+    }
+
+    // 2. HTML Output
+    if (isHtml) {
+      const iframe = document.createElement('iframe');
+      iframe.id = 'mbta-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(outputResult.htmlContent);
+      doc.close();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => iframe.remove(), 1000);
+      }, 400);
+      return;
+    }
+
+    if (!rawUrl) {
+      return Swal.fire({
+        icon: 'info',
+        title: 'Nothing to Print',
+        text: 'The processing engine did not return a valid document to print.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
+
+    const fullUrl = resolveFullToolUrl(rawUrl);
+
+    // 3. PDF Output - Isolated Print
+    if (isPdf) {
+      try {
+        Swal.fire({
+          title: 'Preparing Document...',
+          text: 'Loading print-ready PDF, please wait.',
+          allowOutsideClick: false,
+          didOpen: () => Swal.showLoading()
+        });
+
+        let blob = null;
+        if (fullUrl.startsWith('data:')) {
+          const r = await fetch(fullUrl);
+          blob = await r.blob();
+        } else {
+          const sessionToken = sessionStorage.getItem('sessionToken');
+          const headers = sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {};
+          const res = await fetch(fullUrl, { headers });
+          if (!res.ok) throw new Error(`Could not load PDF document (HTTP ${res.status})`);
+          blob = await res.blob();
+        }
+
+        Swal.close();
+        const blobUrl = window.URL.createObjectURL(blob);
+
+        const iframe = document.createElement('iframe');
+        iframe.id = 'mbta-print-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.src = blobUrl;
+        document.body.appendChild(iframe);
+
+        iframe.onload = () => {
+          setTimeout(() => {
+            try {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            } catch (err) {
+              // Fallback for browsers that sandbox PDF plugin printing:
+              const printWin = window.open(blobUrl, '_blank');
+              if (printWin) printWin.focus();
+            }
+          }, 600);
+        };
+      } catch (err) {
+        Swal.close();
+        console.error('PDF print error:', err);
+        Swal.fire({
+          icon: 'error',
+          title: 'Print Failed',
+          text: err.message || 'Unable to print the PDF. Please download the file to print.',
+          confirmButtonColor: '#ea580c'
+        });
+      }
+      return;
+    }
+
+    // 4. Image Output (PNG/JPG) - Isolated Image Print
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.id = 'mbta-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Print Document - MB Mitra</title>
+          <style>
+            @page { margin: 0; size: auto; }
+            html, body {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #ffffff;
+            }
+            img {
+              max-width: 100%;
+              max-height: 100vh;
+              object-fit: contain;
+              display: block;
+              margin: auto;
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${fullUrl}" id="printTargetImg" alt="Document Print" />
+          <script>
+            const img = document.getElementById('printTargetImg');
+            if (img.complete) {
+              setTimeout(function() { window.focus(); window.print(); }, 200);
+            } else {
+              img.onload = function() {
+                setTimeout(function() { window.focus(); window.print(); }, 200);
+              };
+            }
+          <\/script>
+        </body>
+        </html>
+      `);
+      doc.close();
+      setTimeout(() => iframe.remove(), 60000); // Clean up after dialog
+    } catch (err) {
+      console.error('Image print error:', err);
+      window.print();
+    }
+  };
+
+  // Step 6 Action Handlers - Bug C Fix (Send to Tool with File Transfer)
+  const handleSendToTool = async () => {
+    if (!outputResult) {
+      return Swal.fire({
+        icon: 'info',
+        title: 'No Processed Output',
+        text: 'Please process a document first before sending to another tool.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
+
+    const currentOutputName = outputResult.outputFileName || 'document_output.pdf';
+    const otherTools = tools.filter(t => t.isActive !== false && t._id !== selectedTool?._id);
+
+    const dropdownHtml = `
+      <div style="text-align:left;font-size:13px;line-height:1.6;">
+        <div style="background:#f8fafc;padding:10px 12px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:12px;">
+          <span style="color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;display:block;">Current Processed File:</span>
+          <span style="color:#0f172a;font-weight:700;font-size:13px;word-break:break-all;">📎 ${currentOutputName}</span>
+        </div>
+        <label style="font-weight:700;display:block;margin-bottom:6px;color:#334155;">Select Destination Tool:</label>
+        <select id="swalNextTool" style="width:100%;padding:10px;border-radius:8px;border:1.5px solid #cbd5e1;font-size:13px;outline:none;background:#fff;color:#0f172a;box-sizing:border-box;">
+          <optgroup label="Popular Transfers">
+            <option value="bg">🖼️ Background Remover Image AI</option>
+            <option value="enhance">✨ AI Image Enhancer (4K)</option>
+            <option value="sign">✍️ Digital Signature Validation</option>
+            <option value="pdf">🌐 PDF to HTML Converter</option>
+          </optgroup>
+          <optgroup label="All Available Tools">
+            ${otherTools.map(t => `
+              <option value="${t._id}">${t.icon || '🛠️'} ${t.title}</option>
+            `).join('')}
+          </optgroup>
+        </select>
+        <p style="font-size:11px;color:#94a3b8;margin-top:8px;margin-bottom:0;">
+          💡 Your processed document will be transferred directly into the destination tool settings.
+        </p>
+      </div>
+    `;
+
+    const { isConfirmed } = await Swal.fire({
+      title: 'Send to Next Tool',
+      html: dropdownHtml,
+      showCancelButton: true,
+      confirmButtonText: 'Transfer to Tool →',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#ea580c'
+    });
+
+    if (!isConfirmed) return;
+
+    const selectEl = document.getElementById('swalNextTool');
+    const selectedKey = selectEl ? selectEl.value : 'bg';
+
+    // 1. Resolve destination tool
+    let destTool = null;
+    if (selectedKey === 'bg') {
+      destTool = tools.find(t => (t.title || '').toLowerCase().includes('background'));
+    } else if (selectedKey === 'enhance') {
+      destTool = tools.find(t => (t.title || '').toLowerCase().includes('enhancer') || (t.title || '').toLowerCase().includes('improve image'));
+    } else if (selectedKey === 'sign') {
+      destTool = tools.find(t => (t.title || '').toLowerCase().includes('signature') || (t.title || '').toLowerCase().includes('validation'));
+    } else if (selectedKey === 'pdf') {
+      destTool = tools.find(t => (t.title || '').toLowerCase().includes('pdf 2 html') || (t.title || '').toLowerCase().includes('pdf to html'));
+    } else {
+      destTool = tools.find(t => t._id === selectedKey || (t.title || '').toLowerCase().includes(selectedKey.toLowerCase()));
+    }
+
+    if (!destTool) {
+      return Swal.fire({
+        icon: 'error',
+        title: 'Tool Not Available',
+        text: 'The selected destination tool is currently not active or available.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
+
+    // Check permissions
+    const permKey = getToolPermissionKey(destTool);
+    if (permKey && !hasUserAccess(effectivePermissions, permKey)) {
+      return Swal.fire({
+        icon: 'error',
+        title: 'Access Restricted',
+        text: `You do not have permission to access "${destTool.title}".`,
+        confirmButtonColor: '#ea580c'
+      });
+    }
+
+    // 2. Format Compatibility Check
+    const outputFilename = outputResult.outputFileName || 'document.pdf';
+    const outputExt = (outputFilename.split('.').pop() || '').toLowerCase();
+    const isSourcePdf = outputExt === 'pdf' || (outputResult?.outputUrl && outputResult.outputUrl.toLowerCase().includes('.pdf'));
+    const isSourceImage = ['png', 'jpg', 'jpeg', 'webp', 'bmp'].includes(outputExt) || (outputResult?.outputUrl && outputResult.outputUrl.startsWith('data:image'));
+    const destTitle = (destTool.title || '').toLowerCase();
+    const isDestPdfOnly = destTitle.includes('pdf 2 html') || destTitle.includes('signature') || destTitle.includes('digital signature');
+    const isDestImageOnly = destTitle.includes('background remover') || destTitle.includes('enhancer') || destTitle.includes('image to text');
+
+    if (isDestPdfOnly && !isSourcePdf) {
+      return Swal.fire({
+        icon: 'warning',
+        title: 'Incompatible File Type',
+        text: `"${destTool.title}" requires a PDF file (.pdf). The current output is a .${outputExt.toUpperCase()} file. Please choose an image-compatible tool.`,
+        confirmButtonColor: '#ea580c'
+      });
+    }
+
+    if (isDestImageOnly && !isSourceImage && isSourcePdf) {
+      return Swal.fire({
+        icon: 'warning',
+        title: 'Incompatible File Type',
+        text: `"${destTool.title}" operates on image files (.PNG / .JPG). The current output is a PDF document. To continue, choose "PDF 2 HTML Converter" or another PDF tool.`,
+        confirmButtonColor: '#ea580c'
+      });
+    }
+
+    // 3. Fetch the real output file blob
+    try {
+      Swal.fire({
+        title: 'Transferring Document...',
+        text: `Loading "${outputFilename}" into ${destTool.title}...`,
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+      });
+
+      let transferredBlob = null;
+      let base64Preview = '';
+
+      if (outputResult.outputUrl && outputResult.outputUrl.startsWith('data:')) {
+        const r = await fetch(outputResult.outputUrl);
+        transferredBlob = await r.blob();
+        base64Preview = outputResult.outputUrl;
+      } else if (outputResult.outputUrl) {
+        const fullUrl = resolveFullToolUrl(outputResult.outputUrl);
+        const sessionToken = sessionStorage.getItem('sessionToken');
+        const headers = sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {};
+        const res = await fetch(fullUrl, { headers });
+        if (!res.ok) throw new Error(`Could not fetch output file from server (HTTP ${res.status})`);
+        transferredBlob = await res.blob();
+
+        base64Preview = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(transferredBlob);
+        });
+      } else if (filePreviewUrl) {
+        const r = await fetch(filePreviewUrl);
+        transferredBlob = await r.blob();
+        base64Preview = filePreviewUrl;
+      }
+
+      if (!transferredBlob) {
+        throw new Error('No valid processed document file found to transfer.');
+      }
+
+      const mimeType = transferredBlob.type || (outputExt === 'pdf' ? 'application/pdf' : 'image/png');
+      const transferredFile = new File([transferredBlob], outputFilename, {
+        type: mimeType,
+        lastModified: Date.now()
+      });
+
+      // 4. Save to sessionStorage for unmount & navigation persistence
+      const transferPayload = {
+        destToolId: destTool._id,
+        fileName: outputFilename,
+        fileData: base64Preview,
+        fileUrl: outputResult.outputUrl,
+        mimeType: mimeType,
+        timestamp: Date.now()
+      };
+      sessionStorage.setItem('mbta_active_tool_transfer', JSON.stringify(transferPayload));
+
+      // 5. Update React states & Skip Step 2 -> Advance to Step 3 (Settings)
+      setSelectedTool(destTool);
+      setUploadedFile(transferredFile);
+      setFilePreviewUrl(base64Preview);
+      setFileError('');
+      setOutputResult(null); // Clear old results so stale data is never reused
+      setProcessProgress(0);
+      setProcessError('');
+
+      // Auto-select appropriate preset for destination tool
+      if (destTitle.includes('photo') || destTitle.includes('passport')) {
+        setSelectedPreset('passport_in');
+      } else {
+        setSelectedPreset('standard_cr80');
+      }
+
+      setCurrentStep(3); // Open Step 3: Settings!
+      Swal.close();
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Document Transferred!',
+        text: `"${outputFilename}" loaded into ${destTool.title}. Configure your settings to proceed.`,
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (err) {
+      Swal.close();
+      console.error('Transfer error:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Transfer Failed',
+        text: err.message || 'Could not transfer the document to the destination tool.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
   };
 
   if (!isServiceActive) {
@@ -963,11 +1712,12 @@ const ToolsView = ({
 
   const activeTools = tools.filter(t => {
     if (t.isActive === false) return false;
+    const title = (t.title || '').toLowerCase();
+    if (title.includes('ayushman') || title.includes('pmjay')) return false;
     const permKey = getToolPermissionKey(t);
     if (permKey && !hasUserAccess(effectivePermissions, permKey)) {
       return false;
     }
-    const title = (t.title || '').toLowerCase();
     if (studioFilter === 'photo') {
       return title.includes('photo') || title.includes('background') || title.includes('enhancer') || title.includes('image');
     }
@@ -980,6 +1730,38 @@ const ToolsView = ({
   return (
     <div className={`tools-inline-container theme-${currentTheme} ${currentTheme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
       <div className={`tools-card theme-${currentTheme} ${currentTheme === 'dark' ? 'theme-dark' : 'theme-light'}`}>
+
+        {selectedTool && isPdfToolsSuite(selectedTool) && currentStep > 1 ? (
+          <PdfToolsSuite
+            tool={selectedTool}
+            onClose={() => {
+              setSelectedTool(null);
+              setCurrentStep(1);
+            }}
+            theme={currentTheme}
+          />
+        ) : selectedTool && isIdCardCropperTool(selectedTool) && currentStep > 1 ? (
+          <IDCardCropper
+            tool={selectedTool}
+            onClose={() => {
+              setSelectedTool(null);
+              setCurrentStep(1);
+            }}
+            theme={currentTheme}
+          />
+        ) : (
+          <>
+        {/* Candidate Photo Crop & Adjust Modal */}
+        {isCroppingActive && originalPreviewUrl && (
+          <PhotoCropEditor
+            imageSrc={originalPreviewUrl}
+            onConfirm={handleCropConfirm}
+            onCancel={() => setIsCroppingActive(false)}
+            onRetakePhoto={(newFile) => handleFileUpload(newFile)}
+            theme={currentTheme}
+          />
+        )}
+
 
         {/* Workflow Stepper Header (Exact 6 Steps from Diagram) */}
         <div className="tools-workflow-header">
@@ -1047,7 +1829,7 @@ const ToolsView = ({
                 className={`studio-filter-btn ${studioFilter === 'all' ? 'active' : ''}`}
                 onClick={() => setStudioFilter('all')}
               >
-                <span>All Tools ({tools.filter(t => t.isActive !== false && (!getToolPermissionKey(t) || hasUserAccess(effectivePermissions, getToolPermissionKey(t)))).length})</span>
+                <span>All Tools ({tools.filter(t => t.isActive !== false && !(t.title || '').toLowerCase().includes('ayushman') && !(t.title || '').toLowerCase().includes('pmjay') && (!getToolPermissionKey(t) || hasUserAccess(effectivePermissions, getToolPermissionKey(t)))).length})</span>
               </button>
               <button
                 type="button"
@@ -1089,17 +1871,87 @@ const ToolsView = ({
                     onClick={() => handleSelectTool(tool)}
                     title={`Click to open ${tool.title} workflow`}
                   >
-                    <div className="tools-card-image-wrap">
+                    <div className="tools-card-image-wrap" style={{ position: 'relative' }}>
                       {renderToolBanner(tool, idx, currentTheme === 'dark')}
+                      {tool.fee > 0 ? (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          right: '10px',
+                          background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                          color: '#ffffff',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          padding: '3px 9px',
+                          borderRadius: '12px',
+                          boxShadow: '0 3px 10px rgba(217, 119, 6, 0.45)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          zIndex: 3,
+                          letterSpacing: '0.3px',
+                          border: '1px solid rgba(255,255,255,0.3)'
+                        }}>
+                          <span>₹{tool.fee}</span>
+                        </div>
+                      ) : (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          right: '10px',
+                          background: 'rgba(16, 185, 129, 0.92)',
+                          color: '#ffffff',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          zIndex: 3,
+                          letterSpacing: '0.4px',
+                          border: '1px solid rgba(255,255,255,0.3)'
+                        }}>
+                          FREE
+                        </div>
+                      )}
                     </div>
                     <div className="tools-card-bottom-bar">
                       <div className="tools-card-icon-badge">
                         {getToolSvgIcon(tool)}
                       </div>
-                      <div className="tools-card-text-col">
-                        <h4 className="tools-card-title-text" title={tool.title}>
-                          {tool.title}
-                        </h4>
+                      <div className="tools-card-text-col" style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                          <h4 className="tools-card-title-text" title={tool.title} style={{ margin: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {tool.title}
+                          </h4>
+                          {tool.fee > 0 ? (
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              background: '#fef3c7',
+                              color: '#b45309',
+                              border: '1px solid #fde68a',
+                              padding: '2px 7px',
+                              borderRadius: '6px',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}>
+                              ₹{tool.fee}
+                            </span>
+                          ) : (
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              background: '#ecfdf5',
+                              color: '#059669',
+                              border: '1px solid #a7f3d0',
+                              padding: '1px 6px',
+                              borderRadius: '6px',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}>
+                              FREE
+                            </span>
+                          )}
+                        </div>
                         <span className="tools-card-accent-line" />
                       </div>
                     </div>
@@ -1117,7 +1969,18 @@ const ToolsView = ({
           <div className="workflow-step-view">
             <div className="workflow-card-box">
               <div className="workflow-box-header">
-                <span className="workflow-step-tag">Step 2 of 6</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                  <span className="workflow-step-tag">Step 2 of 6</span>
+                  {selectedTool?.fee > 0 ? (
+                    <span style={{ background: '#fef3c7', color: '#b45309', fontWeight: 800, fontSize: '12px', padding: '3px 10px', borderRadius: '8px', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      ⚡ Service Fee: <strong>₹{selectedTool.fee.toFixed(2)}</strong>
+                    </span>
+                  ) : (
+                    <span style={{ background: '#ecfdf5', color: '#059669', fontWeight: 700, fontSize: '11.5px', padding: '2px 8px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                      Free Tool
+                    </span>
+                  )}
+                </div>
                 <h2 className="workflow-box-title">Upload Input Document / Photo</h2>
                 <p className="workflow-box-desc">
                   Select your original PDF document or image file. The system will automatically validate file type and size.
@@ -1160,7 +2023,7 @@ const ToolsView = ({
                 ) : (
                   <div className="dropzone-content-selected">
                     <div className="file-preview-pill">
-                      {filePreviewUrl ? (
+                      {filePreviewUrl && !uploadedFile?.name?.toLowerCase().endsWith('.pdf') ? (
                         <img src={filePreviewUrl} alt="Preview" className="uploaded-thumb-img" />
                       ) : (
                         <div className="uploaded-pdf-icon">📄</div>
@@ -1232,99 +2095,366 @@ const ToolsView = ({
                 </p>
               </div>
 
-              {/* Mode Toggle */}
-              <div className="settings-mode-toggle">
-                <button
-                  type="button"
-                  className={`settings-toggle-btn ${!isCustomMode ? 'active' : ''}`}
-                  onClick={() => setIsCustomMode(false)}
-                >
-                  ⚡ Standard Presets (Recommended)
-                </button>
-                <button
-                  type="button"
-                  className={`settings-toggle-btn ${isCustomMode ? 'active' : ''}`}
-                  onClick={() => setIsCustomMode(true)}
-                >
-                  🛠️ Custom Dimensions
-                </button>
-              </div>
-
-              {/* Presets Grid */}
-              {!isCustomMode ? (
-                <div className="presets-select-grid">
-                  {PRESETS.map((p) => {
-                    const isSelected = selectedPreset === p.id;
-                    return (
-                      <div
-                        key={p.id}
-                        className={`preset-card ${isSelected ? 'selected' : ''}`}
-                        onClick={() => setSelectedPreset(p.id)}
+              {/* Loaded / Transferred Document Badge */}
+              {uploadedFile && (
+                <div className="settings-active-file-pill" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: 'rgba(234,88,12,0.12)', border: '1px solid rgba(234,88,12,0.3)', marginBottom: '16px', fontSize: '13px' }}>
+                  <span style={{ fontSize: '18px' }}>{uploadedFile.name.toLowerCase().endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                    {originalPreviewUrl && ((selectedTool?.title || '').toLowerCase().includes('background') || (selectedTool?.title || '').toLowerCase().includes('passport') || (selectedTool?.title || '').toLowerCase().includes('photo')) && (
+                      <button
+                        type="button"
+                        style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #ea580c', color: '#ea580c', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                        onClick={() => {
+                          setCurrentStep(2);
+                          setIsCroppingActive(true);
+                        }}
                       >
-                        <div className="preset-radio-indicator">
-                          <span className={`radio-dot ${isSelected ? 'checked' : ''}`} />
-                        </div>
-                        <div className="preset-card-body">
-                          <h4 className="preset-card-title">{p.name}</h4>
-                          <p className="preset-card-desc">{p.desc}</p>
-                          <span className="preset-card-tag">{p.widthMm} × {p.heightMm} mm @ {p.dpi} DPI</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                /* Custom Dimensions Panel */
-                <div className="custom-settings-form">
-                  <div className="form-grid-row">
-                    <div className="form-field-group">
-                      <label className="field-label">Width (mm):</label>
-                      <input
-                        type="number"
-                        className="field-text-input"
-                        value={customSettings.widthMm}
-                        onChange={(e) => setCustomSettings({ ...customSettings, widthMm: e.target.value })}
-                        step="0.1"
-                      />
-                    </div>
-                    <div className="form-field-group">
-                      <label className="field-label">Height (mm):</label>
-                      <input
-                        type="number"
-                        className="field-text-input"
-                        value={customSettings.heightMm}
-                        onChange={(e) => setCustomSettings({ ...customSettings, heightMm: e.target.value })}
-                        step="0.1"
-                      />
-                    </div>
-                    <div className="form-field-group">
-                      <label className="field-label">Resolution / DPI:</label>
-                      <select
-                        className="field-select-input"
-                        value={customSettings.dpi}
-                        onChange={(e) => setCustomSettings({ ...customSettings, dpi: e.target.value })}
-                      >
-                        <option value="150">150 DPI (Fast / Web)</option>
-                        <option value="200">200 DPI (Gov Portals)</option>
-                        <option value="300">300 DPI (High Quality Print)</option>
-                        <option value="600">600 DPI (Ultra HD Master)</option>
-                      </select>
-                    </div>
-                    <div className="form-field-group">
-                      <label className="field-label">Output Format:</label>
-                      <select
-                        className="field-select-input"
-                        value={customSettings.format}
-                        onChange={(e) => setCustomSettings({ ...customSettings, format: e.target.value })}
-                      >
-                        <option value="pdf">PDF Document (.pdf)</option>
-                        <option value="png">Lossless PNG (.png)</option>
-                        <option value="jpg">Standard JPEG (.jpg)</option>
-                      </select>
-                    </div>
+                        ✂️ Crop & Adjust Candidate Photo
+                      </button>
+                    )}
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#f97316', marginRight: '6px' }}>Active Document:</span>
+                    <strong style={{ color: '#f8fafc' }}>{uploadedFile.name}</strong>
+                    <span style={{ color: '#94a3b8', fontSize: '11px', marginLeft: '8px' }}>({(uploadedFile.size / 1024).toFixed(1)} KB)</span>
                   </div>
+                  <span style={{ marginLeft: 'auto', background: 'rgba(34,197,94,0.2)', color: '#22c55e', padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, border: '1px solid rgba(34,197,94,0.4)' }}>
+                    ✅ Ready for Processing
+                  </span>
                 </div>
               )}
+
+                            {/* Dynamic Tool Settings Panel */}
+              {(() => {
+                const sTitle = (selectedTool?.title || '').toLowerCase();
+                const isBgRemover = sTitle.includes('background') || sTitle.includes('remove bg');
+                const isEnhancer = sTitle.includes('enhancer') || sTitle.includes('improve image');
+                const isOcr = sTitle.includes('image to text') || sTitle.includes('ocr');
+                const isPdfToHtml = sTitle.includes('html');
+                const isSignature = sTitle.includes('signature');
+
+                if (isBgRemover) {
+                  return (
+                    <div className="custom-settings-form">
+                      <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#f97316' }}>🎨 Background Remover Settings</h4>
+                      <div className="form-grid-row">
+                        <div className="form-field-group">
+                          <label className="field-label">Replacement Background:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.bgColor || 'transparent'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, bgColor: e.target.value })}
+                          >
+                            <option value="transparent">Transparent (Alpha Channel PNG)</option>
+                            <option value="white">Pure White (#ffffff - Passport / ID Standard)</option>
+                            <option value="blue">Gov Passport Sky Blue (#2563eb)</option>
+                            <option value="red">Official Red (#dc2626)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">AI Segmentation Model:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.model || 'u2net_human_seg'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, model: e.target.value })}
+                          >
+                            <option value="u2net_human_seg">🌟 Portrait & Human AI (Ultra Fast & Studio Clean - Recommended)</option>
+                            <option value="u2net">⚡ General Precision AI (u2net - Products & Objects)</option>
+                            <option value="bria-rmbg">💎 Ultra High-Res AI (BRIA RMBG - Heavy CPU / Multi-Core)</option>
+                            <option value="u2netp">🚀 Fast Draft AI (u2netp - Super Quick)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">Output DPI / Resolution:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.dpi}
+                            onChange={(e) => setCustomSettings({ ...customSettings, dpi: e.target.value })}
+                          >
+                            <option value="150">150 DPI (Web & Screen)</option>
+                            <option value="300">300 DPI (High Quality Print)</option>
+                            <option value="600">600 DPI (Ultra HD Master)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">Output Format:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.format}
+                            onChange={(e) => setCustomSettings({ ...customSettings, format: e.target.value })}
+                          >
+                            <option value="png">Lossless PNG (.png)</option>
+                            <option value="jpg">Standard JPEG (.jpg)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (isEnhancer) {
+                  const isAdv = sTitle.includes('advanced');
+                  return (
+                    <div className="custom-settings-form">
+                      <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#f97316' }}>✨ AI Image Enhancement Settings</h4>
+                      <div className="form-grid-row">
+                        <div className="form-field-group">
+                          <label className="field-label">Enhancement Engine Level:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.enhanceLevel || (isAdv ? 'advanced' : 'standard')}
+                            onChange={(e) => setCustomSettings({ ...customSettings, enhanceLevel: e.target.value })}
+                          >
+                            <option value="standard">Standard Contrast Enhancement (Fast)</option>
+                            <option value="advanced">Advanced AI Neural Clarity (CLAHE + Sharpness)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">Super Resolution / Upscale:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.upscaleFactor || '1'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, upscaleFactor: e.target.value })}
+                          >
+                            <option value="1">1x (Original Pixel Dimensions)</option>
+                            <option value="2">2x Super-Resolution (Double HD Dimensions)</option>
+                            <option value="4">4x Ultra-HD 4K (Quadruple Dimensions)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">Brightness Factor:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.brightness || '1.0'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, brightness: e.target.value })}
+                          >
+                            <option value="0.8">0.8x (Dim / Anti-Glare)</option>
+                            <option value="1.0">1.0x (Original Lighting)</option>
+                            <option value="1.2">1.2x (Brighten Dark Photo)</option>
+                            <option value="1.4">1.4x (High Brightness Boost)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">Contrast & Sharpness:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.contrast || '1.0'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, contrast: e.target.value })}
+                          >
+                            <option value="1.0">1.0x (Standard Contrast)</option>
+                            <option value="1.3">1.3x (Vivid & Clear Text)</option>
+                            <option value="1.6">1.6x (Deep Shadow & Sharp Highlights)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (isOcr) {
+                  return (
+                    <div className="custom-settings-form">
+                      <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#f97316' }}>🔍 OCR Language & Scan Extraction Settings</h4>
+                      <div className="form-grid-row">
+                        <div className="form-field-group">
+                          <label className="field-label">Document Language:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.languages || 'en,hi'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, languages: e.target.value })}
+                          >
+                            <option value="en,hi">English + Hindi (Official Indian IDs)</option>
+                            <option value="en">English Only</option>
+                            <option value="en,ta">English + Tamil (தமிழ்)</option>
+                            <option value="en,te">English + Telugu (తెలుగు)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">Image Preprocessing Filter:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.preprocess || 'standard'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, preprocess: e.target.value })}
+                          >
+                            <option value="standard">Standard (Original Quality)</option>
+                            <option value="high_contrast">High Contrast (Enhance Faint Stamp/Ink)</option>
+                            <option value="grayscale">Grayscale Normalized (Remove Color Glare)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (isPdfToHtml) {
+                  return (
+                    <div className="custom-settings-form">
+                      <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#f97316' }}>🌐 PDF to HTML Formatting & Layout</h4>
+                      <div className="form-grid-row">
+                        <div className="form-field-group">
+                          <label className="field-label">Page Selection:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.pageRange || 'all'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, pageRange: e.target.value })}
+                          >
+                            <option value="all">All Document Pages</option>
+                            <option value="1">First Page Only (Card Summary)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">HTML Theme / Styling:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.theme || 'clean'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, theme: e.target.value })}
+                          >
+                            <option value="clean">Clean Modern (Responsive Slate/Orange)</option>
+                            <option value="compact">Compact Dense (Direct Print Optimized)</option>
+                            <option value="dark">Dark Mode (High Contrast Dark Slate)</option>
+                          </select>
+                        </div>
+                        <div className="form-field-group">
+                          <label className="field-label">Base Font Size:</label>
+                          <select
+                            className="field-select-input"
+                            value={customSettings.fontSize || 'medium'}
+                            onChange={(e) => setCustomSettings({ ...customSettings, fontSize: e.target.value })}
+                          >
+                            <option value="small">Small (12px / Compact)</option>
+                            <option value="medium">Medium (14px / Standard)</option>
+                            <option value="large">Large (16px / High Readability)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (isSignature) {
+                  return (
+                    <div className="custom-settings-form">
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#f97316' }}>🔏 Digital Signature Validation Settings</h4>
+                      <p style={{ margin: '0 0 12px 0', fontSize: '12px', color: '#94a3b8' }}>
+                        Verifies cryptographically signed PKI structures, byte ranges, certificates, signers, timestamps, and integrity status directly inside your PDF.
+                      </p>
+                      <div className="form-field-group">
+                        <label className="field-label">Validation Scope:</label>
+                        <select className="field-select-input" disabled value="full">
+                          <option value="full">Full Cryptographic PKCS#7 / Adobe PPKMS Validation</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    {/* Mode Toggle */}
+                    <div className="settings-mode-toggle">
+                      <button
+                        type="button"
+                        className={`settings-toggle-btn ${!isCustomMode ? 'active' : ''}`}
+                        onClick={() => setIsCustomMode(false)}
+                      >
+                        ⚡ Standard Presets (Recommended)
+                      </button>
+                      <button
+                        type="button"
+                        className={`settings-toggle-btn ${isCustomMode ? 'active' : ''}`}
+                        onClick={() => setIsCustomMode(true)}
+                      >
+                        🛠️ Custom Dimensions & Layout
+                      </button>
+                    </div>
+
+                    {/* Presets Grid */}
+                    {!isCustomMode ? (
+                      <div className="presets-select-grid">
+                        {PRESETS.map((p) => {
+                          const isSelected = selectedPreset === p.id;
+                          return (
+                            <div
+                              key={p.id}
+                              className={`preset-card ${isSelected ? 'selected' : ''}`}
+                              onClick={() => setSelectedPreset(p.id)}
+                            >
+                              <div className="preset-radio-indicator">
+                                <span className={`radio-dot ${isSelected ? 'checked' : ''}`} />
+                              </div>
+                              <div className="preset-card-body">
+                                <h4 className="preset-card-title">{p.name}</h4>
+                                <p className="preset-card-desc">{p.desc}</p>
+                                <span className="preset-card-tag">{p.widthMm} × {p.heightMm} mm @ {p.dpi} DPI</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      /* Custom Dimensions Panel */
+                      <div className="custom-settings-form">
+                        <div className="form-grid-row">
+                          <div className="form-field-group">
+                            <label className="field-label">Width (mm):</label>
+                            <input
+                              type="number"
+                              className="field-text-input"
+                              value={customSettings.widthMm}
+                              onChange={(e) => setCustomSettings({ ...customSettings, widthMm: e.target.value })}
+                              step="0.1"
+                            />
+                          </div>
+                          <div className="form-field-group">
+                            <label className="field-label">Height (mm):</label>
+                            <input
+                              type="number"
+                              className="field-text-input"
+                              value={customSettings.heightMm}
+                              onChange={(e) => setCustomSettings({ ...customSettings, heightMm: e.target.value })}
+                              step="0.1"
+                            />
+                          </div>
+                          <div className="form-field-group">
+                            <label className="field-label">Resolution / DPI:</label>
+                            <select
+                              className="field-select-input"
+                              value={customSettings.dpi}
+                              onChange={(e) => setCustomSettings({ ...customSettings, dpi: e.target.value })}
+                            >
+                              <option value="150">150 DPI (Fast / Web)</option>
+                              <option value="200">200 DPI (Gov Portals)</option>
+                              <option value="300">300 DPI (High Quality Print)</option>
+                              <option value="600">600 DPI (Ultra HD Master)</option>
+                            </select>
+                          </div>
+                          <div className="form-field-group">
+                            <label className="field-label">Layout Arrangement:</label>
+                            <select
+                              className="field-select-input"
+                              value={customSettings.layoutMode || 'single'}
+                              onChange={(e) => setCustomSettings({ ...customSettings, layoutMode: e.target.value })}
+                            >
+                              <option value="single">Single Card Page (Standard)</option>
+                              <option value="a4_multi_4">A4 Sheet (4 Cards Printable Grid with Alignment Marks)</option>
+                            </select>
+                          </div>
+                          <div className="form-field-group">
+                            <label className="field-label">Output Format:</label>
+                            <select
+                              className="field-select-input"
+                              value={customSettings.format}
+                              onChange={(e) => setCustomSettings({ ...customSettings, format: e.target.value })}
+                            >
+                              <option value="pdf">PDF Document (.pdf)</option>
+                              <option value="png">Lossless PNG (.png)</option>
+                              <option value="jpg">Standard JPEG (.jpg)</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
 
               {/* Navigation buttons */}
               <div className="workflow-actions-row">
@@ -1340,7 +2470,7 @@ const ToolsView = ({
                   className="workflow-primary-btn"
                   onClick={runProcessingPipeline}
                 >
-                  Proceed to Process (Step 4) →
+                  {selectedTool?.fee > 0 ? `Proceed to Process (Fee: ₹${selectedTool.fee}) →` : 'Proceed to Process (Step 4) →'}
                 </button>
               </div>
             </div>
@@ -1429,12 +2559,82 @@ const ToolsView = ({
               {/* Interactive Preview Canvas */}
               <div className="preview-canvas-card">
                 <div className="preview-canvas-box">
-                  <div className="preview-crop-overlay">
+                  <div className={`preview-crop-overlay ${(outputResult?.dimensions?.heightMm && outputResult?.dimensions?.widthMm && outputResult.dimensions.heightMm > outputResult.dimensions.widthMm) || (selectedPreset && (selectedPreset.includes('passport') || selectedPreset.includes('photo'))) ? 'is-portrait' : ''}`}>
                     <span className="crop-corner top-left" />
                     <span className="crop-corner top-right" />
                     <span className="crop-corner bottom-left" />
                     <span className="crop-corner bottom-right" />
-                    {filePreviewUrl ? (
+                    {outputResult?.signatureValidation ? (
+                      /* Digital Signature Validation Result */
+                      <div style={{ padding: '16px', textAlign: 'left', overflowY: 'auto', maxHeight: '260px' }}>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px',
+                          padding: '10px 14px', borderRadius: '10px',
+                          background: outputResult.signatureValidation.isDigitallySigned ? 'rgba(34,197,94,0.1)' : 'rgba(234,88,12,0.1)',
+                          border: `1px solid ${outputResult.signatureValidation.isDigitallySigned ? 'rgba(34,197,94,0.4)' : 'rgba(234,88,12,0.4)'}`,
+                        }}>
+                          <span style={{ fontSize: '24px' }}>{outputResult.signatureValidation.isDigitallySigned ? '✅' : '❌'}</span>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '14px', color: outputResult.signatureValidation.isDigitallySigned ? '#22c55e' : '#ea580c' }}>
+                              {outputResult.signatureValidation.validationStatus}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>
+                              {outputResult.signatureValidation.statusMessage}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', marginBottom: '12px' }}>
+                          {[
+                            ['File', outputResult.signatureValidation.fileName],
+                            ['Size', outputResult.signatureValidation.fileSize],
+                            ['Pages', outputResult.signatureValidation.pageCount],
+                            ['Signatures', outputResult.signatureValidation.signatureCount],
+                            ['Encrypted', outputResult.signatureValidation.isEncrypted ? 'Yes' : 'No'],
+                            ['Trust Level', outputResult.signatureValidation.trustLevel],
+                          ].map(([label, val]) => (
+                            <div key={label} style={{ background: 'rgba(0,0,0,0.04)', padding: '6px 10px', borderRadius: '6px' }}>
+                              <span style={{ color: '#94a3b8', display: 'block', fontSize: '10px', textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
+                              <span style={{ fontWeight: 600, fontSize: '12px' }}>{String(val ?? '—')}</span>
+                            </div>
+                          ))}
+                        </div>
+                        {outputResult.signatureValidation.signatures?.map((sig, i) => (
+                          <div key={i} style={{ marginBottom: '10px', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.3)', fontSize: '12px' }}>
+                            <div style={{ fontWeight: 700, marginBottom: '6px', color: '#f97316' }}>Signature #{sig.index} — {sig.certLevel}</div>
+                            {[['Signer', sig.signerName], ['Reason', sig.reason], ['Location', sig.location], ['Signed On', sig.signingTime], ['Valid Structure', sig.structureValid ? '✅ Yes' : '⚠️ Incomplete']].map(([l, v]) => (
+                              <div key={l} style={{ display: 'flex', gap: '6px', marginBottom: '3px' }}>
+                                <span style={{ color: '#94a3b8', minWidth: '80px' }}>{l}:</span>
+                                <span style={{ fontWeight: 600 }}>{v || '—'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '10px', fontStyle: 'italic', lineHeight: 1.5 }}>
+                          SHA-256: {outputResult.signatureValidation.fingerprint?.slice(0, 32)}...
+                        </div>
+                      </div>
+                    ) : outputResult?.extractedText ? (
+                      <div className="preview-ocr-text-box" style={{ padding: '16px', background: 'rgba(0,0,0,0.03)', borderRadius: '8px', maxHeight: '220px', overflowY: 'auto', fontFamily: 'monospace', fontSize: '13px', textAlign: 'left', whiteSpace: 'pre-wrap', color: 'inherit' }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: '8px', color: '#ea580c' }}>Extracted Text:</div>
+                        {outputResult.extractedText}
+                      </div>
+                    ) : outputResult?.htmlContent ? (
+                      <div style={{ padding: '16px', background: '#fff', borderRadius: '8px', maxHeight: '220px', overflowY: 'auto', textAlign: 'left' }} dangerouslySetInnerHTML={{ __html: outputResult.htmlContent }} />
+                    ) : (outputResult?.outputUrl && (
+                        outputResult.outputUrl.endsWith('.png') ||
+                        outputResult.outputUrl.endsWith('.jpg') ||
+                        outputResult.outputUrl.endsWith('.jpeg') ||
+                        outputResult.outputUrl.startsWith('data:image')
+                      )) ? (
+                      <img
+                        src={outputResult.outputUrl.startsWith('http') || outputResult.outputUrl.startsWith('/api')
+                          ? `${API_URL.replace('/api', '')}${outputResult.outputUrl.startsWith('/') ? '' : '/'}${outputResult.outputUrl}`
+                          : outputResult.outputUrl}
+                        alt="Output Preview"
+                        className="preview-document-img"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (filePreviewUrl && !uploadedFile?.name?.toLowerCase().endsWith('.pdf')) ? (
                       <img src={filePreviewUrl} alt="Output Preview" className="preview-document-img" />
                     ) : (
                       <div className="preview-placeholder-doc">
@@ -1506,6 +2706,33 @@ const ToolsView = ({
                 <p className="workflow-box-desc">
                   Your document has been successfully processed, cropped, and verified.
                 </p>
+                {outputResult?.feeDeducted > 0 && (
+                  <div style={{
+                    margin: '14px auto 0',
+                    maxWidth: '480px',
+                    padding: '8px 16px',
+                    background: 'rgba(234, 88, 12, 0.08)',
+                    border: '1px solid rgba(234, 88, 12, 0.25)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    color: '#c2410c',
+                    fontSize: '13px',
+                    fontWeight: '600'
+                  }}>
+                    <span>💳</span>
+                    <span>
+                      Fee of ₹{Number(outputResult.feeDeducted).toFixed(2)} deducted from wallet
+                      {typeof outputResult.newBalance === 'number' && (
+                        <span style={{ fontWeight: 'normal', marginLeft: '6px', opacity: 0.9 }}>
+                          (New Balance: ₹{Number(outputResult.newBalance).toFixed(2)})
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Export Actions Grid */}
@@ -1531,35 +2758,12 @@ const ToolsView = ({
                 </div>
 
                 {/* 3. Send to Next Tool */}
-                <div className="export-action-card" onClick={() => {
-                  Swal.fire({
-                    title: 'Send to Next Tool',
-                    html: `
-                      <div style="text-align:left;font-size:13px;line-height:1.6;">
-                        <p>Select which tool to pipe this output to:</p>
-                        <select id="swalNextTool" style="width:100%;padding:8px;border-radius:6px;border:1px solid #cbd5e1;margin-top:6px;">
-                          <option value="bg">Background Remover Image AI</option>
-                          <option value="enhance">AI Image Enhancer (4K)</option>
-                          <option value="sign">Digital Signature Validation</option>
-                          <option value="pdf">PDF to HTML Converter</option>
-                        </select>
-                      </div>
-                    `,
-                    showCancelButton: true,
-                    confirmButtonText: 'Open in Tool',
-                    confirmButtonColor: '#ea580c'
-                  }).then((res) => {
-                    if (res.isConfirmed) {
-                      const found = tools.find(t => t.title.toLowerCase().includes('background')) || tools[0];
-                      if (found) handleSelectTool(found);
-                    }
-                  });
-                }}>
+                <div className="export-action-card" onClick={handleSendToTool}>
                   <div className="export-card-icon-wrap" style={{ background: 'rgba(168,85,247,0.15)', borderColor: '#a855f7' }}>
                     <span style={{ fontSize: '24px' }}>🔄</span>
                   </div>
                   <h3 className="export-card-title">Next Tool</h3>
-                  <p className="export-card-desc">Pipe output directly into Background Remover or AI Enhancer</p>
+                  <p className="export-card-desc">Transfer processed output directly into another tool</p>
                   <button type="button" className="export-card-btn purple">Send to Tool</button>
                 </div>
               </div>
@@ -1587,6 +2791,8 @@ const ToolsView = ({
               </div>
             </div>
           </div>
+        )}
+          </>
         )}
 
       </div>
