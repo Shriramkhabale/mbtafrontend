@@ -211,7 +211,8 @@ const Dashboard = () => {
       .then(data => {
         setActionCardsData(data);
         if (data.length > 0) setActiveCardId(data[0]._id || data[0].id);
-      });
+      })
+      .catch(err => console.error('Error fetching action-cards:', err));
 
     // Fetch Top Tabs
     fetch(`${API_URL}/api/top-tabs`)
@@ -227,7 +228,8 @@ const Dashboard = () => {
         }
         setTopTabsData(tabs);
         if (tabs.length > 0) setActiveTabId(tabs[0]._id || tabs[0].id);
-      });
+      })
+      .catch(err => console.error('Error fetching top-tabs:', err));
 
     // Fetch Sidebar Menus
     fetch(`${API_URL}/api/sidebar-menus`)
@@ -344,7 +346,8 @@ const Dashboard = () => {
         if (activeItem) {
           setActiveMenuId(activeItem._id || activeItem.id);
         }
-      });
+      })
+      .catch(err => console.error('Error fetching sidebar-menus:', err));
 
     // Fetch Banners
     fetch(`${API_URL}/api/banners`)
@@ -352,7 +355,8 @@ const Dashboard = () => {
       .then(data => {
         setBannersData(data);
         if (data.length > 0) setActiveBannerId(data[0]._id || data[0].id);
-      });
+      })
+      .catch(err => console.error('Error fetching banners:', err));
 
 
 
@@ -394,7 +398,10 @@ const Dashboard = () => {
               setRetailerName(data.shopName);
             }
             if (Array.isArray(data.permissions)) {
-              setUserPermissions(data.permissions);
+              setUserPermissions(prev => {
+                if (JSON.stringify(prev) === JSON.stringify(data.permissions)) return prev;
+                return data.permissions;
+              });
               localStorage.setItem('userPermissions', JSON.stringify(data.permissions));
             }
             if (data.role) {
