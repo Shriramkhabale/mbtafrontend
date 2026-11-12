@@ -495,6 +495,13 @@
   gap: 10px;
 }
 
+.pm-card-button {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
 .pm-card:hover {
   border-color: rgba(234, 88, 12, 0.4);
   background: rgba(234, 88, 12, 0.08);
@@ -1987,6 +1994,5 @@
   color: #b91c1c;
   box-shadow: 0 4px 14px rgba(220, 38, 38, 0.2);
 }
-
 
 

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import QRCode from 'qrcode';
 import Swal from 'sweetalert2';
 import { hasUserAccess, getStoredUserPermissions } from '../../utils/userPermissions';
 import './WalletModal.css';
@@ -111,23 +112,26 @@ const PlusIcon = () => (
 );
 
 const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment', walletBalance = 0, onBalanceUpdate, inlineMode = false, theme = 'light', userPermissions }) => {
-  const effectivePermissions = userPermissions || getStoredUserPermissions();
+  const effectivePermissions = useMemo(
+    () => userPermissions || getStoredUserPermissions(),
+    [userPermissions]
+  );
 
-  const canAccessWalletTab = (tab) => {
+  const canAccessWalletTab = useCallback((tab) => {
     if (tab === 'directPayment') return hasUserAccess(effectivePermissions, 'wallet.upiPayment');
     if (tab === 'payout') return hasUserAccess(effectivePermissions, 'wallet.payout');
     if (tab === 'requisition') return hasUserAccess(effectivePermissions, 'wallet.requisition');
     if (tab === 'history' || tab === 'payInHistory' || tab === 'payOutHistory') return hasUserAccess(effectivePermissions, 'wallet.history');
     return true;
-  };
+  }, [effectivePermissions]);
 
-  const getFirstAllowedTab = () => {
+  const getFirstAllowedTab = useCallback(() => {
     if (canAccessWalletTab('directPayment')) return 'directPayment';
     if (canAccessWalletTab('requisition')) return 'requisition';
     if (canAccessWalletTab('payout')) return 'payout';
     if (canAccessWalletTab('history')) return 'history';
     return 'directPayment';
-  };
+  }, [canAccessWalletTab]);
 
   const [activeTab, setActiveTab] = useState(() => {
     if (initialTab && initialTab !== 'ledger' && canAccessWalletTab(initialTab)) {
@@ -136,26 +140,20 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     return getFirstAllowedTab();
   });
   const currentTheme = theme || localStorage.getItem('appTheme') || 'light';
-
-  const prevInitialTabRef = useRef(initialTab);
+  const wasOpenRef = useRef(false);
+  const onBalanceUpdateRef = useRef(onBalanceUpdate);
 
   useEffect(() => {
-    // Only switch tab if parent explicitly passed a DIFFERENT initialTab prop
-    if (initialTab && initialTab !== prevInitialTabRef.current) {
-      prevInitialTabRef.current = initialTab;
-      if (initialTab !== 'ledger' && canAccessWalletTab(initialTab)) {
-        setActiveTab(initialTab);
-        return;
-      }
-    }
+    onBalanceUpdateRef.current = onBalanceUpdate;
+  }, [onBalanceUpdate]);
 
-    // Preserve the user's selected activeTab if it is currently accessible
-    if (activeTab && canAccessWalletTab(activeTab)) {
-      return;
+  useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      const requestedTab = initialTab && initialTab !== 'ledger' ? initialTab : 'directPayment';
+      setActiveTab(canAccessWalletTab(requestedTab) ? requestedTab : getFirstAllowedTab());
     }
-
-    setActiveTab(getFirstAllowedTab());
-  }, [initialTab, effectivePermissions, activeTab]);
+    wasOpenRef.current = isOpen;
+  }, [isOpen, initialTab, canAccessWalletTab, getFirstAllowedTab]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -188,8 +186,11 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
 
   // Direct Payment (Pay-In) state
   const [directPaymentAmount, setDirectPaymentAmount] = useState('');
+  const [directPaymentGateway, setDirectPaymentGateway] = useState('PaySprint');
   const [directPaymentMethod, setDirectPaymentMethod] = useState('UPI');
   const [checkoutData, setCheckoutData] = useState(null); // { txnId, amount, qrCodeUrl, upiLink, checkoutUrl }
+  const [ekqrQrCodeUrl, setEkqrQrCodeUrl] = useState('');
+  const [ekqrQrError, setEkqrQrError] = useState('');
   const [paymentSuccessData, setPaymentSuccessData] = useState(null);
   const [isProcessingDirect, setIsProcessingDirect] = useState(false);
   const [isVerifyingNow, setIsVerifyingNow] = useState(false);
@@ -223,7 +224,8 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
   const [historySearch, setHistorySearch] = useState('');
   const [historySubTab, setHistorySubTab] = useState('payIn');
 
-  const handlePaymentSuccess = (amount, txnId, newBal) => {
+  const handlePaymentSuccess = useCallback((amount, txnId, newBal) => {
+    const gateway = checkoutData?.gateway || directPaymentGateway;
     setCheckoutData(null);
     setDirectPaymentAmount('');
     if (onBalanceUpdate && newBal !== undefined) {
@@ -232,16 +234,17 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     setPaymentSuccessData({
       amount: parseFloat(amount).toFixed(2),
       txnId: txnId,
+      gateway,
       walletBalance: parseFloat(newBal || walletBalance).toFixed(2),
       time: new Date().toLocaleTimeString()
     });
     Swal.fire({
       icon: 'success',
-      title: 'PaySprint Payment Verified!',
+      title: 'Payment Verified!',
       text: `₹${parseFloat(amount).toFixed(2)} credited to your wallet. Ref: ${txnId}`,
       confirmButtonColor: '#16a34a'
     });
-  };
+  }, [checkoutData, directPaymentGateway, onBalanceUpdate, walletBalance]);
 
   // Sync currentUser with forms and fetch details on mount
   useEffect(() => {
@@ -279,6 +282,29 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     }
   }, [isOpen, currentUser, onBalanceUpdate]);
 
+  useEffect(() => {
+    if (!isOpen || !currentUser) return undefined;
+
+    let isSubscribed = true;
+    fetch(`${API_URL}/api/qr-payment/reconcile/${encodeURIComponent(currentUser)}`, {
+      method: 'POST'
+    })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Could not reconcile QR payments.');
+        }
+        if (isSubscribed && data.walletBalance !== undefined && onBalanceUpdateRef.current) {
+          onBalanceUpdateRef.current(data.walletBalance);
+        }
+      })
+      .catch((error) => {
+        console.error('Error reconciling QR wallet payments:', error);
+      });
+
+    return () => { isSubscribed = false; };
+  }, [isOpen, currentUser]);
+
   // Fetch user transaction history when History tab is activated
   useEffect(() => {
     if (isOpen && currentUser && (activeTab === 'history' || activeTab === 'payInHistory' || activeTab === 'payOutHistory')) {
@@ -315,6 +341,33 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     return () => clearInterval(timer);
   }, [checkoutData]);
 
+  useEffect(() => {
+    let isSubscribed = true;
+    setEkqrQrCodeUrl('');
+    setEkqrQrError('');
+
+    if (checkoutData?.gateway !== 'EkQR') return () => { isSubscribed = false; };
+
+    const upiLink = checkoutData.upiIntent?.bhim_link;
+    if (typeof upiLink !== 'string' || !/^upi:\/\/pay\?/i.test(upiLink)) {
+      setEkqrQrError('The provider did not return a standard UPI QR payment link.');
+      return () => { isSubscribed = false; };
+    }
+
+    QRCode.toDataURL(upiLink, {
+      width: 280,
+      margin: 2,
+      errorCorrectionLevel: 'M'
+    }).then((dataUrl) => {
+      if (isSubscribed) setEkqrQrCodeUrl(dataUrl);
+    }).catch((error) => {
+      console.error('Unable to generate EkQR payment QR code:', error);
+      if (isSubscribed) setEkqrQrError('Could not generate the payment QR code. Please open the provider checkout instead.');
+    });
+
+    return () => { isSubscribed = false; };
+  }, [checkoutData]);
+
   // Polling for PaySprint payment status check
   useEffect(() => {
     if (!checkoutData || !checkoutData.txnId) return;
@@ -323,12 +376,20 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     const interval = setInterval(async () => {
       if (!isSubscribed) return;
       try {
-        const res = await fetch(`${API_URL}/api/direct-payment/check-status/${checkoutData.txnId}`);
+        const statusPath = checkoutData.gateway === 'EkQR'
+          ? 'qr-payment'
+          : 'direct-payment';
+        const res = await fetch(`${API_URL}/api/${statusPath}/check-status/${checkoutData.txnId}`);
         const data = await res.json();
         if (data && data.success && data.status === 'Success') {
           if (!isSubscribed) return;
           clearInterval(interval);
           handlePaymentSuccess(checkoutData.amount, checkoutData.txnId, data.walletBalance);
+        } else if (data && data.status === 'Failed') {
+          if (!isSubscribed) return;
+          clearInterval(interval);
+          setCheckoutData(null);
+          Toast.fire({ icon: 'error', title: 'Payment was not completed.' });
         }
       } catch (err) {
         console.warn('Status poll warning:', err.message);
@@ -339,7 +400,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
       isSubscribed = false;
       clearInterval(interval);
     };
-  }, [checkoutData, onBalanceUpdate]);
+  }, [checkoutData, handlePaymentSuccess]);
 
   const formatTime = (secs) => {
     const mins = Math.floor(secs / 60);
@@ -398,7 +459,10 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
 
     setIsProcessingDirect(true);
     try {
-      const res = await fetch(`${API_URL}/api/direct-payment/initiate`, {
+      const endpoint = directPaymentGateway === 'EkQR'
+        ? 'qr-payment'
+        : 'direct-payment';
+      const res = await fetch(`${API_URL}/api/${endpoint}/initiate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -417,7 +481,9 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
           qrCodeUrl: data.qrCodeUrl,
           upiLink: data.upiLink,
           checkoutUrl: data.checkoutUrl,
-          paymentMethod: directPaymentMethod
+          paymentMethod: directPaymentMethod,
+          gateway: data.gateway || directPaymentGateway,
+          upiIntent: data.upiIntent || {}
         });
         setTimeLeft(300);
       } else if (data.message === 'ONBOARDING_REQUIRED') {
@@ -467,12 +533,18 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
     if (!checkoutData || !checkoutData.txnId) return;
     setIsVerifyingNow(true);
     try {
-      const statusRes = await fetch(`${API_URL}/api/direct-payment/check-status/${checkoutData.txnId}`);
+      const statusPath = checkoutData.gateway === 'EkQR'
+        ? 'qr-payment'
+        : 'direct-payment';
+      const statusRes = await fetch(`${API_URL}/api/${statusPath}/check-status/${checkoutData.txnId}`);
       const statusData = await statusRes.json();
       setIsVerifyingNow(false);
 
       if (statusData && statusData.success && statusData.status === 'Success') {
         handlePaymentSuccess(checkoutData.amount, checkoutData.txnId, statusData.walletBalance);
+      } else if (statusData && statusData.status === 'Failed') {
+        setCheckoutData(null);
+        Toast.fire({ icon: 'error', title: 'Payment was not completed.' });
       } else {
         Toast.fire({
           icon: 'info',
@@ -742,9 +814,11 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                     <polyline points="22 4 12 14.01 9 11.01" />
                   </svg>
                 </div>
-                <h3 className="success-card-title">PaySprint Transaction Verified!</h3>
+                <h3 className="success-card-title">
+                  {paymentSuccessData.gateway === 'EkQR' ? 'QR Payment Verified!' : 'PaySprint Transaction Verified!'}
+                </h3>
                 <div className="success-card-amount">₹{paymentSuccessData.amount}</div>
-                <div className="success-card-badge">✓ Credited to PaySprint Merchant Wallet</div>
+                <div className="success-card-badge">✓ Credited to your wallet</div>
 
                 <div className="success-details-list">
                   <div className="success-detail-row">
@@ -761,7 +835,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                   </div>
                   <div className="success-detail-row">
                     <span>Gateway Status:</span>
-                    <span className="badge-confirmed">✓ Recorded on PaySprint Dashboard</span>
+                    <span className="badge-confirmed">✓ Confirmed by {paymentSuccessData.gateway === 'EkQR' ? 'QR payment provider' : 'PaySprint'}</span>
                   </div>
                 </div>
 
@@ -823,8 +897,14 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                     <BoltIcon />
                   </div>
                   <div className="section-header-text">
-                    <div className="section-title">Instant Pay-In / UPI Collection</div>
-                    <div className="section-desc">Generate dynamic PaySprint QR code. Transactions reflect in live PaySprint dashboard.</div>
+                    <div className="section-title">
+                      {directPaymentGateway === 'EkQR' ? 'QR Code Add Funds' : 'Instant Pay-In / UPI Collection'}
+                    </div>
+                    <div className="section-desc">
+                      {directPaymentGateway === 'EkQR'
+                        ? 'Create a secure QR checkout order and verify payment with the provider.'
+                        : 'Generate a dynamic PaySprint QR code. Transactions reflect in the live PaySprint dashboard.'}
+                    </div>
                   </div>
                 </div>
 
@@ -862,8 +942,36 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                     </div>
                   </div>
 
-                  {/* Payment Method Selector */}
                   <div className="form-group-pro">
+                    <label className="pro-label">Add-Funds Option</label>
+                    <div className="payment-methods-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                      <button
+                        type="button"
+                        className={`pm-card pm-card-button ${directPaymentGateway === 'PaySprint' ? 'selected' : ''}`}
+                        onClick={() => setDirectPaymentGateway('PaySprint')}
+                      >
+                        <div className="pm-icon"><PhoneIcon /></div>
+                        <div className="pm-info">
+                          <span className="pm-name">PaySprint UPI</span>
+                          <span className="pm-sub">Current payment option</span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        className={`pm-card pm-card-button ${directPaymentGateway === 'EkQR' ? 'selected' : ''}`}
+                        onClick={() => setDirectPaymentGateway('EkQR')}
+                      >
+                        <div className="pm-icon"><BoltIcon /></div>
+                        <div className="pm-info">
+                          <span className="pm-name">QR Code Payment</span>
+                          <span className="pm-sub">EkQR secure checkout</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* PaySprint payment channel selector */}
+                  {directPaymentGateway === 'PaySprint' && <div className="form-group-pro">
                     <label className="pro-label">Payment Channel</label>
                     <div className="payment-methods-grid">
                       <div
@@ -899,7 +1007,7 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </div>}
 
                   <button
                     type="submit"
@@ -908,12 +1016,15 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                   >
                     {isProcessingDirect ? (
                       <span className="btn-loading-state">
-                        <span className="btn-spinner"></span> Generating PaySprint QR...
+                        <span className="btn-spinner"></span> Generating {directPaymentGateway === 'EkQR' ? 'QR payment' : 'PaySprint QR'}...
                       </span>
                     ) : (
                       <>
                         <BoltIcon />
-                        <span>Generate PaySprint QR (₹{directPaymentAmount ? Number(directPaymentAmount).toLocaleString() : '0.00'})</span>
+                        <span>
+                          {directPaymentGateway === 'EkQR' ? 'Create QR Payment' : 'Generate PaySprint QR'}
+                          {' '} (₹{directPaymentAmount ? Number(directPaymentAmount).toLocaleString() : '0.00'})
+                        </span>
                       </>
                     )}
                   </button>
@@ -937,11 +1048,11 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                 </button>
               </div>
             ) : (
-              /* 4. ACTIVE LIVE PAYSPRINT UPI QR CHECKOUT VIEW */
+              /* 4. ACTIVE QR CHECKOUT VIEW */
               <div className="qr-checkout-container">
                 <div className="qr-checkout-header">
                   <div className="qr-checkout-badge">
-                    <span>⚡ PaySprint Live UPI Dynamic Collection</span>
+                    <span>{checkoutData.gateway === 'EkQR' ? 'QR Code Payment Checkout' : 'PaySprint Live UPI Dynamic Collection'}</span>
                   </div>
                   <div className="qr-checkout-amount">
                     ₹{Number(checkoutData.amount).toFixed(2)}
@@ -953,12 +1064,16 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
 
                 <div className="qr-display-box">
                   {checkoutData.qrCodeUrl ? (
-                    <img src={checkoutData.qrCodeUrl} alt="PaySprint Dynamic QR Code" className="qr-image" />
+                    <img src={checkoutData.qrCodeUrl} alt="Payment QR Code" className="qr-image" />
+                  ) : checkoutData.gateway === 'EkQR' && ekqrQrCodeUrl ? (
+                    <img src={ekqrQrCodeUrl} alt="Scan to pay with any UPI app" className="qr-image" />
+                  ) : checkoutData.gateway === 'EkQR' && !ekqrQrError ? (
+                    <div className="qr-placeholder">Preparing your payment QR code...</div>
                   ) : checkoutData.checkoutUrl ? (
                     <div className="qr-placeholder" style={{ padding: '20px' }}>
-                      <p>PaySprint Checkout generated successfully.</p>
-                      <a href={checkoutData.checkoutUrl} target="_blank" rel="noreferrer" className="form-submit-btn-primary" style={{ display: 'inline-block', marginTop: '10px', textDecoration: 'none' }}>
-                        Open PaySprint Checkout ↗
+                      <p>{checkoutData.gateway === 'EkQR' ? ekqrQrError || 'Your QR payment order is ready. Open the secure checkout to view the QR code.' : 'Payment checkout generated successfully.'}</p>
+                      <a href={checkoutData.checkoutUrl} target="_blank" rel="noopener noreferrer" className="form-submit-btn-primary" style={{ display: 'inline-block', marginTop: '10px', textDecoration: 'none' }}>
+                        {checkoutData.gateway === 'EkQR' ? 'Open QR Payment Page ↗' : 'Open PaySprint Checkout ↗'}
                       </a>
                     </div>
                   ) : (
@@ -977,10 +1092,9 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                     <span>📲 Pay Directly via UPI App</span>
                   </a>
                 )}
-
                 <div className="qr-status-pulse">
                   <span className="pulse-indicator"></span>
-                  <span>Awaiting PaySprint gateway confirmation ({formatTime(timeLeft)})</span>
+                  <span>Awaiting {checkoutData.gateway === 'EkQR' ? 'QR payment' : 'PaySprint'} confirmation ({formatTime(timeLeft)})</span>
                 </div>
 
                 <div className="qr-action-buttons">
@@ -993,12 +1107,12 @@ const WalletModal = ({ isOpen, onClose, currentUser, initialTab = 'directPayment
                     {isVerifyingNow ? (
                       <>
                         <span className="btn-spinner" style={{ width: 14, height: 14 }}></span>
-                        <span>Verifying with PaySprint...</span>
+                        <span>Verifying payment...</span>
                       </>
                     ) : (
                       <>
                         <span>🔄</span>
-                        <span>Check PaySprint Status</span>
+                        <span>Check Payment Status</span>
                       </>
                     )}
                   </button>
