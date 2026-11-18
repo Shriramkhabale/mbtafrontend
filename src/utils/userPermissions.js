@@ -98,13 +98,43 @@ export const PERMISSION_ALIASES = {
   'tools.enhance': 'tools.imageEnhancer',
   'tools.ration': 'tools.rationCutter',
   'tools.pan': 'tools.panCutter',
-  'tools.voter': 'tools.voterCutter'
+  'tools.voter': 'tools.voterCutter',
+
+  // CRM Suite & Post-Tools Aliases
+  'crm': 'crm',
+  'crmModule': 'crm',
+  'crm_suite': 'crm',
+  'crmCore': 'crm.access',
+  'crmTask': 'crm.task.access',
+  'crmPending': 'crm.pending.access',
+  'crmBillBook': 'crm.billbook.access',
+  'crmCustomer': 'crm.customer.access',
+  'customerManagement': 'crm.customer.access',
+  'customer_management': 'crm.customer.access',
+  'crmBank': 'crm.bank.access',
+  'crmMoney': 'crm.money.access',
+  'crmEmployee': 'crm.employee.access'
 };
 
 // Map each module to its sub-permissions
 export const MODULE_SUB_MAP = {
-  offlineWork: ['offlineWork.view', 'offlineWork.submit', 'offlineWork.history'],
+  offlineWork: [
+    'offlineWork.access',
+    'offlineWork.view',
+    'offlineWork.add',
+    'offlineWork.edit',
+    'offlineWork.status',
+    'offlineWork.submit',
+    'offlineWork.history'
+  ],
   panCard: [
+    'pan.access',
+    'pan.create',
+    'pan.view',
+    'pan.edit',
+    'pan.upload',
+    'pan.download',
+    'pan.status',
     'pan.manualNew',
     'pan.epanKyc',
     'pan.epanCorrectionOtp',
@@ -116,7 +146,11 @@ export const MODULE_SUB_MAP = {
     'pan.submissions'
   ],
   toolsModule: [
+    'tools.access',
     'tools.view',
+    'tools.use',
+    'tools.pdf',
+    'tools.other',
     'tools.aadharCutter',
     'tools.allIdCutter',
     'tools.bgRemover',
@@ -130,14 +164,75 @@ export const MODULE_SUB_MAP = {
     'tools.pdf2Html'
   ],
   dynamicMenus: [
-    'dyn.servicesLink', 'dyn.jobLinks', 'dyn.admitCard', 'dyn.formLinks', 
-    'dyn.vedioLink', 'dyn.trainingLinks', 'dyn.productLinks', 'dyn.govtLinks', 
+    'dyn.servicesLink', 'dyn.jobLinks', 'dyn.admitCard', 'dyn.formLinks',
+    'dyn.vedioLink', 'dyn.trainingLinks', 'dyn.productLinks', 'dyn.govtLinks',
     'dyn.print', 'dyn.schorshipLinks'
   ],
-  quickLinksModule: ['quickLinks.view', 'quickLinks.open', 'quickLinks.search'],
-  walletModule: ['wallet.balance', 'wallet.upiPayment', 'wallet.payout', 'wallet.requisition', 'wallet.history'],
-  ledgerModule: ['ledger.view', 'ledger.filter', 'ledger.exportPdf'],
-  dashboardNavModule: ['dashboard.actionCards', 'dashboard.topTabs', 'dashboard.banners'],
+  quickLinksModule: ['quickLinks.view', 'quickLinks.open', 'quickLinks.search', 'quicklinks.access'],
+  walletModule: [
+    'wallet.balance',
+    'wallet.upiPayment',
+    'wallet.payout',
+    'wallet.requisition',
+    'wallet.history',
+    'wallet.points',
+    'wallet.addAmount',
+    'wallet.recharge',
+    'wallet.travels',
+    'wallet.dmt',
+    'wallet.dth',
+    'wallet.ledger'
+  ],
+  ledgerModule: ['ledger.view', 'ledger.filter', 'ledger.exportPdf', 'wallet.ledger'],
+  dashboardNavModule: [
+    'dashboard.actionCards',
+    'dashboard.topTabs',
+    'dashboard.banners',
+    'dashboard.view',
+    'dashboard.stats',
+    'dashboard.assignedWork',
+    'dashboard.activitySummary'
+  ],
+  crm: [
+    'crm.access',
+    'crm.dashboard',
+    'crm.task.access',
+    'crm.task.add',
+    'crm.task.edit',
+    'crm.task.delete',
+    'crm.pending.access',
+    'crm.pending.view',
+    'crm.pending.update',
+    'crm.billbook.access',
+    'crm.billbook.view',
+    'crm.billbook.add',
+    'crm.billbook.edit',
+    'crm.customer.access',
+    'crm.customer.view',
+    'crm.customer.add',
+    'crm.customer.edit',
+    'crm.bank.access',
+    'crm.bank.view',
+    'crm.bank.add',
+    'crm.bank.edit',
+    'crm.bank.delete',
+    'crm.money.access',
+    'crm.money.view',
+    'crm.money.add',
+    'crm.money.status',
+    'crm.money.reports',
+    'crm.money.pnl',
+    'crm.employee.access',
+    'crm.employee.manage'
+  ],
+  crmCore: ['crm.access', 'crm.dashboard'],
+  crmTask: ['crm.task.access', 'crm.task.add', 'crm.task.edit', 'crm.task.delete'],
+  crmPending: ['crm.pending.access', 'crm.pending.view', 'crm.pending.update'],
+  crmBillBook: ['crm.billbook.access', 'crm.billbook.view', 'crm.billbook.add', 'crm.billbook.edit'],
+  crmCustomer: ['crm.customer.access', 'crm.customer.view', 'crm.customer.add', 'crm.customer.edit', 'customerManagement'],
+  crmBank: ['crm.bank.access', 'crm.bank.view', 'crm.bank.add', 'crm.bank.edit', 'crm.bank.delete'],
+  crmMoney: ['crm.money.access', 'crm.money.view', 'crm.money.add', 'crm.money.status', 'crm.money.reports', 'crm.money.pnl'],
+  crmEmployee: ['crm.employee.access', 'crm.employee.manage'],
   profileModule: ['profile.view', 'profile.receipts', 'profile.certificate', 'profile.password']
 };
 
@@ -233,14 +328,24 @@ export const hasUserAccess = (userOrPermissions, permissionId, userRole = null) 
 
   const normalized = normalizePermissions(perms);
 
+  const isEmployee = role === 'employee' ||
+    (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('userRole') === 'employee') ||
+    (typeof localStorage !== 'undefined' && localStorage.getItem('userRole') === 'employee') ||
+    (typeof localStorage !== 'undefined' && (localStorage.getItem('currentUser') || '').includes('-EMP'));
+
   // If explicitly revoked / restricted to none
   if (normalized.includes('none')) {
     return false;
   }
 
-  // If unconfigured (no permissions set in DB yet), default to full access
+  // If user is an employee and has empty permissions, they get NO access
+  if (isEmployee && normalized.length === 0) {
+    return false;
+  }
+
+  // If unconfigured (no permissions set in DB yet), default to full access only for non-employees
   if (normalized.length === 0) {
-    return true;
+    return !isEmployee;
   }
 
   const target = PERMISSION_ALIASES[permissionId] || permissionId;
@@ -256,14 +361,16 @@ export const hasUserAccess = (userOrPermissions, permissionId, userRole = null) 
     return true;
   }
 
-  // 3. If target is a sub-permission, check if its parent module is granted
-  for (const [parentId, subList] of Object.entries(MODULE_SUB_MAP)) {
-    if (subList.includes(target) && normalized.includes(parentId)) {
-      // If the user's permissions array contains ANY sub-permission of this module,
-      // then granular permissions are active and an unchecked sub-permission must NOT be granted!
-      const hasGranularSubs = subList.some(subId => normalized.includes(subId));
-      if (!hasGranularSubs) {
-        return true;
+  // 3. If target is a sub-permission, check if its parent module is granted (non-employees only)
+  if (!isEmployee) {
+    for (const [parentId, subList] of Object.entries(MODULE_SUB_MAP)) {
+      if (subList.includes(target) && normalized.includes(parentId)) {
+        // If the user's permissions array contains ANY sub-permission of this module,
+        // then granular permissions are active and an unchecked sub-permission must NOT be granted!
+        const hasGranularSubs = subList.some(subId => normalized.includes(subId));
+        if (!hasGranularSubs) {
+          return true;
+        }
       }
     }
   }
