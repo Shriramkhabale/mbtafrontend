@@ -9,6 +9,7 @@ import PanCardView from '../pancard/PanCardView';
 import QuickLinksView from '../quicklinks/QuickLinksView';
 import OfflineWorkView from '../offlinework/OfflineWorkView';
 import ToolsView from '../tools/ToolsView';
+import CrmView from '../crm/CrmView';
 import NotificationBell from '../../context/NotificationBell';
 import { API_URL } from '../../utils/apiClient';
 import { DYNAMIC_LINK_MENUS, findDynamicMenu, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
@@ -51,6 +52,7 @@ const getMenuIcon = (label, url) => {
   if (l.includes('verify') || l.includes('verification')) return <span className="icon-badge icon-teal">✓</span>;
   if (l.includes('pdf')) return <span className="icon-badge icon-orange">📄</span>;
   if (l.includes('offline') || l.includes('work')) return <span className="icon-badge icon-blue">📁</span>;
+  if (l.includes('crm')) return <span className="icon-badge icon-purple">👥</span>;
   return <span className="icon-badge icon-orange">⚡</span>;
 };
 
@@ -87,7 +89,7 @@ const AccessRestrictedNotice = ({ title = 'Service', onBack }) => (
       You do not have permission to access <strong>{title}</strong>. If you need access to this service, please contact your administrator.
     </p>
     {onBack && (
-      <button 
+      <button
         type="button"
         onClick={onBack}
         style={{
@@ -116,6 +118,7 @@ const Dashboard = () => {
   const isQuickLinksRoute = location.pathname === '/quick-links' || location.pathname === '/view-links';
   const isOfflineWorkRoute = location.pathname === '/offline-work' || location.pathname === '/offlinework';
   const isToolsRoute = location.pathname.toLowerCase() === '/tools';
+  const isCrmRoute = location.pathname.toLowerCase() === '/crm' || location.pathname.toLowerCase().startsWith('/crm');
 
   const [userPermissions, setUserPermissions] = useState(getStoredUserPermissions);
 
@@ -137,7 +140,7 @@ const Dashboard = () => {
       if (!m.url || !m.url.startsWith('/')) return false;
       const lowerUrl = (m.url || '').toLowerCase();
       const lowerLabel = (m.label || '').toLowerCase();
-      if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan') || lowerUrl.includes('tool') || lowerLabel.includes('tool')) {
+      if (lowerUrl.includes('offline') || lowerLabel.includes('offline') || lowerUrl.includes('pan') || lowerLabel.includes('pan') || lowerUrl.includes('tool') || lowerLabel.includes('tool') || lowerUrl.includes('crm') || lowerLabel.includes('crm')) {
         return false;
       }
       const cleanPath = location.pathname.toLowerCase().replace(/\/+$/, '');
@@ -156,7 +159,7 @@ const Dashboard = () => {
     return null;
   }, [location.pathname, sidebarMenuData]);
   const isDynLinkMenuRoute = Boolean(activeDynLinkMenu);
-  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute || isOfflineWorkRoute || isToolsRoute;
+  const isStandaloneRoute = isLedgerRoute || isWalletRoute || isPanCardRoute || isQuickLinksRoute || isDynLinkMenuRoute || isOfflineWorkRoute || isToolsRoute || isCrmRoute;
   const [activeCardId, setActiveCardId] = useState(null);
   const [activeBannerId, setActiveBannerId] = useState(null);
 
@@ -177,7 +180,14 @@ const Dashboard = () => {
 
 
   const [walletBalance, setWalletBalance] = useState(0);
-  const [retailerName, setRetailerName] = useState('');
+  const [retailerName, setRetailerName] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('user') || '{}');
+      return stored.fullName || stored.name || stored.shopName || '';
+    } catch {
+      return '';
+    }
+  });
   const [showBalance, setShowBalance] = useState(() => {
     return localStorage.getItem('showWalletBalance') === 'true';
   });
@@ -191,7 +201,7 @@ const Dashboard = () => {
           setMarqueeText(data.value);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const toggleShowBalance = () => {
@@ -259,6 +269,17 @@ const Dashboard = () => {
           } else {
             menus.push(quickMenuItem);
           }
+        }
+
+        // Ensure CRM menu is present in sidebar
+        const hasCrm = menus.some(m => {
+          if (!m.label) return false;
+          const l = m.label.toLowerCase();
+          const u = (m.url || '').toLowerCase();
+          return l.includes('crm') || u === '/crm';
+        });
+        if (!hasCrm) {
+          menus.push({ _id: 'menu_crm_item', label: 'CRM', url: '/crm', isActive: true, dynamicActive: true });
         }
 
         // Ensure all 10 standard dynamic link menus are present (without duplicating)
@@ -366,21 +387,21 @@ const Dashboard = () => {
       .then(data => {
         if (Array.isArray(data)) setQuickLinksData(data);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch(`${API_URL}/api/pancard/tabs`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setPanTabsData(data);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch(`${API_URL}/api/offline-work/tabs`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setOfflineTabsData(data);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     // Setup an interval to periodically fetch wallet balance
     const currentUser = localStorage.getItem('currentUser');
@@ -501,12 +522,12 @@ const Dashboard = () => {
     ...DYNAMIC_LINK_MENUS
       .filter(dyn => hasUserAccess(userPermissions, `dyn.${dyn.key}`))
       .map(dyn => ({
-      id: `dyn_${dyn.key}`,
-      title: dyn.label,
-      category: 'Service Category',
-      icon: dyn.icon || '🔗',
-      action: () => navigate(dyn.route)
-    })),
+        id: `dyn_${dyn.key}`,
+        title: dyn.label,
+        category: 'Service Category',
+        icon: dyn.icon || '🔗',
+        action: () => navigate(dyn.route)
+      })),
     // PAN Card Services (Dynamic & Standard)
     ...(panTabsData.length > 0 ? panTabsData : [
       { id: 'find_pan_aadhaar', label: 'Find My PAN', icon: '🔍', description: 'Aadhaar to PAN lookup' },
@@ -519,15 +540,15 @@ const Dashboard = () => {
       { id: 'stamp_signature_merger', label: 'Crop Photo / Signature', icon: '✂️', description: 'Crop & Stamp Signature Merger Tool' },
       { id: 'history', label: 'PAN Application History', icon: '📋', description: 'Track submitted PAN applications' }
     ])
-    .filter(pan => hasUserAccess(userPermissions, getPanTabPermissionKey(pan.id)))
-    .map(pan => ({
-      id: `pan_${pan.id || pan._id}`,
-      title: pan.label || pan.title,
-      subtitle: pan.description || pan.badge || 'PAN Card Service',
-      category: 'PAN Card',
-      icon: pan.icon || '💳',
-      action: () => navigate(`/pancard?tab=${pan.id}`)
-    })),
+      .filter(pan => hasUserAccess(userPermissions, getPanTabPermissionKey(pan.id)))
+      .map(pan => ({
+        id: `pan_${pan.id || pan._id}`,
+        title: pan.label || pan.title,
+        subtitle: pan.description || pan.badge || 'PAN Card Service',
+        category: 'PAN Card',
+        icon: pan.icon || '💳',
+        action: () => navigate(`/pancard?tab=${pan.id}`)
+      })),
     // Quick Links & Dynamic Service Links
     ...(quickLinksData || []).map(link => ({
       id: `link_${link._id || link.id || link.title}`,
@@ -704,7 +725,7 @@ const Dashboard = () => {
 
           {showProfileMenu && (
             <div className="profile-dropdown-card">
-              {hasUserAccess(userPermissions, 'walletModule') && hasUserAccess(userPermissions, 'wallet.balance') && (
+              {hasUserAccess(userPermissions, 'walletModule') && hasUserAccess(userPermissions, 'wallet.balance') ? (
                 <div className="dropdown-user-info">
                   {retailerName && (
                     <div style={{ padding: '4px 0 8px', fontSize: '13px', fontWeight: 700, color: '#ea580c' }}>
@@ -725,8 +746,16 @@ const Dashboard = () => {
                     {showBalance ? `₹ ${parseFloat(walletBalance).toFixed(2)}` : '₹ •••••'}
                   </div>
                 </div>
+              ) : retailerName ? (
+                <div className="dropdown-user-info" style={{ paddingBottom: '8px' }}>
+                  <div style={{ padding: '4px 0', fontSize: '13px', fontWeight: 700, color: '#ea580c' }}>
+                    👤 {retailerName}
+                  </div>
+                </div>
+              ) : null}
+              {(hasUserAccess(userPermissions, 'walletModule') || hasUserAccess(userPermissions, 'ledgerModule') || hasUserAccess(userPermissions, 'ledger.view')) && (
+                <div className="dropdown-divider"></div>
               )}
-              <div className="dropdown-divider"></div>
               {hasUserAccess(userPermissions, 'walletModule') && (
                 <button
                   className="dropdown-action-item"
@@ -849,12 +878,19 @@ const Dashboard = () => {
               const isOffline = l.includes('offline');
               const isTools = l.includes('tool') || u === '/tools';
               const isQuick = l.includes('quick') || l === 'view links' || u === '/quick-links' || u === '/view-links';
+              const isCrm = l.includes('crm') || u === '/crm';
+              const isWallet = l.includes('wallet') || u === '/wallet';
+              const isLedger = l.includes('ledger') || l.includes('report') || u === '/ledger';
 
               // Check user service access permissions
-              if (isPan && !hasUserAccess(userPermissions, 'panCard')) return false;
-              if (isOffline && !hasUserAccess(userPermissions, 'offlineWork')) return false;
-              if (isTools && !hasUserAccess(userPermissions, 'toolsModule') && !hasUserAccess(userPermissions, 'tools.view')) return false;
-              if (isQuick && !hasUserAccess(userPermissions, 'quickLinksModule') && !hasUserAccess(userPermissions, 'quickLinks.view')) return false;
+              if (isPan && !hasUserAccess(userPermissions, 'panCard') && !hasUserAccess(userPermissions, 'pan.access')) return false;
+              if (isOffline && !hasUserAccess(userPermissions, 'offlineWork') && !hasUserAccess(userPermissions, 'offlineWork.access')) return false;
+              if (isTools && !hasUserAccess(userPermissions, 'toolsModule') && !hasUserAccess(userPermissions, 'tools.view') && !hasUserAccess(userPermissions, 'tools.access')) return false;
+              if (isQuick && !hasUserAccess(userPermissions, 'quickLinksModule') && !hasUserAccess(userPermissions, 'quickLinks.view') && !hasUserAccess(userPermissions, 'quicklinks.access')) return false;
+              if (isCrm && !hasUserAccess(userPermissions, 'crm') && !hasUserAccess(userPermissions, 'crm.access')) return false;
+              if (isWallet && !hasUserAccess(userPermissions, 'walletModule') && !hasUserAccess(userPermissions, 'wallet.balance')) return false;
+              if (isLedger && !hasUserAccess(userPermissions, 'ledgerModule') && !hasUserAccess(userPermissions, 'ledger.view') && !hasUserAccess(userPermissions, 'wallet.ledger')) return false;
+              if (isDash && !hasUserAccess(userPermissions, 'dashboardNavModule') && !hasUserAccess(userPermissions, 'dashboard.view')) return false;
               // Render all active menus configured in Admin Panel's Sidebar Menus
               return true;
             }).map((menu) => {
@@ -863,6 +899,7 @@ const Dashboard = () => {
               const isDash = menu.label && menu.label.toLowerCase().includes('dash');
               const isOffline = menu.label && menu.label.toLowerCase().includes('offline');
               const isTools = menu.label && menu.label.toLowerCase().includes('tool');
+              const isCrm = (menu.label && menu.label.toLowerCase().includes('crm')) || menu.url === '/crm';
               const matchedDyn = getDynamicMenuForSidebarItem(menu) || findDynamicMenu(menu.url || menu.label);
               const isQuick = !matchedDyn && (
                 menu.url === '/quick-links' ||
@@ -871,7 +908,7 @@ const Dashboard = () => {
               );
               const isDynSelected = matchedDyn && activeDynLinkMenu && matchedDyn.key === activeDynLinkMenu.key;
               const isUrlMatched = Boolean(menu.url && menu.url.trim() !== '' && location.pathname.toLowerCase() === menu.url.trim().toLowerCase());
-              const isSelected = isDynSelected ? true : (isUrlMatched ? true : (isPan ? isPanCardRoute : (isOffline ? isOfflineWorkRoute : (isTools ? isToolsRoute : (isQuick ? isQuickLinksRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId))))));
+              const isSelected = isDynSelected ? true : (isUrlMatched ? true : (isPan ? isPanCardRoute : (isOffline ? isOfflineWorkRoute : (isTools ? isToolsRoute : (isQuick ? isQuickLinksRoute : (isCrm ? isCrmRoute : (isDash ? !isStandaloneRoute : activeMenuId === menuId)))))));
 
               return (
                 <div
@@ -882,6 +919,8 @@ const Dashboard = () => {
                     setIsMobileMenuOpen(false);
                     if (isTools || menu.url === '/tools') {
                       navigate('/tools');
+                    } else if (isCrm || menu.url === '/crm') {
+                      navigate('/crm');
                     } else if (matchedDyn) {
                       navigate(matchedDyn.route);
                     } else if (isPan) {
@@ -945,52 +984,62 @@ const Dashboard = () => {
         <div className="content-area-new">
 
           {/* Top Header Tabs */}
-          {hasUserAccess(userPermissions, 'dashboardNavModule') && hasUserAccess(userPermissions, 'dashboard.topTabs') && topTabsData.length > 0 && (
-            <div className="top-tabs-new">
-              {topTabsData.filter((tab) => {
-                const label = (tab.label || '').toLowerCase();
-                const url = (tab.url || '').toLowerCase();
-                if (label.includes('wallet') && !label.includes('ledger') && !hasUserAccess(userPermissions, 'walletModule')) return false;
-                if ((label.includes('ledger') || label.includes('report')) && !hasUserAccess(userPermissions, 'ledgerModule') && !hasUserAccess(userPermissions, 'ledger.view')) return false;
-                if ((label.includes('tool') || url.includes('/tools')) && !hasUserAccess(userPermissions, 'toolsModule') && !hasUserAccess(userPermissions, 'tools.view')) return false;
-                if (label.includes('pan') && !hasUserAccess(userPermissions, 'panCard')) return false;
-                if (label.includes('offline') && !hasUserAccess(userPermissions, 'offlineWork')) return false;
-                return true;
-              }).map((tab) => {
-                const tabId = tab._id || tab.id;
-                const label = (tab.label || '').toLowerCase();
-                const isSelected = 
-                  (isWalletRoute && label.includes('wallet')) ||
-                  (isLedgerRoute && label.includes('ledger')) ||
-                  (!isStandaloneRoute && activeTabId === tabId);
+          {hasUserAccess(userPermissions, 'dashboardNavModule') && (hasUserAccess(userPermissions, 'dashboard.topTabs') || hasUserAccess(userPermissions, 'dashboard.view') || hasUserAccess(userPermissions, 'dashboard.stats') || hasUserAccess(userPermissions, 'dashboard.assignedWork') || hasUserAccess(userPermissions, 'dashboard.activitySummary')) && topTabsData.length > 0 && (() => {
+            const visibleTopTabs = topTabsData.filter((tab) => {
+              const label = (tab.label || '').toLowerCase();
+              const url = (tab.url || '').toLowerCase();
+              if (label.includes('wallet point') && !hasUserAccess(userPermissions, 'wallet.points') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+              if (label.includes('add amount') && !hasUserAccess(userPermissions, 'wallet.addAmount') && !hasUserAccess(userPermissions, 'wallet.requisition') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+              if (label.includes('recharge') && !label.includes('dth') && !hasUserAccess(userPermissions, 'wallet.recharge') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+              if (label.includes('travel') && !hasUserAccess(userPermissions, 'wallet.travels') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+              if ((label.includes('dmt') || label.includes('money transfer')) && !hasUserAccess(userPermissions, 'wallet.dmt') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+              if (label.includes('dth') && !hasUserAccess(userPermissions, 'wallet.dth') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+              if ((label.includes('ledger') || label.includes('report')) && !hasUserAccess(userPermissions, 'wallet.ledger') && !hasUserAccess(userPermissions, 'ledgerModule') && !hasUserAccess(userPermissions, 'ledger.view')) return false;
+              if ((label.includes('tool') || url.includes('/tools')) && !hasUserAccess(userPermissions, 'toolsModule') && !hasUserAccess(userPermissions, 'tools.view')) return false;
+              if (label.includes('pan') && !hasUserAccess(userPermissions, 'panCard') && !hasUserAccess(userPermissions, 'pan.access')) return false;
+              if (label.includes('offline') && !hasUserAccess(userPermissions, 'offlineWork') && !hasUserAccess(userPermissions, 'offlineWork.access')) return false;
+              if (label.includes('wallet') && !label.includes('ledger') && !label.includes('point') && !hasUserAccess(userPermissions, 'walletModule')) return false;
+              return true;
+            });
+            if (visibleTopTabs.length === 0) return null;
+            return (
+              <div className="top-tabs-new">
+                {visibleTopTabs.map((tab) => {
+                  const tabId = tab._id || tab.id;
+                  const label = (tab.label || '').toLowerCase();
+                  const isSelected =
+                    (isWalletRoute && label.includes('wallet')) ||
+                    (isLedgerRoute && label.includes('ledger')) ||
+                    (!isStandaloneRoute && activeTabId === tabId);
 
-                return (
-                  <button
-                    key={tabId}
-                    className={`tab-btn-new ${isSelected ? 'active' : ''}`}
-                    onClick={() => {
-                      setActiveTabId(tabId);
-                      if (label.includes('ledger') || label.includes('report')) {
-                        navigate('/ledger');
-                      } else if (label.includes('wallet')) {
-                        navigate('/wallet');
-                      } else {
-                        navigate('/dashboard');
-                        if (tab.url) window.open(tab.url, '_blank');
-                      }
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {getTabIcon(tab.label)}
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                  return (
+                    <button
+                      key={tabId}
+                      className={`tab-btn-new ${isSelected ? 'active' : ''}`}
+                      onClick={() => {
+                        setActiveTabId(tabId);
+                        if (label.includes('ledger') || label.includes('report')) {
+                          navigate('/ledger');
+                        } else if (label.includes('wallet')) {
+                          navigate('/wallet');
+                        } else {
+                          navigate('/dashboard');
+                          if (tab.url) window.open(tab.url, '_blank');
+                        }
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {getTabIcon(tab.label)}
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Action Cards Marquee Showcase (Only show on Dashboard, hide on Ledger & Wallet routes) */}
-          {!isStandaloneRoute && hasUserAccess(userPermissions, 'dashboardNavModule') && hasUserAccess(userPermissions, 'dashboard.actionCards') && (
+          {!isStandaloneRoute && hasUserAccess(userPermissions, 'dashboardNavModule') && (hasUserAccess(userPermissions, 'dashboard.actionCards') || hasUserAccess(userPermissions, 'dashboard.view') || hasUserAccess(userPermissions, 'dashboard.stats') || hasUserAccess(userPermissions, 'dashboard.assignedWork') || hasUserAccess(userPermissions, 'dashboard.activitySummary')) && (
             <div className="action-cards-container">
               <div className="action-cards-wrapper">
                 <div className="action-cards-track-scroll">
@@ -1095,11 +1144,11 @@ const Dashboard = () => {
             });
             const quickTitle = (quickItem && quickItem.label && quickItem.label.trim()) || 'Available links';
             return (
-              <QuickLinksView 
+              <QuickLinksView
                 menuKey="quickLinks"
                 pageTitle={quickTitle}
                 pageSubtitle="Access important form links, video guides and portals instantly"
-                theme={theme} 
+                theme={theme}
                 currentUser={localStorage.getItem('currentUser')}
                 walletBalance={walletBalance}
                 onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
@@ -1112,6 +1161,19 @@ const Dashboard = () => {
               <AccessRestrictedNotice title="Tools & AI Utilities" onBack={() => navigate('/dashboard')} />
             ) : (
               <ToolsView
+                theme={theme}
+                currentUser={localStorage.getItem('currentUser')}
+                walletBalance={walletBalance}
+                onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
+                onClose={() => navigate('/dashboard')}
+                userPermissions={userPermissions}
+              />
+            )
+          ) : isCrmRoute ? (
+            (!hasUserAccess(userPermissions, 'crm') && !hasUserAccess(userPermissions, 'crm.access')) ? (
+              <AccessRestrictedNotice title="CRM Suite" onBack={() => navigate('/dashboard')} />
+            ) : (
+              <CrmView
                 theme={theme}
                 currentUser={localStorage.getItem('currentUser')}
                 walletBalance={walletBalance}
@@ -1143,7 +1205,7 @@ const Dashboard = () => {
                   <p style={{ color: '#64748b', fontSize: '14px', maxWidth: '420px', margin: '0 auto 20px' }}>
                     This menu section has been turned OFF by the administrator.
                   </p>
-                  <button 
+                  <button
                     onClick={() => navigate('/dashboard')}
                     style={{ padding: '10px 24px', borderRadius: '8px', background: '#3b82f6', color: '#fff', border: 'none', fontWeight: 700, cursor: 'pointer' }}
                   >
@@ -1154,11 +1216,11 @@ const Dashboard = () => {
             }
 
             return (
-              <QuickLinksView 
+              <QuickLinksView
                 menuKey={activeDynLinkMenu.key}
                 pageTitle={dynTitle}
                 pageSubtitle={`Available dynamic links and portals for ${dynTitle}`}
-                theme={theme} 
+                theme={theme}
                 currentUser={localStorage.getItem('currentUser')}
                 walletBalance={walletBalance}
                 onBalanceUpdate={(newBal) => setWalletBalance(newBal)}
@@ -1167,7 +1229,7 @@ const Dashboard = () => {
               />
             );
           })() : (
-            bannersData.length > 0 && hasUserAccess(userPermissions, 'dashboardNavModule') && hasUserAccess(userPermissions, 'dashboard.banners') && (
+            bannersData.length > 0 && hasUserAccess(userPermissions, 'dashboardNavModule') && (hasUserAccess(userPermissions, 'dashboard.banners') || hasUserAccess(userPermissions, 'dashboard.view') || hasUserAccess(userPermissions, 'dashboard.stats') || hasUserAccess(userPermissions, 'dashboard.assignedWork') || hasUserAccess(userPermissions, 'dashboard.activitySummary')) && (
               <div className={`banner-area-new ${activeBannerId ? 'active' : ''}`}>
                 {bannersData.map((banner) => {
                   const bannerId = banner._id || banner.id;

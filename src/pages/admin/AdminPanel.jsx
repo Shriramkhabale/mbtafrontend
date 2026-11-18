@@ -16,6 +16,7 @@ import { normalizePermissions } from '../../utils/userPermissions';
 import OfflineFormsManager from './OfflineFormsManager';
 import OfflineSubmissionsManager from './OfflineSubmissionsManager';
 import ServiceLogsPanel from './ServiceLogsPanel';
+import AdminCustomerManagement from './AdminCustomerManagement';
 
 const showCustomToast = (title, text = '', icon = 'success', duration = 5000) => {
   const existingContainer = document.getElementById('custom-app-toast-container');
@@ -803,6 +804,16 @@ const AdminPanel = () => {
       ]
     },
     {
+      id: 'crmCards',
+      label: 'CRM Management',
+      icon: '👥',
+      subPermissions: [
+        { id: 'crmCards.add', label: 'Add CRM Card', icon: '➕' },
+        { id: 'crmCards.edit', label: 'Edit CRM Card & Toggle', icon: '✏️' },
+        { id: 'crmCards.delete', label: 'Delete CRM Card', icon: '🗑️' },
+      ]
+    },
+    {
       id: 'banners',
       label: 'Banners',
       icon: '🖼️',
@@ -909,6 +920,14 @@ const AdminPanel = () => {
       ]
     },
     {
+      id: 'customerManagement',
+      label: 'Customer Management',
+      icon: '📇',
+      subPermissions: [
+        { id: 'customerManagement.view', label: 'View All Customers', icon: '👁️' },
+      ]
+    },
+    {
       id: 'feesNewApplication',
       label: 'Fees – PAN New Application',
       icon: '📄',
@@ -990,6 +1009,92 @@ const AdminPanel = () => {
         { id: 'tools.panCutter', label: 'PAN Card PDF Crop/Cutter AI API', icon: '💳' },
         { id: 'tools.voterCutter', label: 'Voter ID (EPIC) PDF Crop/Cutter AI API', icon: '🗳️' },
         { id: 'tools.pdf2Html', label: 'PDF to HTML Convert API', icon: '🌐' }
+      ]
+    },
+    {
+      id: 'crm',
+      label: 'CRM Suite (Core & Overview)',
+      icon: '👥',
+      subPermissions: [
+        { id: 'crm.access', label: 'Access CRM Suite Portal', icon: '👥' },
+        { id: 'crm.dashboard', label: 'View CRM Dashboard & Metrics', icon: '📊' }
+      ]
+    },
+    {
+      id: 'crmCustomer',
+      label: 'CRM – Customer Management',
+      icon: '📇',
+      subPermissions: [
+        { id: 'crm.customer.access', label: 'Access Customer Management Module', icon: '📇' },
+        { id: 'crm.customer.view', label: 'View Customer Profiles & Directory', icon: '👁️' },
+        { id: 'crm.customer.add', label: 'Register New Customers', icon: '➕' },
+        { id: 'crm.customer.edit', label: 'Edit Customer Information', icon: '✏️' }
+      ]
+    },
+    {
+      id: 'crmBillBook',
+      label: 'CRM – My Bill Book (Billing & Ledger)',
+      icon: '📖',
+      subPermissions: [
+        { id: 'crm.billbook.access', label: 'Access My Bill Book Module', icon: '📖' },
+        { id: 'crm.billbook.view', label: 'View Customer Ledger & Statements', icon: '👁️' },
+        { id: 'crm.billbook.add', label: 'Create New Invoices & Bills', icon: '🧾' },
+        { id: 'crm.billbook.edit', label: 'Edit & Update Billing Invoices', icon: '✏️' }
+      ]
+    },
+    {
+      id: 'crmBank',
+      label: 'CRM – Bank Account Details',
+      icon: '🏦',
+      subPermissions: [
+        { id: 'crm.bank.access', label: 'Access Bank Accounts Module', icon: '🏦' },
+        { id: 'crm.bank.view', label: 'View Linked Bank Accounts', icon: '👁️' },
+        { id: 'crm.bank.add', label: 'Add New Bank Account', icon: '➕' },
+        { id: 'crm.bank.edit', label: 'Edit Bank Account Details', icon: '✏️' },
+        { id: 'crm.bank.delete', label: 'Delete Bank Accounts', icon: '🗑️' }
+      ]
+    },
+    {
+      id: 'crmMoney',
+      label: 'CRM – Money Transaction (Remittance)',
+      icon: '💸',
+      subPermissions: [
+        { id: 'crm.money.access', label: 'Access Money Transaction Module', icon: '💸' },
+        { id: 'crm.money.view', label: 'View Remittance Transactions', icon: '👁️' },
+        { id: 'crm.money.add', label: 'Create Transaction (Cash↔Online)', icon: '➕' },
+        { id: 'crm.money.status', label: 'Update Status & Reference / UTR', icon: '🔄' },
+        { id: 'crm.money.reports', label: 'View Financial Reports & Invoices', icon: '📑' },
+        { id: 'crm.money.pnl', label: 'View Profit & Loss Analytics', icon: '📈' }
+      ]
+    },
+    {
+      id: 'crmEmployee',
+      label: 'CRM – Employee Management',
+      icon: '👔',
+      subPermissions: [
+        { id: 'crm.employee.access', label: 'Access Employee Management Module', icon: '👔' },
+        { id: 'crm.employee.manage', label: 'Create, Edit & Delegate Employee Access', icon: '👥' }
+      ]
+    },
+    {
+      id: 'crmTask',
+      label: 'CRM – Task Management',
+      icon: '📋',
+      subPermissions: [
+        { id: 'crm.task.access', label: 'Access Task Management Module', icon: '📋' },
+        { id: 'crm.task.add', label: 'Add New Tasks', icon: '➕' },
+        { id: 'crm.task.edit', label: 'Edit & Update Tasks', icon: '✏️' },
+        { id: 'crm.task.delete', label: 'Delete Tasks', icon: '🗑️' }
+      ]
+    },
+    {
+      id: 'crmPending',
+      label: 'CRM – Pending Work',
+      icon: '⏳',
+      subPermissions: [
+        { id: 'crm.pending.access', label: 'Access Pending Work Module', icon: '⏳' },
+        { id: 'crm.pending.view', label: 'View Pending Work List', icon: '👁️' },
+        { id: 'crm.pending.update', label: 'Update Pending Work Status', icon: '🔄' }
       ]
     },
     {
@@ -1565,6 +1670,20 @@ const AdminPanel = () => {
   const [cards, setCards] = useState([]);
   const [topTabs, setTopTabs] = useState([]);
   const [sidebarMenus, setSidebarMenus] = useState([]);
+
+  // CRM Cards Management States
+  const [crmCards, setCrmCards] = useState([]);
+  const [crmForm, setCrmForm] = useState({
+    title: '',
+    subtitle: '',
+    icon: '📋',
+    badge: '',
+    color: '#3b82f6',
+    url: '',
+    isActive: true
+  });
+  const [editingCrmCardId, setEditingCrmCardId] = useState(null);
+  const [crmSubmitting, setCrmSubmitting] = useState(false);
 
   // Dynamic Menu Add / Edit Modal States
   const [showDynamicMenuModal, setShowDynamicMenuModal] = useState(false);
@@ -2865,6 +2984,7 @@ const AdminPanel = () => {
     load('/api/action-cards', setCards);
     load('/api/top-tabs', setTopTabs);
     load('/api/sidebar-menus', setSidebarMenus);
+    load('/api/crm/cards', setCrmCards);
     load('/api/banners', setBanners);
     load('/api/news-images', setNewsImages);
     // Use the explicitly-passed key first; fall back to activeTab only if it's a link menu; else 'quickLinks'
@@ -3083,8 +3203,8 @@ const AdminPanel = () => {
         icon: item.icon,
         description: item.description,
         fee: saved.fee !== undefined ? saved.fee : item.fee,
-        isActive: saved.isActive !== undefined ? saved.isActive : item.isActive,
-        isDeleted: saved.isDeleted !== undefined ? saved.isDeleted : false
+        isActive: saved.isActive !== undefined ? saved.isActive : true,
+        isDeleted: false
       };
     });
     setPdfSubToolsState(initialMap);
@@ -3134,49 +3254,11 @@ const AdminPanel = () => {
     }));
   };
 
-  const handleDeletePdfSubTool = async (toolId) => {
-    const sub = pdfSubToolsState[toolId];
-    const result = await Swal.fire({
-      title: `Delete "${sub?.title}"?`,
-      text: 'This sub-tool will be hidden and disabled from the user portal. You can restore it anytime.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Yes, Delete / Hide',
-      confirmButtonColor: '#ef4444',
-      cancelButtonText: 'Cancel'
-    });
-    if (!result.isConfirmed) return;
-    setPdfSubToolsState((prev) => ({
-      ...prev,
-      [toolId]: {
-        ...prev[toolId],
-        isDeleted: true,
-        isActive: false
-      }
-    }));
-    showCustomToast('Tool Deleted', `"${sub?.title}" is now hidden from the suite.`, 'warning', 1800);
-  };
-
-  const handleRestorePdfSubTool = (toolId) => {
-    const sub = pdfSubToolsState[toolId];
-    setPdfSubToolsState((prev) => ({
-      ...prev,
-      [toolId]: {
-        ...prev[toolId],
-        isDeleted: false,
-        isActive: true
-      }
-    }));
-    showCustomToast('Tool Restored', `"${sub?.title}" is restored and active.`, 'success', 1800);
-  };
-
   const handleBatchTogglePdfSubTools = (enableAll) => {
     setPdfSubToolsState((prev) => {
       const next = { ...prev };
       Object.keys(next).forEach((id) => {
-        if (!next[id].isDeleted) {
-          next[id] = { ...next[id], isActive: enableAll };
-        }
+        next[id] = { ...next[id], isActive: enableAll, isDeleted: false };
       });
       return next;
     });
@@ -3222,6 +3304,119 @@ const AdminPanel = () => {
       Swal.fire({ icon: 'error', text: 'Error saving sub-tools settings.' });
     } finally {
       setIsSavingPdfSubTools(false);
+    }
+  };
+
+  // CRM Cards Handlers
+  const handleToggleCrmCard = async (card) => {
+    try {
+      const res = await apiFetch(`/api/crm/cards/${card._id}/toggle`, { method: 'PATCH' });
+      const data = await res.json();
+      if (data.success && data.card) {
+        setCrmCards(prev => prev.map(c => c._id === card._id ? data.card : c));
+        showCustomToast(
+          'CRM Card Updated',
+          `"${card.title}" visibility turned ${data.card.isActive ? 'ON' : 'OFF'}!`,
+          'success',
+          2500
+        );
+      }
+    } catch (err) {
+      console.error('Error toggling CRM card status:', err);
+      showCustomToast('Update Failed', 'Could not update CRM card status.', 'error', 3000);
+    }
+  };
+
+  const handleEditCrmCard = (card) => {
+    setEditingCrmCardId(card._id);
+    setCrmForm({
+      cardId: card.cardId || '',
+      title: card.title || '',
+      subtitle: card.subtitle || '',
+      icon: card.icon || '📋',
+      badge: card.badge || '',
+      color: card.color || '#3b82f6',
+      url: card.url || '',
+      isActive: card.isActive !== false
+    });
+  };
+
+  const handleCancelEditCrmCard = () => {
+    setEditingCrmCardId(null);
+    setCrmForm({
+      cardId: '',
+      title: '',
+      subtitle: '',
+      icon: '📋',
+      badge: '',
+      color: '#3b82f6',
+      url: '',
+      isActive: true
+    });
+  };
+
+  const handleSaveCrmCard = async () => {
+    if (!crmForm.title.trim()) {
+      Swal.fire({ icon: 'warning', title: 'Title Required', text: 'Please enter a title for the CRM card.' });
+      return;
+    }
+    setCrmSubmitting(true);
+    try {
+      if (editingCrmCardId) {
+        const res = await apiFetch(`/api/crm/cards/${editingCrmCardId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(crmForm)
+        });
+        const data = await res.json();
+        if (data.success && data.card) {
+          setCrmCards(prev => prev.map(c => c._id === editingCrmCardId ? data.card : c));
+          showCustomToast('CRM Card Updated', 'Changes saved successfully!', 'success', 2500);
+          handleCancelEditCrmCard();
+        }
+      } else {
+        const res = await apiFetch('/api/crm/cards', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(crmForm)
+        });
+        const data = await res.json();
+        if (data.success && data.card) {
+          setCrmCards(prev => [...prev, data.card]);
+          showCustomToast('CRM Card Added', 'New card created successfully!', 'success', 2500);
+          handleCancelEditCrmCard();
+        }
+      }
+    } catch (err) {
+      console.error('Error saving CRM card:', err);
+      showCustomToast('Save Failed', 'Could not save CRM card.', 'error', 3000);
+    } finally {
+      setCrmSubmitting(false);
+    }
+  };
+
+  const handleDeleteCrmCard = async (card) => {
+    const result = await Swal.fire({
+      title: `Delete "${card.title}"?`,
+      text: 'Are you sure you want to delete this CRM card?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'Yes, Delete',
+      cancelButtonText: 'Cancel'
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await apiFetch(`/api/crm/cards/${card._id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        setCrmCards(prev => prev.filter(c => c._id !== card._id));
+        showCustomToast('Card Deleted', `"${card.title}" removed successfully.`, 'success', 2500);
+        if (editingCrmCardId === card._id) handleCancelEditCrmCard();
+      }
+    } catch (err) {
+      console.error('Error deleting CRM card:', err);
+      showCustomToast('Delete Failed', 'Could not delete CRM card.', 'error', 3000);
     }
   };
 
@@ -3752,8 +3947,9 @@ const AdminPanel = () => {
       AVAILABLE_USER_MODULES.forEach(mod => {
         const subIds = (mod.subPermissions || []).map(s => s.id);
         const hasAnySub = subIds.some(s => normalized.includes(s));
-        if (normalized.includes(mod.id) && !hasAnySub) {
+        if ((normalized.includes(mod.id) || (normalized.includes('crm') && mod.id.startsWith('crm'))) && !hasAnySub) {
           subIds.forEach(s => expanded.add(s));
+          expanded.add(mod.id);
         }
       });
       setUserPermsFormData({ permissions: Array.from(expanded) });
@@ -3771,10 +3967,22 @@ const AdminPanel = () => {
 
       if (isChecked) {
         const set = new Set([...current, ...allModIds]);
+        if (mod.id.startsWith('crm')) {
+          set.add('crm.access');
+          set.add('crm');
+        }
         return { ...prev, permissions: Array.from(set) };
       } else {
         const removeSet = new Set(allModIds);
-        return { ...prev, permissions: current.filter(id => !removeSet.has(id)) };
+        let updated = current.filter(id => !removeSet.has(id));
+        const otherCrmActive = updated.some(id =>
+          (id.startsWith('crm') && id !== 'crm' && id !== 'crm.access' && id !== 'crm.dashboard') ||
+          (id.startsWith('crm.') && id !== 'crm.access' && id !== 'crm.dashboard')
+        );
+        if (!otherCrmActive && (mod.id === 'crm' || mod.id.startsWith('crm'))) {
+          updated = updated.filter(id => id !== 'crm' && id !== 'crm.access' && id !== 'crm.dashboard');
+        }
+        return { ...prev, permissions: updated };
       }
     });
   };
@@ -3789,6 +3997,13 @@ const AdminPanel = () => {
       if (isCurrentlyChecked) {
         // Unchecking this sub-permission: remove subId and remove mod.id since not all are selected
         updated = current.filter(id => id !== subId && id !== mod.id);
+        const otherCrmActive = updated.some(id =>
+          (id.startsWith('crm') && id !== 'crm' && id !== 'crm.access' && id !== 'crm.dashboard') ||
+          (id.startsWith('crm.') && id !== 'crm.access' && id !== 'crm.dashboard')
+        );
+        if (!otherCrmActive && (mod.id === 'crm' || subId === 'crm.access')) {
+          updated = updated.filter(id => id !== 'crm' && id !== 'crm.access' && id !== 'crm.dashboard');
+        }
       } else {
         // Checking this sub-permission:
         const nextList = [...current.filter(id => id !== mod.id), subId];
@@ -3796,6 +4011,10 @@ const AdminPanel = () => {
         const allChecked = subIds.length > 0 && subIds.every(id => nextList.includes(id));
         if (allChecked) {
           nextList.push(mod.id);
+        }
+        if (mod.id.startsWith('crm') || subId.startsWith('crm.')) {
+          nextList.push('crm.access');
+          nextList.push('crm');
         }
         updated = Array.from(new Set(nextList));
       }
@@ -4585,6 +4804,7 @@ const AdminPanel = () => {
     { id: 'actionCards', label: 'Action Cards', icon: '💳' },
     { id: 'topTabs', label: 'Top Tabs', icon: '📑' },
     { id: 'sidebarMenus', label: 'Sidebar Menus', icon: '☰' },
+    { id: 'crmCards', label: 'CRM Management', icon: '👥' },
     { id: 'banners', label: 'Banners', icon: '🖼️' },
     { id: 'newsImages', label: 'Login News Images', icon: '📰' },
     { id: 'quickLinks', label: 'Quick Links', icon: '🔗' },
@@ -4603,6 +4823,7 @@ const AdminPanel = () => {
     { id: 'feesNewApplication', label: 'Fees – PAN New Application', icon: '💰' },
     { id: 'feesCorrection', label: 'Fees – PAN Correction', icon: '💰' },
     { id: 'users', label: 'User Management', icon: '👥' },
+    { id: 'customerManagement', label: 'Customer Management', icon: '📇', adminOnly: true },
     { id: 'staffMembers', label: 'Staff Management', icon: '👔', adminOnly: true },
   ];
 
@@ -4642,6 +4863,7 @@ const AdminPanel = () => {
     { id: 'actionCards', label: 'Action Cards', icon: '💳' },
     { id: 'topTabs', label: 'Top Tabs', icon: '📑' },
     { id: 'sidebarMenus', label: 'Sidebar Menus', icon: '☰' },
+    { id: 'crmCards', label: 'CRM Management', icon: '👥' },
     { id: 'banners', label: 'Banners', icon: '🖼️' },
     { id: 'newsImages', label: 'Login News Images', icon: '📰' },
     { id: 'quickLinks', label: (allLinkMenusList.find(m => m.key === 'quickLinks') || {}).label || 'Quick Links', icon: '🔗' },
@@ -4663,6 +4885,7 @@ const AdminPanel = () => {
   const standaloneItems = [
     { id: 'walletRequests', label: 'Wallet Requests', icon: '💼' },
     { id: 'users', label: 'User Management', icon: '👥' },
+    { id: 'customerManagement', label: 'Customer Management', icon: '📇', adminOnly: true },
     { id: 'staffMembers', label: 'Staff Management', icon: '👔', adminOnly: true },
   ].filter(item => {
     if (userRole === 'admin') return true;
@@ -5086,6 +5309,7 @@ const AdminPanel = () => {
                 sessionStorage.removeItem('staffPermissions');
                 sessionStorage.removeItem('currentUser');
                 sessionStorage.removeItem('sessionToken');
+                sessionStorage.removeItem('adminSessionToken');
 
                 localStorage.removeItem('adminAuth');
                 localStorage.removeItem('adminEmail');
@@ -5093,6 +5317,7 @@ const AdminPanel = () => {
                 localStorage.removeItem('staffName');
                 localStorage.removeItem('staffPermissions');
                 localStorage.removeItem('currentUser');
+                localStorage.removeItem('adminSessionToken');
 
                 navigate('/admin-login');
               }} 
@@ -5211,7 +5436,6 @@ const AdminPanel = () => {
               </div>
             </div>
           )}
-
           {/* Sidebar Menu Tab */}
           {activeTab === 'sidebarMenus' && (
             <div className="admin-panel-grid" style={{ gridTemplateColumns: hasStaffActionAccess('sidebarMenus.add') ? undefined : '1fr' }}>
@@ -5292,6 +5516,339 @@ const AdminPanel = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CRM Cards Management Tab */}
+          {activeTab === 'crmCards' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Header Info Banner */}
+              <div style={{
+                background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+                border: '1.5px solid #fed7aa',
+                borderRadius: '16px',
+                padding: '18px 22px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '14px',
+                boxShadow: '0 2px 10px rgba(234, 88, 12, 0.06)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '12px',
+                    background: '#ea580c',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '24px',
+                    boxShadow: '0 4px 12px rgba(234, 88, 12, 0.3)'
+                  }}>
+                    👥
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#9a3412' }}>
+                      CRM Management — Dynamic Cards ({crmCards.length})
+                    </h3>
+                    <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#7c2d12' }}>
+                      Configure cards visible in the User Panel's CRM menu. Toggle cards ON/OFF, edit titles, badges, and descriptions.
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{
+                    padding: '6px 14px',
+                    borderRadius: '20px',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    color: '#15803d',
+                    fontSize: '12px',
+                    fontWeight: 800
+                  }}>
+                    ✓ {crmCards.filter(c => c.isActive !== false).length} / {crmCards.length} Active in User Panel
+                  </span>
+                </div>
+              </div>
+
+              {/* Grid: Form (Left) & List (Right) */}
+              <div className="admin-panel-grid" style={{ gridTemplateColumns: hasStaffActionAccess('crmCards.add') || hasStaffActionAccess('crmCards.edit') ? undefined : '1fr' }}>
+                {(hasStaffActionAccess('crmCards.add') || hasStaffActionAccess('crmCards.edit')) && (
+                  <div className="admin-card form-card">
+                    <h3>{editingCrmCardId ? 'Edit CRM Card' : 'Add New CRM Card'}</h3>
+                    <div className="modern-form">
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                          Card Title *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Task, Pending Work, My Bill Book"
+                          value={crmForm.title}
+                          onChange={e => setCrmForm({ ...crmForm, title: e.target.value })}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                          Subtitle / Description
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Short description of card purpose"
+                          value={crmForm.subtitle}
+                          onChange={e => setCrmForm({ ...crmForm, subtitle: e.target.value })}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Icon Emoji
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 📋, ⏳, 📖, 👥"
+                            value={crmForm.icon}
+                            onChange={e => setCrmForm({ ...crmForm, icon: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Badge Label
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Tasks, Billing"
+                            value={crmForm.badge}
+                            onChange={e => setCrmForm({ ...crmForm, badge: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Accent Color
+                          </label>
+                          <input
+                            type="color"
+                            value={crmForm.color}
+                            onChange={e => setCrmForm({ ...crmForm, color: e.target.value })}
+                            style={{ width: '100%', height: '40px', padding: '2px', cursor: 'pointer', borderRadius: '8px' }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#475569', marginBottom: '4px' }}>
+                            Navigation Route URL
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. /crm/task"
+                            value={crmForm.url}
+                            onChange={e => setCrmForm({ ...crmForm, url: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      <label className="modern-checkbox" style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: '6px 0' }}>
+                        <input
+                          type="checkbox"
+                          checked={crmForm.isActive}
+                          onChange={e => setCrmForm({ ...crmForm, isActive: e.target.checked })}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>Active in User Panel</span>
+                      </label>
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                        <button
+                          type="button"
+                          className="modern-submit-btn"
+                          onClick={handleSaveCrmCard}
+                          disabled={crmSubmitting}
+                          style={{ flex: 1 }}
+                        >
+                          {crmSubmitting ? 'Saving...' : editingCrmCardId ? '✓ Update Card' : '➕ Add Card'}
+                        </button>
+                        {editingCrmCardId && (
+                          <button
+                            type="button"
+                            onClick={handleCancelEditCrmCard}
+                            style={{
+                              background: '#f1f5f9',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '8px',
+                              padding: '10px 16px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              color: '#475569'
+                            }}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* List of CRM Cards */}
+                <div className="admin-card list-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <h3 style={{ margin: 0 }}>Existing CRM Cards ({crmCards.length})</h3>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>Drag ☰ to reorder cards</span>
+                  </div>
+
+                  <div className="modern-list">
+                    {crmCards.length === 0 ? (
+                      <div style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>
+                        No CRM cards configured yet. Use the form to add cards.
+                      </div>
+                    ) : (
+                      crmCards.map((card, index) => (
+                        <div
+                          key={card._id}
+                          className="list-item"
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragEnter={(e) => handleDragEnter(e, index, crmCards, setCrmCards)}
+                          onDragEnd={() => handleDragEnd('crm/cards', crmCards)}
+                          onDragOver={(e) => e.preventDefault()}
+                          style={{
+                            borderLeft: `4px solid ${card.color || '#3b82f6'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '12px 14px',
+                            borderRadius: '8px',
+                            background: '#ffffff',
+                            border: '1px solid #e2e8f0',
+                            marginBottom: '8px'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ cursor: 'grab', color: '#9ca3af', fontSize: '18px' }} title="Drag to reorder">
+                              ☰
+                            </div>
+                            <div style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '8px',
+                              background: `${card.color || '#3b82f6'}18`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '20px',
+                              border: `1px solid ${card.color || '#3b82f6'}40`
+                            }}>
+                              {card.icon || '📋'}
+                            </div>
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: 800, fontSize: '14px', color: '#0f172a' }}>
+                                  {card.title}
+                                </span>
+                                {card.badge && (
+                                  <span style={{
+                                    fontSize: '11px',
+                                    padding: '2px 8px',
+                                    borderRadius: '10px',
+                                    background: `${card.color || '#3b82f6'}15`,
+                                    color: card.color || '#3b82f6',
+                                    fontWeight: 800,
+                                    border: `1px solid ${card.color || '#3b82f6'}30`
+                                  }}>
+                                    {card.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                {card.subtitle || 'No subtitle configured'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {/* Toggle ON/OFF */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCrmCard(card)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '5px 12px',
+                                borderRadius: '20px',
+                                border: 'none',
+                                fontSize: '11.5px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                background: card.isActive !== false ? '#10b981' : '#e2e8f0',
+                                color: card.isActive !== false ? '#ffffff' : '#64748b',
+                                boxShadow: card.isActive !== false ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <span style={{
+                                width: '7px',
+                                height: '7px',
+                                borderRadius: '50%',
+                                background: card.isActive !== false ? '#ffffff' : '#94a3b8'
+                              }}></span>
+                              {card.isActive !== false ? 'ON' : 'OFF'}
+                            </button>
+
+                            {/* Edit Button */}
+                            {hasStaffActionAccess('crmCards.edit') && (
+                              <button
+                                type="button"
+                                onClick={() => handleEditCrmCard(card)}
+                                style={{
+                                  background: '#f0f9ff',
+                                  border: '1px solid #bae6fd',
+                                  color: '#0284c7',
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700
+                                }}
+                              >
+                                ✏️ Edit
+                              </button>
+                            )}
+
+                            {/* Delete Button */}
+                            {hasStaffActionAccess('crmCards.delete') && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCrmCard(card)}
+                                style={{
+                                  background: '#fef2f2',
+                                  border: '1px solid #fecaca',
+                                  color: '#dc2626',
+                                  padding: '5px 8px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700
+                                }}
+                                title="Delete Card"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -5856,7 +6413,7 @@ const AdminPanel = () => {
                           </span>
                         </div>
                         <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#7c2d12', lineHeight: '1.4' }}>
-                          Turn each tool ON/OFF, set individual service fees (charges), or delete/restore tools.
+                          Turn each of the 15 tools ON/OFF and set individual service fees (charges).
                         </p>
                         <button
                           type="button"
@@ -5878,7 +6435,7 @@ const AdminPanel = () => {
                             boxShadow: '0 3px 10px rgba(234, 88, 12, 0.3)'
                           }}
                         >
-                          ⚙️ Manage 15 Sub-Tools (ON/OFF, Fees, Delete)
+                          ⚙️ Manage 15 Sub-Tools (ON/OFF & Fees)
                         </button>
                       </div>
                     )}
@@ -6053,7 +6610,7 @@ const AdminPanel = () => {
                                   boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
                                   whiteSpace: 'nowrap'
                                 }}
-                                title="Manage individual PDF tools: Turn ON/OFF, set charges/fees, badges, or delete"
+                                title="Manage individual PDF tools: Turn ON/OFF, set charges/fees, and badges for all 15 tools"
                               >
                                 <span>📑</span> Manage 15 Sub-Tools
                               </button>
@@ -9945,6 +10502,14 @@ const AdminPanel = () => {
             </div>
           )}
 
+          {/* Customer Management Tab (Admin Only - OTP-Free Viewing) */}
+          {activeTab === 'customerManagement' && (
+            <AdminCustomerManagement
+              hasStaffActionAccess={hasStaffActionAccess}
+              userRole={userRole}
+            />
+          )}
+
           {/* Staff Management Tab (Admin Only) */}
           {activeTab === 'staffMembers' && userRole === 'admin' && (() => {
             const totalStaffCount = staffList.length;
@@ -12133,10 +12698,10 @@ const AdminPanel = () => {
                 </div>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800, color: '#9a3412' }}>
-                    PDF Tools Suite — Individual Tools Management
+                    PDF Tools Suite — Individual Tools Management (15 Tools)
                   </h3>
                   <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#7c2d12' }}>
-                    Turn individual tools ON/OFF, set service fees (₹), custom badges, or delete/restore tools in the suite
+                    Turn individual tools ON/OFF, set service fees (₹), and configure custom badges for all 15 tools in the suite
                   </p>
                 </div>
               </div>
@@ -12173,13 +12738,7 @@ const AdminPanel = () => {
                     { id: 'conversion', label: 'Conversion', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'conversion').length },
                     { id: 'management', label: 'Management', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'management').length },
                     { id: 'security', label: 'Security', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'security').length },
-                    { id: 'ocr', label: 'OCR / AI', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'ocr').length },
-                    {
-                      id: 'deleted',
-                      label: 'Deleted / Hidden',
-                      count: Object.values(pdfSubToolsState).filter(t => t.isDeleted).length,
-                      isDanger: true
-                    }
+                    { id: 'ocr', label: 'OCR / AI', count: DEFAULT_PDF_SUBTOOLS.filter(t => t.category === 'ocr').length }
                   ].map(cat => (
                     <button
                       key={cat.id}
@@ -12190,7 +12749,7 @@ const AdminPanel = () => {
                         borderRadius: '20px',
                         border: pdfSubToolFilterCategory === cat.id ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
                         background: pdfSubToolFilterCategory === cat.id ? '#ea580c' : '#ffffff',
-                        color: pdfSubToolFilterCategory === cat.id ? '#ffffff' : (cat.isDanger ? '#dc2626' : '#475569'),
+                        color: pdfSubToolFilterCategory === cat.id ? '#ffffff' : '#475569',
                         fontSize: '11.5px',
                         fontWeight: 700,
                         cursor: 'pointer',
@@ -12214,8 +12773,19 @@ const AdminPanel = () => {
                   ))}
                 </div>
 
-                {/* Batch Quick Actions */}
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                {/* Batch Quick Actions & Active Count */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    color: '#15803d',
+                    fontSize: '11.5px',
+                    fontWeight: 800
+                  }}>
+                    ✓ {Object.values(pdfSubToolsState).filter(t => t.isActive !== false).length} / {DEFAULT_PDF_SUBTOOLS.length} Active
+                  </span>
                   <button
                     type="button"
                     onClick={() => handleBatchTogglePdfSubTools(true)}
@@ -12229,7 +12799,7 @@ const AdminPanel = () => {
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
-                    title="Turn all active tools ON"
+                    title="Turn all 15 tools ON"
                   >
                     🟢 All ON
                   </button>
@@ -12294,10 +12864,6 @@ const AdminPanel = () => {
               {DEFAULT_PDF_SUBTOOLS
                 .filter(def => {
                   const state = pdfSubToolsState[def.id] || def;
-                  if (pdfSubToolFilterCategory === 'deleted') {
-                    return state.isDeleted === true;
-                  }
-                  if (state.isDeleted) return false;
                   if (pdfSubToolFilterCategory !== 'all' && def.category !== pdfSubToolFilterCategory) return false;
                   if (pdfSubToolSearch.trim()) {
                     const q = pdfSubToolSearch.toLowerCase();
@@ -12311,20 +12877,20 @@ const AdminPanel = () => {
                 })
                 .map(def => {
                   const state = pdfSubToolsState[def.id] || def;
-                  const isDel = state.isDeleted === true;
+                  const isActive = state.isActive !== false;
                   return (
                     <div
                       key={def.id}
                       style={{
-                        background: isDel ? '#fef2f2' : (state.isActive ? '#ffffff' : '#f8fafc'),
-                        border: isDel ? '1.5px solid #fecaca' : (state.isActive ? '1.5px solid #e2e8f0' : '1.5px dashed #cbd5e1'),
+                        background: isActive ? '#ffffff' : '#f8fafc',
+                        border: isActive ? '1.5px solid #e2e8f0' : '1.5px dashed #cbd5e1',
                         borderRadius: '12px',
                         padding: '12px 16px',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '14px',
-                        boxShadow: state.isActive && !isDel ? '0 2px 6px rgba(0,0,0,0.03)' : 'none',
-                        opacity: isDel ? 0.8 : (state.isActive ? 1 : 0.75),
+                        boxShadow: isActive ? '0 2px 6px rgba(0,0,0,0.03)' : 'none',
+                        opacity: isActive ? 1 : 0.75,
                         transition: 'all 0.2s'
                       }}
                     >
@@ -12334,7 +12900,7 @@ const AdminPanel = () => {
                         width: '40px',
                         height: '40px',
                         borderRadius: '10px',
-                        background: isDel ? '#fee2e2' : (state.isActive ? '#fff7ed' : '#f1f5f9'),
+                        background: isActive ? '#fff7ed' : '#f1f5f9',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -12348,13 +12914,12 @@ const AdminPanel = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                           <input
                             type="text"
-                            disabled={isDel}
                             value={state.title || def.title}
                             onChange={e => handleTitleChangePdfSubTool(def.id, e.target.value)}
                             style={{
                               fontWeight: 800,
                               fontSize: '13.5px',
-                              color: isDel ? '#991b1b' : '#0f172a',
+                              color: isActive ? '#0f172a' : '#64748b',
                               border: '1px solid transparent',
                               background: 'transparent',
                               padding: '2px 4px',
@@ -12376,22 +12941,16 @@ const AdminPanel = () => {
                           }}>
                             {def.category}
                           </span>
-                          {isDel ? (
-                            <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '6px', background: '#fee2e2', color: '#b91c1c', fontWeight: 800 }}>
-                              DELETED / HIDDEN
-                            </span>
-                          ) : (
-                            <span style={{
-                              fontSize: '10px',
-                              padding: '2px 7px',
-                              borderRadius: '6px',
-                              background: state.isActive ? '#dcfce7' : '#f1f5f9',
-                              color: state.isActive ? '#15803d' : '#64748b',
-                              fontWeight: 800
-                            }}>
-                              {state.isActive ? 'ACTIVE' : 'OFF'}
-                            </span>
-                          )}
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '2px 7px',
+                            borderRadius: '6px',
+                            background: isActive ? '#dcfce7' : '#f1f5f9',
+                            color: isActive ? '#15803d' : '#64748b',
+                            fontWeight: 800
+                          }}>
+                            {isActive ? 'ACTIVE' : 'OFF'}
+                          </span>
                         </div>
                         <p style={{ margin: '3px 0 0 0', fontSize: '11px', color: '#64748b', lineHeight: '1.3' }}>
                           {def.description}
@@ -12410,7 +12969,6 @@ const AdminPanel = () => {
                               type="number"
                               min="0"
                               step="1"
-                              disabled={isDel}
                               value={state.fee !== undefined ? state.fee : 0}
                               onChange={e => handleFeeChangePdfSubTool(def.id, e.target.value)}
                               style={{
@@ -12430,7 +12988,6 @@ const AdminPanel = () => {
                               <button
                                 key={amt}
                                 type="button"
-                                disabled={isDel}
                                 onClick={() => handleFeeChangePdfSubTool(def.id, amt)}
                                 style={{
                                   padding: '3px 6px',
@@ -12457,7 +13014,6 @@ const AdminPanel = () => {
                         </label>
                         <input
                           type="text"
-                          disabled={isDel}
                           value={state.badge || ''}
                           placeholder={def.badge}
                           onChange={e => handleBadgeChangePdfSubTool(def.id, e.target.value)}
@@ -12471,78 +13027,31 @@ const AdminPanel = () => {
                         />
                       </div>
 
-                      {/* Action Buttons: ON/OFF Toggle & Delete/Restore */}
+                      {/* Action Button: ON/OFF Toggle */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto', flexShrink: 0 }}>
-                        {!isDel ? (
-                          <>
-                            {/* ON/OFF Switch */}
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePdfSubTool(def.id)}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                padding: '5px 12px',
-                                borderRadius: '16px',
-                                border: 'none',
-                                fontSize: '11.5px',
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                                background: state.isActive ? '#10b981' : '#e2e8f0',
-                                color: state.isActive ? '#ffffff' : '#64748b'
-                              }}
-                              title={state.isActive ? 'Turn OFF this tool' : 'Turn ON this tool'}
-                            >
-                              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: state.isActive ? '#fff' : '#94a3b8' }}></span>
-                              {state.isActive ? 'ON' : 'OFF'}
-                            </button>
-
-                            {/* Delete Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleDeletePdfSubTool(def.id)}
-                              style={{
-                                background: '#fef2f2',
-                                color: '#dc2626',
-                                border: '1px solid #fecaca',
-                                padding: '5px 10px',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                fontSize: '11.5px',
-                                fontWeight: 700,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}
-                              title="Delete / Hide tool from user panel"
-                            >
-                              🗑️ Delete
-                            </button>
-                          </>
-                        ) : (
-                          /* Restore Button */
-                          <button
-                            type="button"
-                            onClick={() => handleRestorePdfSubTool(def.id)}
-                            style={{
-                              background: '#dcfce7',
-                              color: '#15803d',
-                              border: '1px solid #86efac',
-                              padding: '6px 14px',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontSize: '11.5px',
-                              fontWeight: 800,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px'
-                            }}
-                            title="Restore this tool back to the suite"
-                          >
-                            ↩️ Restore Tool
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePdfSubTool(def.id)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '6px 14px',
+                            borderRadius: '16px',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            background: isActive ? '#10b981' : '#e2e8f0',
+                            color: isActive ? '#ffffff' : '#64748b',
+                            boxShadow: isActive ? '0 2px 6px rgba(16, 185, 129, 0.25)' : 'none',
+                            transition: 'all 0.2s'
+                          }}
+                          title={isActive ? 'Turn OFF this tool' : 'Turn ON this tool'}
+                        >
+                          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isActive ? '#fff' : '#94a3b8' }}></span>
+                          {isActive ? 'ON' : 'OFF'}
+                        </button>
                       </div>
                     </div>
                   );
