@@ -3975,7 +3975,7 @@ const AdminPanel = () => {
       } else {
         const removeSet = new Set(allModIds);
         let updated = current.filter(id => !removeSet.has(id));
-        const otherCrmActive = updated.some(id => 
+        const otherCrmActive = updated.some(id =>
           (id.startsWith('crm') && id !== 'crm' && id !== 'crm.access' && id !== 'crm.dashboard') ||
           (id.startsWith('crm.') && id !== 'crm.access' && id !== 'crm.dashboard')
         );
@@ -3997,7 +3997,7 @@ const AdminPanel = () => {
       if (isCurrentlyChecked) {
         // Unchecking this sub-permission: remove subId and remove mod.id since not all are selected
         updated = current.filter(id => id !== subId && id !== mod.id);
-        const otherCrmActive = updated.some(id => 
+        const otherCrmActive = updated.some(id =>
           (id.startsWith('crm') && id !== 'crm' && id !== 'crm.access' && id !== 'crm.dashboard') ||
           (id.startsWith('crm.') && id !== 'crm.access' && id !== 'crm.dashboard')
         );

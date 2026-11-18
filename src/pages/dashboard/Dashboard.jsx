@@ -1007,7 +1007,7 @@ const Dashboard = () => {
                 {visibleTopTabs.map((tab) => {
                   const tabId = tab._id || tab.id;
                   const label = (tab.label || '').toLowerCase();
-                  const isSelected = 
+                  const isSelected =
                     (isWalletRoute && label.includes('wallet')) ||
                     (isLedgerRoute && label.includes('ledger')) ||
                     (!isStandaloneRoute && activeTabId === tabId);
