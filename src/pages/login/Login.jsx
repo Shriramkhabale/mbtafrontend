@@ -133,6 +133,12 @@ const Login = () => {
         localStorage.setItem('currentUser', canonicalUserId);
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
+          if (Array.isArray(data.user.permissions)) {
+            localStorage.setItem('userPermissions', JSON.stringify(data.user.permissions));
+          }
+          if (data.user.role) {
+            localStorage.setItem('userRole', data.user.role);
+          }
         }
 
         const targetMobile = (data.user && data.user.mobile) ? data.user.mobile : mobile;
@@ -189,6 +195,15 @@ const Login = () => {
         Swal.close();
         const storedUser = localStorage.getItem('currentUser') || (data.user && data.user.userId) || userId;
         localStorage.setItem('currentUser', storedUser);
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          if (Array.isArray(data.user.permissions)) {
+            localStorage.setItem('userPermissions', JSON.stringify(data.user.permissions));
+          }
+          if (data.user.role) {
+            localStorage.setItem('userRole', data.user.role);
+          }
+        }
         if (data.sessionToken) {
           sessionStorage.setItem('sessionToken', data.sessionToken);
         }

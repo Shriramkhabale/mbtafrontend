@@ -50,6 +50,22 @@ const AdminLogin = () => {
       localStorage.removeItem('staffPermissions');
       localStorage.removeItem('staffName');
 
+      // Acquire signed Admin session token for OTP-free customer management
+      try {
+        const tokenRes = await fetch(`${API_URL}/api/crm/admin/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: cleanIdentity, password: cleanPass })
+        });
+        const tokenData = await tokenRes.json();
+        if (tokenData.success && tokenData.token) {
+          sessionStorage.setItem('adminSessionToken', tokenData.token);
+          localStorage.setItem('adminSessionToken', tokenData.token);
+        }
+      } catch (err) {
+        console.warn('Admin session token pre-fetch deferred:', err);
+      }
+
       Swal.fire({
         icon: 'success',
         title: 'Admin Access Granted',

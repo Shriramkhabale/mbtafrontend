@@ -230,11 +230,11 @@ export default function PdfToolsSuite({ tool, onClose, theme = 'light' }) {
     return () => { isMounted = false; };
   }, [tool]);
 
-  // Merge Catalog with subToolsConfig, filtering out deleted and disabled tools
+  // Merge Catalog with subToolsConfig, filtering out disabled tools
   const effectiveCatalog = useMemo(() => {
     return PDF_TOOLS_CATALOG.map((item) => {
       const custom = subToolsConfig[item.id] || {};
-      if (custom.isDeleted === true || custom.isActive === false) return null;
+      if (custom.isActive === false) return null;
       return {
         ...item,
         title: custom.title || item.title,

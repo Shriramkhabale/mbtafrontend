@@ -39,6 +39,8 @@ function App() {
             <Route path="/offline-work" element={<Dashboard />} />
             <Route path="/offlinework" element={<Dashboard />} />
             <Route path="/tools" element={<Dashboard />} />
+            <Route path="/crm" element={<Dashboard />} />
+            <Route path="/crm/*" element={<Dashboard />} />
             <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/admin-panel" element={<AdminPanel />} />
             <Route path="/etds-result" element={<ETDSResultPage />} />
