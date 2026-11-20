@@ -1111,7 +1111,8 @@ const AdminPanel = () => {
         { id: 'dyn.productLinks', label: 'Product Links Portal', icon: '📦' },
         { id: 'dyn.govtLinks', label: 'Government Links Portal', icon: '🏛️' },
         { id: 'dyn.print', label: 'Print Services Portal', icon: '🖨️' },
-        { id: 'dyn.schorshipLinks', label: 'Scholarship Links Portal', icon: '📜' }
+        { id: 'dyn.schorshipLinks', label: 'Scholarship Links Portal', icon: '📜' },
+        { id: 'dyn.statusApi', label: 'Status API', icon: '⚡' }
       ]
     },
     {

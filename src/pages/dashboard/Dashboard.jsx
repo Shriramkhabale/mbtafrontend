@@ -10,6 +10,7 @@ import QuickLinksView from '../quicklinks/QuickLinksView';
 import OfflineWorkView from '../offlinework/OfflineWorkView';
 import ToolsView from '../tools/ToolsView';
 import CrmView from '../crm/CrmView';
+import StatusApiView from '../statusapi/StatusApiView';
 import NotificationBell from '../../context/NotificationBell';
 import { API_URL } from '../../utils/apiClient';
 import { DYNAMIC_LINK_MENUS, findDynamicMenu, getDynamicMenuForSidebarItem } from '../../utils/dynamicLinkMenus';
@@ -1183,9 +1184,15 @@ const Dashboard = () => {
               />
             )
           ) : isDynLinkMenuRoute ? (() => {
-            const dynPermKey = `dyn.${activeDynLinkMenu.key}`;
+            const isStatusApiPortal = location.pathname.toLowerCase().replace(/\/+$/, '') === '/status-api' ||
+              activeDynLinkMenu.key.toLowerCase() === 'statusapi' ||
+              String(activeDynLinkMenu.label || '').trim().toLowerCase() === 'status api';
+            const dynPermKey = isStatusApiPortal ? 'dyn.statusApi' : `dyn.${activeDynLinkMenu.key}`;
             if (!hasUserAccess(userPermissions, dynPermKey)) {
               return <AccessRestrictedNotice title={activeDynLinkMenu.label || 'Dynamic Portal'} onBack={() => navigate('/dashboard')} />;
+            }
+            if (isStatusApiPortal) {
+              return <StatusApiView theme={theme} />;
             }
             const currentDynItem = (sidebarMenuData || []).find(m => {
               if (m.url && activeDynLinkMenu.route && m.url.toLowerCase().trim() === activeDynLinkMenu.route.toLowerCase().trim()) return true;

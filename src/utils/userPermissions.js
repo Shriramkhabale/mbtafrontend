@@ -77,6 +77,9 @@ export const PERMISSION_ALIASES = {
   'schorshipLinks': 'dyn.schorshipLinks',
   'scholarship_links': 'dyn.schorshipLinks',
   'scholarshipLinks': 'dyn.schorshipLinks',
+  'status_api': 'dyn.statusApi',
+  'statusapi': 'dyn.statusApi',
+  'statusApi': 'dyn.statusApi',
 
   // Offline Work aliases
   'offline_work': 'offlineWork',
@@ -166,7 +169,7 @@ export const MODULE_SUB_MAP = {
   dynamicMenus: [
     'dyn.servicesLink', 'dyn.jobLinks', 'dyn.admitCard', 'dyn.formLinks',
     'dyn.vedioLink', 'dyn.trainingLinks', 'dyn.productLinks', 'dyn.govtLinks',
-    'dyn.print', 'dyn.schorshipLinks'
+    'dyn.print', 'dyn.schorshipLinks', 'dyn.statusApi'
   ],
   quickLinksModule: ['quickLinks.view', 'quickLinks.open', 'quickLinks.search', 'quicklinks.access'],
   walletModule: [
