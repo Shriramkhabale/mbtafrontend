@@ -99,6 +99,10 @@ const ETDSResultPage = () => {
           <p>{result?.message || 'Checking your provider response…'}</p>
           {result?.status && <p><strong>Status:</strong> {result.status}</p>}
           {result?.serviceType && <p><strong>Service:</strong> {result.serviceType}</p>}
+          {result?.ackNumber && <p><strong>Application acknowledgment:</strong> {result.ackNumber}</p>}
+          {result?.providerAcknowledgementNumber && (
+            <p><strong>Provider acknowledgment:</strong> {result.providerAcknowledgementNumber}</p>
+          )}
           {publicRef && <p><strong>Reference:</strong> {publicRef}</p>}
           {result?.createdAt && <p><strong>Submitted:</strong> {new Date(result.createdAt).toLocaleString()}</p>}
           {result?.updatedAt && <p><strong>Last updated:</strong> {new Date(result.updatedAt).toLocaleString()}</p>}
