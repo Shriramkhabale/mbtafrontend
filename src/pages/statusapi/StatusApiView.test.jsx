@@ -1,0 +1,42 @@
+import React from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import StatusApiView from './StatusApiView';
+
+describe('StatusApiView', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    sessionStorage.setItem('sessionToken', 'test-session-token');
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, data: { verified: true } })
+    });
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+    global.fetch = originalFetch;
+  });
+
+  test('shows only the seven selected services and sends no API key from the browser', async () => {
+    render(<StatusApiView />);
+    expect(screen.getAllByRole('option')).toHaveLength(7);
+
+    fireEvent.change(screen.getByLabelText('API service'), {
+      target: { value: 'pro_pan_verification' }
+    });
+    fireEvent.change(screen.getByLabelText('Request parameters (JSON)'), {
+      target: { value: '{"pan":"ABCDE1234F"}' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Run API' }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    const request = global.fetch.mock.calls[0][1];
+    expect(JSON.parse(request.body)).toEqual({
+      serviceId: 'pro_pan_verification',
+      parameters: { pan: 'ABCDE1234F' }
+    });
+    expect(JSON.parse(request.body)).not.toHaveProperty('apikeyfill');
+  });
+});
