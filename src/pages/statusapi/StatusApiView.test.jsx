@@ -76,9 +76,48 @@ describe('StatusApiView', () => {
     fireEvent.change(screen.getByLabelText('Request parameters'), {
       target: { value: '{7020181674}' }
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Run service' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send OTP' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This is not valid JSON');
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  test('sends an OTP, then submits it with the provider session token', async () => {
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          data: { message: 'OTP sent successfully', token: '[redacted]' },
+          otpToken: 'otp-session-token'
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true, data: { verified: true } })
+      });
+
+    render(<StatusApiView />);
+    fireEvent.change(screen.getByLabelText('Request parameters'), {
+      target: { value: '{"uidno":"123456789012"}' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send OTP' }));
+
+    const otpInput = await screen.findByLabelText('One-time password (OTP)');
+    fireEvent.change(otpInput, { target: { value: '654321' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Verify OTP' }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body).parameters).toEqual({
+      uidno: '123456789012'
+    });
+    expect(JSON.parse(global.fetch.mock.calls[1][1].body).parameters).toEqual({
+      uidno: '123456789012',
+      otp: '654321',
+      token: 'otp-session-token'
+    });
+    expect(await screen.findByLabelText('Provider response')).toHaveTextContent('"verified": true');
   });
 });

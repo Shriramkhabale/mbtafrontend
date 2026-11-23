@@ -95,6 +95,7 @@
 }
 
 .status-api__field select,
+.status-api__field input,
 .status-api__field textarea {
   box-sizing: border-box;
   width: 100%;
@@ -106,6 +107,11 @@
 }
 
 .status-api__field select {
+  min-height: 44px;
+  padding: 9px 12px;
+}
+
+.status-api__field input {
   min-height: 44px;
   padding: 9px 12px;
 }
@@ -122,12 +128,14 @@
 }
 
 .status-api__field select:focus,
+.status-api__field input:focus,
 .status-api__field textarea:focus {
   border-color: #ea580c;
   outline: 3px solid rgba(234, 88, 12, 0.16);
 }
 
 .status-api--dark .status-api__field select,
+.status-api--dark .status-api__field input,
 .status-api--dark .status-api__field textarea {
   border-color: #475569;
   background: #0f172a;
