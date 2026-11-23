@@ -36,7 +36,12 @@ const StatusApiView = ({ theme = 'light' }) => {
   const [error, setError] = useState('');
   const [providerError, setProviderError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aadhaarOtpToken, setAadhaarOtpToken] = useState('');
+  const [aadhaarUidno, setAadhaarUidno] = useState('');
+  const [aadhaarOtp, setAadhaarOtp] = useState('');
   const isLightTheme = theme === 'light';
+  const isAadhaarService = serviceId === 'aadhar_card_details_by_otp_api';
+  const isAwaitingAadhaarOtp = isAadhaarService && Boolean(aadhaarOtpToken);
 
   const handleServiceChange = event => {
     const nextServiceId = event.target.value;
@@ -45,6 +50,9 @@ const StatusApiView = ({ theme = 'light' }) => {
     setResult(null);
     setError('');
     setProviderError(null);
+    setAadhaarOtpToken('');
+    setAadhaarUidno('');
+    setAadhaarOtp('');
   };
 
   const handleSubmit = async event => {
@@ -70,11 +78,31 @@ const StatusApiView = ({ theme = 'light' }) => {
       return;
     }
 
+    if (isAadhaarService && !isAwaitingAadhaarOtp &&
+        !/^\d{12}$/.test(String(parameters.uidno || '').trim())) {
+      setError('Enter the 12-digit Aadhaar number to request an OTP.');
+      return;
+    }
+
+    if (isAwaitingAadhaarOtp && !aadhaarOtp.trim()) {
+      setError('Enter the OTP sent to your Aadhaar-registered mobile number.');
+      return;
+    }
+
     const sessionToken = sessionStorage.getItem('sessionToken');
     if (!sessionToken) {
       setError('Your session has expired. Please sign in again.');
       return;
     }
+
+    const requestParameters = isAwaitingAadhaarOtp
+      ? {
+          ...parameters,
+          uidno: aadhaarUidno,
+          otp: aadhaarOtp.trim(),
+          token: aadhaarOtpToken
+        }
+      : parameters;
 
     setIsSubmitting(true);
     try {
@@ -84,7 +112,7 @@ const StatusApiView = ({ theme = 'light' }) => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${sessionToken}`
         },
-        body: JSON.stringify({ serviceId, parameters })
+        body: JSON.stringify({ serviceId, parameters: requestParameters })
       });
       const data = await response.json();
 
@@ -98,6 +126,26 @@ const StatusApiView = ({ theme = 'light' }) => {
         setError(getProviderMessage(data.data) || 'The provider could not complete this request.');
         setProviderError(data.data);
         return;
+      }
+
+      if (isAadhaarService && !isAwaitingAadhaarOtp) {
+        if (typeof data.otpToken !== 'string' || !data.otpToken) {
+          setError('The provider did not return an OTP session token, so the OTP cannot be verified.');
+          setResult(data.data);
+          return;
+        }
+
+        setAadhaarUidno(String(parameters.uidno).trim());
+        setAadhaarOtpToken(data.otpToken);
+        setAadhaarOtp('');
+        setResult(data.data);
+        return;
+      }
+
+      if (isAwaitingAadhaarOtp) {
+        setAadhaarOtpToken('');
+        setAadhaarUidno('');
+        setAadhaarOtp('');
       }
 
       setResult(data.data);
@@ -134,26 +182,46 @@ const StatusApiView = ({ theme = 'light' }) => {
           </div>
 
           <div className="status-api__field">
-            <label htmlFor="status-api-parameters">Request parameters</label>
-            <textarea
-              id="status-api-parameters"
-              value={parametersText}
-              onChange={event => setParametersText(event.target.value)}
-              rows={9}
-              spellCheck="false"
-              autoComplete="off"
-              aria-describedby="status-api-parameter-help"
-            />
-            <small id="status-api-parameter-help">
-              Enter a JSON object using the exact field names required by the provider. Do not include
-              {' '}<code>apikeyfill</code>.
-            </small>
+            {isAwaitingAadhaarOtp ? (
+              <>
+                <label htmlFor="status-api-otp">One-time password (OTP)</label>
+                <input
+                  id="status-api-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={aadhaarOtp}
+                  onChange={event => setAadhaarOtp(event.target.value)}
+                  aria-describedby="status-api-otp-help"
+                />
+                <small id="status-api-otp-help">
+                  Enter the OTP sent to the mobile number registered with Aadhaar.
+                </small>
+              </>
+            ) : (
+              <>
+                <label htmlFor="status-api-parameters">Request parameters</label>
+                <textarea
+                  id="status-api-parameters"
+                  value={parametersText}
+                  onChange={event => setParametersText(event.target.value)}
+                  rows={9}
+                  spellCheck="false"
+                  autoComplete="off"
+                  aria-describedby="status-api-parameter-help"
+                />
+                <small id="status-api-parameter-help">
+                  Enter a JSON object using the exact field names required by the provider. Do not include
+                  {' '}<code>apikeyfill</code>.
+                </small>
+              </>
+            )}
           </div>
 
           {error && <div className="status-api__alert" role="alert">{error}</div>}
 
           <button className="status-api__submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Checking…' : 'Run service'}
+            {isSubmitting ? 'Checking…' : isAwaitingAadhaarOtp ? 'Verify OTP' : isAadhaarService ? 'Send OTP' : 'Run service'}
           </button>
         </form>
 
@@ -164,7 +232,12 @@ const StatusApiView = ({ theme = 'light' }) => {
             <li>Enter its required fields as a JSON object.</li>
             <li>Run the service to see the provider response.</li>
           </ol>
-          {serviceId === 'mobile_number_plans' ? (
+          {isAadhaarService ? (
+            <p className="status-api__note">
+              Enter the 12-digit Aadhaar number and select <strong>Send OTP</strong>. After the OTP
+              is sent, an OTP field will appear here; enter it and select <strong>Verify OTP</strong>.
+            </p>
+          ) : serviceId === 'mobile_number_plans' ? (
             <div className="status-api__example">
               <strong>Mobile plans example</strong>
               <code>{'{"mobile_number":"9876543210"}'}</code>
