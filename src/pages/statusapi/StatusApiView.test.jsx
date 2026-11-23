@@ -71,6 +71,29 @@ describe('StatusApiView', () => {
     expect(screen.getByLabelText('Provider error details')).toHaveTextContent('"code": "103"');
   });
 
+  test('treats a failed provider status as a failure even when HTTP succeeds', async () => {
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        success: true,
+        data: { message: null, status: 'failed' }
+      })
+    });
+
+    render(<StatusApiView />);
+    fireEvent.change(screen.getByLabelText('Request parameters'), {
+      target: { value: '{"uidno":"123456789012"}' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send OTP' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The provider returned status "failed" without an explanation.'
+    );
+    expect(screen.getByLabelText('Provider error details')).toHaveTextContent('"status": "failed"');
+    expect(screen.queryByLabelText('One-time password (OTP)')).not.toBeInTheDocument();
+  });
+
   test('rejects malformed JSON before sending a request', async () => {
     render(<StatusApiView />);
     fireEvent.change(screen.getByLabelText('Request parameters'), {

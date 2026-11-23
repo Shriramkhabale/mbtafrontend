@@ -21,11 +21,21 @@ const formatResponse = value => (
   typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 );
 
-const getProviderMessage = providerData => (
-  providerData && typeof providerData === 'object'
-    ? providerData.response?.text || providerData.message
-    : ''
-);
+const isProviderFailure = providerData => {
+  if (!providerData || typeof providerData !== 'object') return false;
+  const status = String(providerData.status || '').trim().toLowerCase();
+  return providerData.success === false || ['failed', 'failure', 'error'].includes(status);
+};
+
+const getProviderMessage = providerData => {
+  if (!providerData || typeof providerData !== 'object') return '';
+  const status = String(providerData.status || 'failed').trim().toLowerCase();
+  return providerData.response?.text || providerData.message || (
+    isProviderFailure(providerData)
+      ? `The provider returned status "${status}" without an explanation.`
+      : ''
+  );
+};
 
 const StatusApiView = ({ theme = 'light' }) => {
   const [serviceId, setServiceId] = useState(STATUS_API_SERVICES[0].id);
@@ -122,7 +132,7 @@ const StatusApiView = ({ theme = 'light' }) => {
         return;
       }
 
-      if (data.data && typeof data.data === 'object' && data.data.success === false) {
+      if (isProviderFailure(data.data)) {
         setError(getProviderMessage(data.data) || 'The provider could not complete this request.');
         setProviderError(data.data);
         return;
