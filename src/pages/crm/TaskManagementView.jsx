@@ -450,6 +450,20 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
     setViewingTask(task);
     setQuickStatus(task.workStatus || 'Not Started');
     setQuickRemarks('');
+    // Asynchronously fetch complete single task details to ensure freshest status, remarks, and creator info
+    if (task && (task.taskId || task._id)) {
+      apiFetch(`/api/crm/tasks/${task.taskId || task._id}`, {
+        headers: getRequestHeaders()
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.success && data.task) {
+            setViewingTask(data.task);
+            setQuickStatus(data.task.workStatus || 'Not Started');
+          }
+        })
+        .catch((err) => console.warn('Could not fetch full task details:', err));
+    }
   };
 
   // Save Task (Create or Update)
@@ -755,7 +769,7 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
           t.dueDate || '',
           t.dueTime || '',
           t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '',
-          t.createdByName || t.createdByRole || '',
+          t.createdByName || t.createdBy?.name || (t.createdByRole === 'employee' ? (t.createdByUid || 'Employee') : 'Retailer'),
           t.completedAt ? new Date(t.completedAt).toLocaleDateString() : '',
           t.completedByName || '',
           t.completionRemarks || '',
@@ -2400,7 +2414,26 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                 </div>
                 <div className="meta-box">
                   <span className="meta-label">Created By</span>
-                  <span className="meta-val">{viewingTask.createdByName || viewingTask.createdByRole || 'Retailer'}</span>
+                  <span className="meta-val">
+                    {(() => {
+                      const creatorName = viewingTask.createdByName || viewingTask.createdBy?.name;
+                      const creatorUid = viewingTask.createdByUid || viewingTask.createdBy?.uid;
+                      const creatorRole = viewingTask.createdByRole || viewingTask.createdBy?.role;
+
+                      if (creatorRole === 'employee' || (creatorUid && creatorUid.includes('-EMP'))) {
+                        if (creatorName && creatorUid && creatorName !== creatorUid) {
+                          return `${creatorName} (${creatorUid})`;
+                        }
+                        return creatorName || creatorUid || 'Employee';
+                      }
+
+                      if (creatorName && creatorName.toLowerCase() !== 'retailer') {
+                        return creatorUid ? `${creatorName} (${creatorUid})` : creatorName;
+                      }
+
+                      return `Retailer (${creatorUid || viewingTask.retailerId || 'Owner'})`;
+                    })()}
+                  </span>
                 </div>
               </div>
 
