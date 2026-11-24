@@ -143,15 +143,41 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
     return hasUserAccess(effectivePermissions, 'crm.task.add');
   }, [isEmployee, effectivePermissions]);
 
-  const canEditTask = useMemo(() => {
-    if (!isEmployee) return true;
-    return hasUserAccess(effectivePermissions, 'crm.task.edit');
-  }, [isEmployee, effectivePermissions]);
+  // Permission Helpers
+  const canUserEditTask = useCallback(
+    (task) => {
+      if (!task) return false;
+      if (isEmployee) {
+        if (!hasUserAccess(effectivePermissions, 'crm.task.edit')) return false;
+        const isAssigned =
+          (task.assignedEmployees && task.assignedEmployees.some((e) => e.employeeUid === currentEmployeeUid)) ||
+          task.assignedToUid === currentEmployeeUid;
+        const isCreator =
+          (task.createdBy && task.createdBy.uid === currentEmployeeUid) || task.createdByUid === currentEmployeeUid;
+        return Boolean(isAssigned || isCreator);
+      }
+      // Retailer: can only edit when involved in the task
+      const isCreator =
+        task.createdByRole === 'retailer' ||
+        task.createdBy?.role === 'retailer' ||
+        task.createdByUid === activeRetailerId ||
+        task.createdBy?.uid === activeRetailerId;
+      const isAssignee =
+        task.assignmentType === 'retailer' ||
+        task.assignmentType === 'myself' ||
+        task.assignedToUid === activeRetailerId;
+      return Boolean(isCreator || isAssignee);
+    },
+    [isEmployee, effectivePermissions, currentEmployeeUid, activeRetailerId]
+  );
 
-  const canDeleteTask = useMemo(() => {
-    if (isEmployee) return false; // Strictly only retailers can delete tasks
-    return true;
-  }, [isEmployee]);
+  const canUserDeleteTask = useCallback(
+    (task) => {
+      if (isEmployee) return false; // Strictly only retailers can delete tasks
+      return canUserEditTask(task);
+    },
+    [isEmployee, canUserEditTask]
+  );
 
   // Common Request Headers
   const getRequestHeaders = useCallback(() => {
@@ -420,7 +446,10 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
   // Open Edit Modal
   const handleOpenEditModal = (task) => {
     setEditingTask(task);
-    const aType = task.assignmentType || 'myself';
+    let aType = task.assignmentType || 'myself';
+    if (!isEmployee && aType === 'retailer') {
+      aType = 'myself';
+    }
     let empUids = Array.isArray(task.assignedEmployees)
       ? task.assignedEmployees.map((e) => e.employeeUid).filter(Boolean)
       : [];
@@ -569,6 +598,14 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
   // Quick Status Update
   const handleUpdateStatus = async () => {
     if (!viewingTask || !quickStatus) return;
+    if (!canUserEditTask(viewingTask)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'View Only',
+        text: 'You cannot update this task because you are not directly involved.'
+      });
+      return;
+    }
     setUpdatingStatus(true);
     try {
       const res = await apiFetch(`/api/crm/tasks/${viewingTask.taskId || viewingTask._id}/status`, {
@@ -611,11 +648,11 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
 
   // Delete Task
   const handleDeleteTask = async (task) => {
-    if (!canDeleteTask) {
+    if (!canUserDeleteTask(task)) {
       Swal.fire({
         icon: 'warning',
         title: 'Restricted',
-        text: 'Only the retailer has permission to delete tasks.'
+        text: 'You cannot delete this task because you are not directly involved.'
       });
       return;
     }
@@ -1320,7 +1357,11 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                               {ev.priority}
                             </span>
                             <span className="task-meta-tag assignee">
-                              👤 {ev.assignmentType === 'employee' ? ev.assignedToName : 'Myself'}
+                              {ev.assignmentType === 'employee'
+                                ? `👔 ${ev.assignedToName || 'Employee'}`
+                                : ev.assignmentType === 'retailer'
+                                  ? `🏬 Retailer (${ev.assignedToUid || ev.retailerId || ''})`
+                                  : '👤 Retailer (Myself)'}
                             </span>
                           </div>
                         </div>
@@ -1388,7 +1429,11 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                         <h5 className="sidebar-task-title">{task.title}</h5>
                         <div className="sidebar-card-bottom">
                           <span className="sidebar-assignee">
-                            👤 {task.assignmentType === 'employee' ? task.assignedToName || 'Employee' : 'Myself'}
+                            {task.assignmentType === 'employee'
+                              ? `👔 ${task.assignedToName || 'Employee'}`
+                              : task.assignmentType === 'retailer'
+                                ? `🏬 Retailer (${task.assignedToUid || task.retailerId || ''})`
+                                : '👤 Retailer (Myself)'}
                           </span>
                           {task.isOverdue && <span className="sidebar-overdue-tag">Overdue</span>}
                         </div>
@@ -1626,7 +1671,7 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                               >
                                 👁️
                               </button>
-                              {canEditTask && (
+                              {canUserEditTask(task) && (
                                 <button
                                   className="task-act-btn edit"
                                   onClick={() => handleOpenEditModal(task)}
@@ -1635,7 +1680,7 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                                   ✏️
                                 </button>
                               )}
-                              {canDeleteTask && (
+                              {canUserDeleteTask(task) && (
                                 <button
                                   className="task-act-btn delete"
                                   onClick={() => handleDeleteTask(task)}
@@ -2435,21 +2480,35 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                     })()}
                   </span>
                 </div>
+                {viewingTask.reminderDateTime && (
+                  <div className="meta-box">
+                    <span className="meta-label">Reminder Alert</span>
+                    <span className="meta-val">🔔 {viewingTask.reminderDateTime.replace('T', ' ')}</span>
+                  </div>
+                )}
               </div>
 
-              {viewingTask.description && (
-                <div className="detail-section">
-                  <h4 className="detail-section-title">Description</h4>
-                  <div className="detail-text-box">{viewingTask.description}</div>
+              <div className="detail-section">
+                <h4 className="detail-section-title">Description</h4>
+                <div className="detail-text-box">
+                  {viewingTask.description && viewingTask.description.trim() ? (
+                    viewingTask.description
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No detailed description provided.</span>
+                  )}
                 </div>
-              )}
+              </div>
 
-              {viewingTask.notes && (
-                <div className="detail-section">
-                  <h4 className="detail-section-title">Notes / Checklist</h4>
-                  <div className="detail-text-box">{viewingTask.notes}</div>
+              <div className="detail-section">
+                <h4 className="detail-section-title">Notes / Checklist</h4>
+                <div className="detail-text-box">
+                  {viewingTask.notes && viewingTask.notes.trim() ? (
+                    viewingTask.notes
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No additional notes or checklist.</span>
+                  )}
                 </div>
-              )}
+              </div>
 
               {viewingTask.workStatus === 'Completed' && (
                 <div className="detail-section completion-banner">
@@ -2469,44 +2528,55 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
               )}
 
               {/* Status Updater Section */}
-              <div className="detail-section status-updater-card">
-                <h4 className="detail-section-title">Update Work Status</h4>
-                <div className="updater-row">
-                  <div className="updater-select-box">
-                    <label>Change Status:</label>
-                    <select
-                      value={quickStatus}
-                      onChange={(e) => setQuickStatus(e.target.value)}
-                      className="task-select"
+              {canUserEditTask(viewingTask) ? (
+                <div className="detail-section status-updater-card">
+                  <h4 className="detail-section-title">Update Work Status</h4>
+                  <div className="updater-row">
+                    <div className="updater-select-box">
+                      <label>Change Status:</label>
+                      <select
+                        value={quickStatus}
+                        onChange={(e) => setQuickStatus(e.target.value)}
+                        className="task-select"
+                      >
+                        {WORK_STATUSES.map((st) => (
+                          <option key={st.value} value={st.value}>
+                            {st.icon} {st.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="updater-input-box">
+                      <label>Progress Remarks / Completion Notes:</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Documents verified, awaiting customer signature..."
+                        value={quickRemarks}
+                        onChange={(e) => setQuickRemarks(e.target.value)}
+                        className="task-input"
+                      />
+                    </div>
+
+                    <button
+                      className="task-btn-primary update-btn"
+                      onClick={handleUpdateStatus}
+                      disabled={updatingStatus}
                     >
-                      {WORK_STATUSES.map((st) => (
-                        <option key={st.value} value={st.value}>
-                          {st.icon} {st.label}
-                        </option>
-                      ))}
-                    </select>
+                      {updatingStatus ? 'Updating...' : 'Save Status'}
+                    </button>
                   </div>
-
-                  <div className="updater-input-box">
-                    <label>Progress Remarks / Completion Notes:</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Documents verified, awaiting customer signature..."
-                      value={quickRemarks}
-                      onChange={(e) => setQuickRemarks(e.target.value)}
-                      className="task-input"
-                    />
-                  </div>
-
-                  <button
-                    className="task-btn-primary update-btn"
-                    onClick={handleUpdateStatus}
-                    disabled={updatingStatus}
-                  >
-                    {updatingStatus ? 'Updating...' : 'Save Status'}
-                  </button>
                 </div>
-              </div>
+              ) : (
+                <div className="detail-section status-updater-card" style={{ background: '#f8fafc', borderColor: '#e2e8f0', padding: '14px 18px', borderRadius: '10px' }}>
+                  <h4 className="detail-section-title" style={{ color: '#475569', marginBottom: '4px' }}>
+                    Work Status: <span className={`task-status-badge status-${(viewingTask.workStatus || '').replace(/\s+/g, '-').toLowerCase()}`} style={{ verticalAlign: 'middle', marginLeft: '6px' }}>{viewingTask.workStatus}</span>
+                  </h4>
+                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
+                    👁️ <em>View Only: You can monitor this task, but cannot edit or change status because you are not directly involved.</em>
+                  </p>
+                </div>
+              )}
 
               {/* Status History / Activity Log */}
               {Array.isArray(viewingTask.statusHistory) && viewingTask.statusHistory.length > 0 && (
@@ -2540,7 +2610,7 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
 
             <div className="task-modal-footer">
               <div className="footer-left">
-                {canDeleteTask && (
+                {canUserDeleteTask(viewingTask) && (
                   <button
                     className="task-btn-danger"
                     onClick={() => handleDeleteTask(viewingTask)}
@@ -2550,7 +2620,7 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                 )}
               </div>
               <div className="footer-right">
-                {canEditTask && (
+                {canUserEditTask(viewingTask) && (
                   <button
                     className="task-btn-secondary"
                     onClick={() => {
