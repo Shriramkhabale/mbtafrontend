@@ -408,8 +408,8 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
       startTime: '',
       dueTime: '',
       priority: 'Medium',
-      assignmentType: 'myself',
-      assignedEmployeeUids: [],
+      assignmentType: isEmployee ? 'myself' : 'myself',
+      assignedEmployeeUids: isEmployee && currentEmployeeUid ? [currentEmployeeUid] : [],
       notes: '',
       reminderDateTime: ''
     });
@@ -420,6 +420,13 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
   // Open Edit Modal
   const handleOpenEditModal = (task) => {
     setEditingTask(task);
+    const aType = task.assignmentType || 'myself';
+    let empUids = Array.isArray(task.assignedEmployees)
+      ? task.assignedEmployees.map((e) => e.employeeUid).filter(Boolean)
+      : [];
+    if (task.assignedToUid && !empUids.includes(task.assignedToUid) && task.assignedToUid.includes('-EMP')) {
+      empUids.push(task.assignedToUid);
+    }
     setFormData({
       title: task.title || '',
       description: task.description || '',
@@ -429,10 +436,8 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
       startTime: task.startTime || '',
       dueTime: task.dueTime || '',
       priority: task.priority || 'Medium',
-      assignmentType: task.assignmentType || 'myself',
-      assignedEmployeeUids: Array.isArray(task.assignedEmployees)
-        ? task.assignedEmployees.map((e) => e.employeeUid)
-        : [],
+      assignmentType: aType,
+      assignedEmployeeUids: empUids,
       notes: task.notes || '',
       reminderDateTime: task.reminderDateTime ? task.reminderDateTime.slice(0, 16) : ''
     });
@@ -463,8 +468,11 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
     if (formData.startDate && formData.dueDate && formData.dueDate < formData.startDate) {
       errors.dueDate = 'Due date cannot be earlier than start date';
     }
-    if (formData.assignmentType === 'employee' && (!formData.assignedEmployeeUids || formData.assignedEmployeeUids.length === 0)) {
-      errors.assignedEmployeeUids = 'Please select at least one employee';
+    if (formData.assignmentType === 'employee') {
+      const isSelfAssignment = isEmployee && formData.assignedEmployeeUids.length === 1 && formData.assignedEmployeeUids[0] === currentEmployeeUid;
+      if (!isSelfAssignment && (!formData.assignedEmployeeUids || formData.assignedEmployeeUids.length === 0)) {
+        errors.assignedEmployeeUids = 'Please select at least one employee';
+      }
     }
 
     if (Object.keys(errors).length > 0) {
@@ -474,9 +482,26 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
 
     setSavingTask(true);
     try {
+      let finalAssignmentType = formData.assignmentType;
+      let finalEmployeeUids = [...(formData.assignedEmployeeUids || [])];
+
+      if (isEmployee) {
+        if (formData.assignmentType === 'myself') {
+          finalAssignmentType = 'myself';
+          if (currentEmployeeUid && !finalEmployeeUids.includes(currentEmployeeUid)) {
+            finalEmployeeUids = [currentEmployeeUid];
+          }
+        } else if (formData.assignmentType === 'retailer') {
+          finalAssignmentType = 'retailer';
+          finalEmployeeUids = [];
+        }
+      }
+
       const payload = {
         retailerId: activeRetailerId,
-        ...formData
+        ...formData,
+        assignmentType: finalAssignmentType,
+        assignedEmployeeUids: finalEmployeeUids
       };
 
       let url = '/api/crm/tasks';
@@ -1513,13 +1538,15 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                   <tbody>
                     {tasks.map((task) => {
                       const isOverdue = task.isOverdue;
-                      let assignedLabel = 'Myself';
+                      let assignedLabel = task.assignedToName || 'Retailer';
                       if (task.assignmentType === 'employee') {
                         if (Array.isArray(task.assignedEmployees) && task.assignedEmployees.length > 0) {
                           assignedLabel = task.assignedEmployees.map((e) => e.employeeName).join(', ');
                         } else if (task.assignedToName) {
                           assignedLabel = task.assignedToName;
                         }
+                      } else if (task.assignmentType === 'retailer') {
+                        assignedLabel = 'Retailer';
                       }
 
                       return (
@@ -2075,78 +2102,199 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                   />
                 </div>
 
-                {!isEmployee && (
-                  <div className="task-form-group full-width assignment-box">
-                    <label className="assignment-label">Assignment</label>
-                    <div className="assignment-radio-group">
-                      <label className="assignment-radio">
-                        <input
-                          type="radio"
-                          name="assignmentType"
-                          value="myself"
-                          checked={formData.assignmentType === 'myself'}
-                          onChange={() => setFormData({ ...formData, assignmentType: 'myself', assignedEmployeeUids: [] })}
-                        />
-                        <span>Assign to Myself (Retailer)</span>
-                      </label>
-                      <label className="assignment-radio">
-                        <input
-                          type="radio"
-                          name="assignmentType"
-                          value="employee"
-                          checked={formData.assignmentType === 'employee'}
-                          onChange={() => setFormData({ ...formData, assignmentType: 'employee' })}
-                        />
-                        <span>Assign to Employee</span>
-                      </label>
-                    </div>
-
-                    {formData.assignmentType === 'employee' && (
-                      <div className="employee-select-section">
-                        <label className="required-label">Select Employee(s):</label>
-                        {employees.length === 0 ? (
-                          <p className="no-emp-msg">
-                            No active employees found under your shop. Please add an employee first in Employee Management.
-                          </p>
-                        ) : (
-                          <div className="employee-checkbox-list">
-                            {employees.map((emp) => {
-                              const isChecked = formData.assignedEmployeeUids.includes(emp.employeeUid);
-                              return (
-                                <label key={emp.employeeUid} className={`emp-check-item ${isChecked ? 'checked' : ''}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        setFormData({
-                                          ...formData,
-                                          assignedEmployeeUids: [...formData.assignedEmployeeUids, emp.employeeUid]
-                                        });
-                                      } else {
-                                        setFormData({
-                                          ...formData,
-                                          assignedEmployeeUids: formData.assignedEmployeeUids.filter((id) => id !== emp.employeeUid)
-                                        });
-                                      }
-                                    }}
-                                  />
-                                  <div className="emp-check-info">
-                                    <span className="emp-check-name">{emp.fullName}</span>
-                                    <span className="emp-check-uid">{emp.employeeUid} ({emp.designation || 'Staff'})</span>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {formErrors.assignedEmployeeUids && (
-                          <span className="field-err">{formErrors.assignedEmployeeUids}</span>
-                        )}
-                      </div>
+                <div className="task-form-group full-width assignment-box">
+                  <label className="assignment-label">
+                    Assignment <span className="text-orange">*</span>
+                    <span className="assignment-subtext">
+                      {isEmployee
+                        ? 'Assign this task to the shop owner, yourself, or a team member'
+                        : 'Assign to yourself or delegate to your shop employees'}
+                    </span>
+                  </label>
+                  <div className="assignment-radio-group">
+                    {isEmployee ? (
+                      <>
+                        <label className="assignment-radio">
+                          <input
+                            type="radio"
+                            name="assignmentType"
+                            value="retailer"
+                            checked={formData.assignmentType === 'retailer'}
+                            onChange={() =>
+                              setFormData({
+                                ...formData,
+                                assignmentType: 'retailer',
+                                assignedEmployeeUids: []
+                              })
+                            }
+                          />
+                          <span>🏬 Assign to Retailer ({activeRetailerId})</span>
+                        </label>
+                        <label className="assignment-radio">
+                          <input
+                            type="radio"
+                            name="assignmentType"
+                            value="myself"
+                            checked={
+                              formData.assignmentType === 'myself' ||
+                              (formData.assignmentType === 'employee' &&
+                                formData.assignedEmployeeUids.length === 1 &&
+                                formData.assignedEmployeeUids[0] === currentEmployeeUid)
+                            }
+                            onChange={() =>
+                              setFormData({
+                                ...formData,
+                                assignmentType: 'myself',
+                                assignedEmployeeUids: currentEmployeeUid ? [currentEmployeeUid] : []
+                              })
+                            }
+                          />
+                          <span>👤 Assign to Myself ({currentEmployeeName})</span>
+                        </label>
+                        <label className="assignment-radio">
+                          <input
+                            type="radio"
+                            name="assignmentType"
+                            value="employee"
+                            checked={
+                              formData.assignmentType === 'employee' &&
+                              !(
+                                formData.assignedEmployeeUids.length === 1 &&
+                                formData.assignedEmployeeUids[0] === currentEmployeeUid
+                              )
+                            }
+                            onChange={() =>
+                              setFormData({
+                                ...formData,
+                                assignmentType: 'employee',
+                                assignedEmployeeUids: []
+                              })
+                            }
+                          />
+                          <span>👥 Assign to Other Employee(s)</span>
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <label className="assignment-radio">
+                          <input
+                            type="radio"
+                            name="assignmentType"
+                            value="myself"
+                            checked={formData.assignmentType === 'myself'}
+                            onChange={() =>
+                              setFormData({
+                                ...formData,
+                                assignmentType: 'myself',
+                                assignedEmployeeUids: []
+                              })
+                            }
+                          />
+                          <span>👤 Assign to Myself (Retailer)</span>
+                        </label>
+                        <label className="assignment-radio">
+                          <input
+                            type="radio"
+                            name="assignmentType"
+                            value="employee"
+                            checked={formData.assignmentType === 'employee'}
+                            onChange={() =>
+                              setFormData({
+                                ...formData,
+                                assignmentType: 'employee'
+                              })
+                            }
+                          />
+                          <span>👥 Assign to Employee(s)</span>
+                        </label>
+                      </>
                     )}
                   </div>
-                )}
+
+                  {isEmployee && formData.assignmentType === 'retailer' && (
+                    <div className="assignment-selected-pill">
+                      <span>🏬 Assigned To:</span>
+                      <strong>Retailer / Shop Owner ({activeRetailerId})</strong>
+                    </div>
+                  )}
+
+                  {isEmployee &&
+                    (formData.assignmentType === 'myself' ||
+                      (formData.assignmentType === 'employee' &&
+                        formData.assignedEmployeeUids.length === 1 &&
+                        formData.assignedEmployeeUids[0] === currentEmployeeUid)) && (
+                      <div className="assignment-selected-pill">
+                        <span>👤 Assigned To:</span>
+                        <strong>
+                          {currentEmployeeName} ({currentEmployeeUid || 'You'})
+                        </strong>
+                      </div>
+                    )}
+
+                  {((!isEmployee && formData.assignmentType === 'employee') ||
+                    (isEmployee &&
+                      formData.assignmentType === 'employee' &&
+                      !(
+                        formData.assignedEmployeeUids.length === 1 &&
+                        formData.assignedEmployeeUids[0] === currentEmployeeUid
+                      ))) && (
+                    <div className="employee-select-section">
+                      <label className="required-label">Select Employee(s) to assign:</label>
+                      {employees.length === 0 ? (
+                        <p className="no-emp-msg">
+                          No active employees found under this shop.
+                        </p>
+                      ) : (
+                        <div className="employee-checkbox-list">
+                          {employees.map((emp) => {
+                            const isChecked = formData.assignedEmployeeUids.includes(emp.employeeUid);
+                            const isCurrent = isEmployee && emp.employeeUid === currentEmployeeUid;
+                            return (
+                              <label
+                                key={emp.employeeUid}
+                                className={`emp-check-item ${isChecked ? 'checked' : ''}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormData({
+                                        ...formData,
+                                        assignedEmployeeUids: [
+                                          ...formData.assignedEmployeeUids,
+                                          emp.employeeUid
+                                        ]
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        assignedEmployeeUids: formData.assignedEmployeeUids.filter(
+                                          (id) => id !== emp.employeeUid
+                                        )
+                                      });
+                                    }
+                                  }}
+                                />
+                                <div className="emp-check-info">
+                                  <span className="emp-check-name">
+                                    {emp.fullName} {isCurrent ? '(You)' : ''}
+                                  </span>
+                                  <span className="emp-check-uid">
+                                    {emp.employeeUid} ({emp.designation || 'Staff'})
+                                  </span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {formErrors.assignedEmployeeUids && (
+                        <span className="field-err">{formErrors.assignedEmployeeUids}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <div className="task-form-group full-width">
                   <label>Additional Notes / Checklist</label>
@@ -2235,7 +2383,9 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                       ? Array.isArray(viewingTask.assignedEmployees) && viewingTask.assignedEmployees.length > 0
                         ? viewingTask.assignedEmployees.map((e) => `${e.employeeName} (${e.employeeUid})`).join(', ')
                         : viewingTask.assignedToName || 'Employee'
-                      : 'Retailer (Myself)'}
+                      : viewingTask.assignmentType === 'retailer'
+                        ? `Retailer (${viewingTask.assignedToUid || viewingTask.retailerId})`
+                        : 'Retailer (Myself)'}
                   </span>
                 </div>
                 <div className="meta-box">

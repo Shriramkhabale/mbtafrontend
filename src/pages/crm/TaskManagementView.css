@@ -1928,8 +1928,36 @@
 
 .assignment-radio-group {
   display: flex;
-  gap: 20px;
+  gap: 16px;
+  flex-wrap: wrap;
   margin-bottom: 12px;
+}
+
+.assignment-subtext {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.assignment-selected-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.assignment-selected-pill span {
+  color: #64748b;
+  font-size: 12px;
 }
 
 .assignment-radio {
