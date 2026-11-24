@@ -6,6 +6,7 @@ import MyBillBookView from './MyBillBookView';
 import BankAccountDetailsView from './BankAccountDetailsView';
 import MoneyTransactionView from './MoneyTransactionView';
 import EmployeeManagementView from './EmployeeManagementView';
+import TaskManagementView from './TaskManagementView';
 import './CrmView.css';
 
 // Fallback initial cards if network is delayed (7 Total CRM Cards)
@@ -113,6 +114,7 @@ export default function CrmView({
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
       const perms = getStoredUserPermissions();
+      if (path.includes('task') && hasUserAccess(perms, 'crm.task.access')) return 'task';
       if (path.includes('customer') && hasUserAccess(perms, 'crm.customer.access')) return 'customer_management';
       if (path.includes('bill') && hasUserAccess(perms, 'crm.billbook.access')) return 'my_bill_book';
       if (path.includes('bank') && hasUserAccess(perms, 'crm.bank.access')) return 'bank_account_details';
@@ -193,6 +195,11 @@ export default function CrmView({
     const cid = (card.cardId || '').toLowerCase();
     const ctitle = (card.title || '').toLowerCase();
 
+    if (cid === 'task' || ctitle.includes('task')) {
+      if (!hasUserAccess(effectivePermissions, 'crm.task.access')) return;
+      setActiveSubView('task');
+      return;
+    }
     if (cid === 'customer_management' || ctitle.includes('customer')) {
       if (!hasUserAccess(effectivePermissions, 'crm.customer.access')) return;
       setActiveSubView('customer_management');
@@ -220,6 +227,16 @@ export default function CrmView({
     }
     setSelectedCard(card);
   };
+
+  if (activeSubView === 'task' && hasUserAccess(effectivePermissions, 'crm.task.access')) {
+    return (
+      <TaskManagementView
+        user={currentUser}
+        userPermissions={effectivePermissions}
+        onBack={() => setActiveSubView(null)}
+      />
+    );
+  }
 
   if (activeSubView === 'customer_management' && hasUserAccess(effectivePermissions, 'crm.customer.access')) {
     return (
