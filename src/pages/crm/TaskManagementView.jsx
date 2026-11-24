@@ -2022,7 +2022,7 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                 <div className="task-form-group full-width">
                   <label>Task Description</label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     placeholder="Detailed instructions or context for this assignment..."
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -2296,10 +2296,10 @@ export default function TaskManagementView({ user, onBack, userPermissions }) {
                   )}
                 </div>
 
-                <div className="task-form-group full-width">
+                <div className="task-form-group">
                   <label>Additional Notes / Checklist</label>
                   <textarea
-                    rows={2}
+                    rows={1}
                     placeholder="Reference links, phone numbers, notes or document numbers..."
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}

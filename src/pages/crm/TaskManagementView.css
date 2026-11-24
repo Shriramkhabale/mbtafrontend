@@ -1780,10 +1780,10 @@
 
 .task-modal-card {
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: 16px;
   width: 100%;
-  max-width: 680px;
-  max-height: 90vh;
+  max-width: 580px;
+  max-height: 88vh;
   overflow-y: auto;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -1791,12 +1791,12 @@
 }
 
 .task-modal-card.detail-modal {
-  max-width: 780px;
+  max-width: 680px;
 }
 
 .task-modal-header {
-  padding: 20px 24px;
-  border-bottom: 1.5px solid #f1f5f9;
+  padding: 12px 18px;
+  border-bottom: 1px solid #f1f5f9;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -1809,33 +1809,33 @@
 .modal-title-box {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .modal-icon {
-  font-size: 26px;
+  font-size: 20px;
 }
 
 .modal-title-box h3 {
-  margin: 0 0 3px 0;
-  font-size: 18px;
+  margin: 0;
+  font-size: 15px;
   font-weight: 800;
   color: #0f172a;
 }
 
 .modal-title-box p {
-  margin: 0;
-  font-size: 12.5px;
+  margin: 2px 0 0 0;
+  font-size: 11px;
   color: #64748b;
 }
 
 .task-modal-close-btn {
   background: #f1f5f9;
   border: none;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  font-size: 15px;
+  font-size: 13px;
   color: #64748b;
   cursor: pointer;
   display: flex;
@@ -1851,19 +1851,19 @@
 
 /* Modal Form Controls */
 .task-modal-form {
-  padding: 20px 24px;
+  padding: 12px 18px;
 }
 
 .task-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 8px 12px;
 }
 
 .task-form-group {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
 }
 
 .task-form-group.full-width {
@@ -1876,7 +1876,7 @@
 }
 
 .task-form-group label {
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #334155;
 }
@@ -1885,9 +1885,9 @@
 .task-select,
 .task-textarea {
   border: 1.5px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 9px 12px;
-  font-size: 13.5px;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
   color: #0f172a;
   outline: none;
   font-family: inherit;
@@ -1906,7 +1906,7 @@
 }
 
 .field-err {
-  font-size: 11.5px;
+  font-size: 11px;
   color: #ef4444;
   font-weight: 600;
 }
@@ -1915,56 +1915,56 @@
 .assignment-box {
   background: #f8fafc;
   border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: 10px;
+  padding: 8px 12px;
 }
 
 .assignment-label {
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 800;
   color: #0f172a;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .assignment-radio-group {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .assignment-subtext {
   display: block;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 500;
   color: #64748b;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .assignment-selected-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #1e40af;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  margin-top: 4px;
-  margin-bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  margin-top: 2px;
+  margin-bottom: 2px;
 }
 
 .assignment-selected-pill span {
   color: #64748b;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .assignment-radio {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #334155;
   cursor: pointer;
@@ -1973,27 +1973,27 @@
 .employee-select-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-top: 10px;
+  gap: 6px;
+  padding-top: 6px;
   border-top: 1px dashed #cbd5e1;
 }
 
 .employee-checkbox-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  max-height: 160px;
+  gap: 6px;
+  max-height: 110px;
   overflow-y: auto;
 }
 
 .emp-check-item {
   background: #ffffff;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 5px 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -2013,47 +2013,44 @@
 }
 
 .emp-check-name {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #0f172a;
 }
 
 .emp-check-uid {
-  font-size: 10.5px;
+  font-size: 10px;
   color: #64748b;
 }
 
 .no-emp-msg {
-  font-size: 12px;
+  font-size: 11.5px;
   color: #ef4444;
   margin: 0;
 }
 
 /* Modal Footer */
 .task-modal-footer {
-  padding: 16px 24px;
+  padding: 10px 18px;
   background: #f8fafc;
-  border-top: 1.5px solid #f1f5f9;
+  border-top: 1px solid #f1f5f9;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-radius: 0 0 20px 20px;
-}
-
-.footer-left,
-.footer-right {
-  display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
+  border-radius: 0 0 16px 16px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
 }
 
 .task-btn-primary {
   background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
   color: #ffffff;
   border: none;
-  padding: 9px 20px;
-  border-radius: 10px;
-  font-size: 13.5px;
+  padding: 7px 18px;
+  border-radius: 8px;
+  font-size: 12.5px;
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
@@ -2068,13 +2065,13 @@
 .task-btn-secondary {
   background: #ffffff;
   color: #475569;
-  border: 1.5px solid #cbd5e1;
-  padding: 8px 16px;
-  border-radius: 10px;
-  font-size: 13.5px;
+  border: 1px solid #cbd5e1;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .task-btn-secondary:hover {
